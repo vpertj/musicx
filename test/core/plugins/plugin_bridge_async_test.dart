@@ -1,4 +1,3 @@
-import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_bridge_async.dart';
 import 'package:musicx/core/plugins/plugin_loader.dart';
