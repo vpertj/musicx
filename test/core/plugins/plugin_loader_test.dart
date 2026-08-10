@@ -15,4 +15,38 @@ void main() {
     expect(funcs, contains('search'));
     expect(funcs, isNot(contains('platform')));
   });
+
+  test('loadPlugin surfaces JS syntax errors as PluginLoadException', () {
+    final runtime = JsRuntimeFactory.create();
+    final loader = PluginLoader(runtime);
+    expect(
+      () => loader.loadPlugin(
+        'module.exports = { platform: "demo", version: "0.1.0", @ };',
+      ),
+      throwsA(
+        isA<PluginLoadException>().having(
+          (e) => e.details,
+          'details',
+          contains('ERROR:'),
+        ),
+      ),
+    );
+  });
+
+  test('loadPlugin surfaces require() not supported at load time', () {
+    final runtime = JsRuntimeFactory.create();
+    final loader = PluginLoader(runtime);
+    expect(
+      () => loader.loadPlugin(
+        'require("fs"); module.exports = { platform: "demo", version: "0.1.0" };',
+      ),
+      throwsA(
+        isA<PluginLoadException>().having(
+          (e) => e.details,
+          'details',
+          contains('require() not supported'),
+        ),
+      ),
+    );
+  });
 }
