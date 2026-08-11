@@ -74,4 +74,39 @@ class PluginManager {
     }
     throw Exception('no plugin returned search results');
   }
+
+  /// 根据 musicItem 解析真实播放地址(走插件 getMediaSource,同步桥)。
+  Future<Map<String, dynamic>> resolveMediaSource(
+    Map<String, dynamic> musicItem, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final plugins = await listPlugins();
+    for (final plugin in plugins) {
+      try {
+        final source = await File(plugin.path).readAsString();
+        final result = await _sandbox.isolate(
+          () async {
+            final runtime = getJavascriptRuntime(xhr: false);
+            final loader = PluginLoader(runtime);
+            loader.loadPlugin(source);
+            final bridge = PluginBridge(runtime);
+            return bridge.callSync('getMediaSource', musicItem);
+          },
+          timeout: timeout,
+        );
+        if (result['url'] != null) return result;
+      } catch (_) {
+        // 继续尝试下一个插件
+      }
+    }
+    throw Exception('no plugin resolved media source');
+  }
+
+  /// 插件目录:平台应用支持目录下 plugins/。
+  static Directory pluginsDir() {
+    final base = Directory.systemTemp;
+    final dir = Directory('${base.path}/musicx_plugins');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    return dir;
+  }
 }
