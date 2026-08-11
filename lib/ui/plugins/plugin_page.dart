@@ -1,21 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
-import 'package:musicx/core/plugins/plugin_manager.dart';
 import 'package:musicx/core/search/search_controller.dart'
     show pluginManagerProvider;
 
-class PluginPage extends ConsumerWidget {
+class PluginPage extends ConsumerStatefulWidget {
   const PluginPage({super.key});
 
-  Future<void> _install(WidgetRef ref, BuildContext context) async {
-    final pathCtrl = TextEditingController();
+  @override
+  ConsumerState<PluginPage> createState() => _PluginPageState();
+}
+
+class _PluginPageState extends ConsumerState<PluginPage> {
+  final TextEditingController _pathCtrl = TextEditingController();
+  int _reload = 0;
+
+  @override
+  void dispose() {
+    _pathCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _install() async {
+    _pathCtrl.clear();
+    final messenger = ScaffoldMessenger.of(context);
     final path = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('安装插件'),
         content: TextField(
-          controller: pathCtrl,
+          controller: _pathCtrl,
           decoration: const InputDecoration(
             hintText: '输入插件 .js 文件路径',
             border: OutlineInputBorder(),
@@ -27,24 +41,25 @@ class PluginPage extends ConsumerWidget {
             child: const Text('取消'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, pathCtrl.text),
+            onPressed: () => Navigator.pop(ctx, _pathCtrl.text),
             child: const Text('安装'),
           ),
         ],
       ),
     );
     if (path == null || path.trim().isEmpty) return;
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(pluginManagerProvider).installFromFile(path.trim());
+      if (mounted) setState(() => _reload++);
       messenger.showSnackBar(const SnackBar(content: Text('插件安装成功')));
     } catch (e) {
+      if (mounted) setState(() => _reload++);
       messenger.showSnackBar(SnackBar(content: Text('安装失败:$e')));
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final manager = ref.watch(pluginManagerProvider);
     return Scaffold(
       appBar: AppBar(
@@ -53,11 +68,12 @@ class PluginPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: '安装插件',
-            onPressed: () => _install(ref, context),
+            onPressed: _install,
           ),
         ],
       ),
       body: FutureBuilder<List<PluginInfo>>(
+        key: ValueKey<int>(_reload),
         future: manager.listPlugins(),
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -80,12 +96,10 @@ class PluginPage extends ConsumerWidget {
                   tooltip: '卸载',
                   onPressed: () async {
                     await manager.uninstall(p);
-                    // 触发重建:更换 FutureBuilder 的 key 或刷新状态
-                    // (MVP 简化:重建页面)
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已卸载')));
-                    }
+                    if (mounted) setState(() => _reload++);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('已卸载')));
                   },
                 ),
               );

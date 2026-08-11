@@ -68,7 +68,7 @@ class PluginManager {
           timeout: timeout,
         );
         return result;
-      } catch (e) {
+      } catch (_) {
         // 单插件失败不阻断整体;循环继续
       }
     }
