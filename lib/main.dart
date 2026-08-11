@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'ui/home_shell.dart';
 
 void main() {
-  runApp(const MusicxApp());
+  runApp(const ProviderScope(child: MusicxApp()));
 }
 
 class MusicxApp extends StatelessWidget {
@@ -12,9 +14,7 @@ class MusicxApp extends StatelessWidget {
     return MaterialApp(
       title: 'MusicX',
       theme: ThemeData(colorSchemeSeed: Colors.deepPurple),
-      home: const Scaffold(
-        body: Center(child: Text('MusicX')),
-      ),
+      home: const HomeShell(),
     );
   }
 }
