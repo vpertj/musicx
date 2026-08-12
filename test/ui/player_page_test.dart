@@ -25,9 +25,11 @@ void main() {
 
     expect(find.text('测试曲'), findsOneWidget);
     expect(find.text('测试手'), findsOneWidget);
-    expect(find.byIcon(Icons.pause), findsOneWidget);
-    expect(find.byIcon(Icons.skip_next), findsOneWidget);
-    expect(find.byIcon(Icons.skip_previous), findsOneWidget);
+    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.repeat_rounded), findsOneWidget);
   });
 }
 

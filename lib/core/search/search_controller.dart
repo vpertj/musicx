@@ -39,4 +39,7 @@ class SearchController extends Notifier<SearchState> {
       state = SearchState(query: keyword, error: e.toString());
     }
   }
+
+  /// 清空搜索状态,回到空闲页。
+  void reset() => state = const SearchState();
 }

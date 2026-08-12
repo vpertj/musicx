@@ -4,6 +4,9 @@ import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/models/music_item.dart';
 
 void main() {
+  // 控制器 build 会实例化 PlayerService(just_audio),需要绑定平台通道
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   MusicItem _song(int i) => MusicItem(
         id: '$i', title: '歌$i', platform: 'demo', songId: '$i');
 

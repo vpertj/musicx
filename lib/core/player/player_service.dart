@@ -5,18 +5,28 @@ class PlayerService {
   final AudioPlayer _player = AudioPlayer();
   final _playing = StreamController<bool>.broadcast();
   final _position = StreamController<Duration>.broadcast();
+  final _duration = StreamController<Duration?>.broadcast();
+  final _completed = StreamController<void>.broadcast();
 
   PlayerService() {
     _player.playerStateStream.listen((state) {
       if (!_playing.isClosed) _playing.add(state.playing);
+      if (state.processingState == ProcessingState.completed) {
+        if (!_completed.isClosed) _completed.add(null);
+      }
     });
     _player.positionStream.listen((pos) {
       if (!_position.isClosed) _position.add(pos);
+    });
+    _player.durationStream.listen((d) {
+      if (!_duration.isClosed) _duration.add(d);
     });
   }
 
   Stream<bool> get playingStream => _playing.stream;
   Stream<Duration> get positionStream => _position.stream;
+  Stream<Duration?> get durationStream => _duration.stream;
+  Stream<void> get completedStream => _completed.stream;
   Duration? get duration => _player.duration;
 
   Future<void> playUrl(String url) async {
@@ -45,6 +55,8 @@ class PlayerService {
   void dispose() {
     _playing.close();
     _position.close();
+    _duration.close();
+    _completed.close();
     _player.dispose();
   }
 }
