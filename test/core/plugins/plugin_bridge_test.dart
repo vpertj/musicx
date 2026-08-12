@@ -17,19 +17,19 @@ void main() {
 
   test('callSync invokes plugin function with JSON args', () {
     final bridge = PluginBridge(runtime);
-    final result = bridge.callSync('getMediaSource', {'id': 'song1'});
+    final result = bridge.callSync('getMediaSource', [{'id': 'song1'}]);
     expect(result['url'], 'http://media/song1');
   });
 
   test('callSync throws PluginCallException on missing method', () {
     final bridge = PluginBridge(runtime);
-    expect(() => bridge.callSync('nope', {}), throwsA(isA<PluginCallException>()));
+    expect(() => bridge.callSync('nope', []), throwsA(isA<PluginCallException>()));
   });
 
   test('callSync wraps JS exceptions', () {
     final bridge = PluginBridge(runtime);
     expect(
-      () => bridge.callSync('boom', {}),
+      () => bridge.callSync('boom', []),
       throwsA(isA<PluginCallException>().having((e) => e.reason, 'reason', contains('kaboom'))),
     );
   });

@@ -7,7 +7,7 @@ module.exports = {
   platform: "demo",
   version: "0.2.0",
   srcUrl: "",
-  search: function (query) {
+  search: function (keyword, page, type) {
     return new Promise(function (resolve) {
       setTimeout(function () {
         resolve({

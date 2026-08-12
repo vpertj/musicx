@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
+import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
 import 'player_service.dart';
 
@@ -19,6 +20,9 @@ class PlayerState {
   final LoopMode repeatMode;
   final bool shuffle;
 
+  /// 当前歌曲歌词(解析后的时间行)。
+  final List<LyricLine> lyric;
+
   const PlayerState({
     this.queue = const [],
     this.currentIndex = -1,
@@ -28,6 +32,7 @@ class PlayerState {
     this.duration = Duration.zero,
     this.repeatMode = LoopMode.off,
     this.shuffle = false,
+    this.lyric = const [],
   });
 
   MusicItem? get current =>
@@ -45,6 +50,7 @@ class PlayerState {
     Duration? duration,
     LoopMode? repeatMode,
     bool? shuffle,
+    List<LyricLine>? lyric,
   }) {
     return PlayerState(
       queue: queue ?? this.queue,
@@ -55,6 +61,7 @@ class PlayerState {
       duration: duration ?? this.duration,
       repeatMode: repeatMode ?? this.repeatMode,
       shuffle: shuffle ?? this.shuffle,
+      lyric: lyric ?? this.lyric,
     );
   }
 }
@@ -207,9 +214,34 @@ class PlayerController extends Notifier<PlayerState> {
     return nextIdx;
   }
 
+  /// 播放本地下载的音频文件(不经过插件解析)。
+  Future<void> playLocal(MusicItem song, String filePath) async {
+    state = state.copyWith(
+      queue: [song],
+      currentIndex: 0,
+      isPlaying: false,
+      clearError: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+      lyric: const [],
+    );
+    try {
+      final service = ref.read(playerServiceProvider);
+      await service.playUrl('file://$filePath');
+      state = state.copyWith(isPlaying: true, clearError: true);
+    } catch (e) {
+      if (e.toString().contains('Loading interrupted')) return;
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报)。
+  int _playToken = 0;
+
   Future<void> _playCurrent() async {
     final current = state.current;
     if (current == null) return;
+    final token = ++_playToken;
     try {
       final manager = ref.read(pluginManagerProvider);
       final media =
@@ -217,8 +249,19 @@ class PlayerController extends Notifier<PlayerState> {
       final url = media['url'] as String;
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
-      state = state.copyWith(isPlaying: true, clearError: true);
+      // 获取歌词(不阻塞播放)
+      final lyricText = await manager.resolveLyric(current.toJson());
+      final lyric = parseLrc(lyricText);
+      if (token != _playToken) return;
+      state = state.copyWith(
+        isPlaying: true,
+        clearError: true,
+        lyric: lyric,
+      );
     } catch (e) {
+      if (token != _playToken) return;
+      // 旧加载被新请求打断不算错误
+      if (e.toString().contains('Loading interrupted')) return;
       state = state.copyWith(error: e.toString());
     }
   }

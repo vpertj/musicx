@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 
 void main() {
+  // fetch polyfill 经 rootBundle 加载,需要初始化 binding
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('e2e: install demo plugin, search, resolve real playable URL', () async {
     final tmp = Directory.systemTemp.createTempSync('musicx_e2e');
     addTearDown(() => tmp.deleteSync(recursive: true));

@@ -34,9 +34,10 @@ class PluginBridgeAsync {
   PluginBridgeAsync(this.runtime);
 
   /// 调用插件函数 [method] 并等待异步结果;超时抛 [PluginAsyncTimeoutException]。
+  /// [args] 按 MusicFree 协议以位置参数传给插件函数(如 search(keyword, page, type))。
   Future<Map<String, dynamic>> callAsync(
     String method,
-    Map<String, dynamic> args, {
+    List<dynamic> args, {
     Duration timeout = const Duration(seconds: 10),
   }) async {
     final id = DateTime.now().microsecondsSinceEpoch.toString();
@@ -45,8 +46,8 @@ class PluginBridgeAsync {
     _ensureResultListener();
 
     try {
-      // 遵循 Task 6 教训:参数直接嵌入 JSON 对象字面量,不套 JSON.parse。
-      // jsonEncode(method)/jsonEncode(id) 生成合法 JS 字符串字面量。
+      // 遵循 Task 6 教训:参数直接嵌入 JSON 数组字面量,不套 JSON.parse。
+      // jsonEncode(method) 生成合法 JS 字符串字面量。
       final js = '''
 (function(){
   var fn = globalThis.__musicx_export && globalThis.__musicx_export[${jsonEncode(method)}];
@@ -55,7 +56,7 @@ class PluginBridgeAsync {
     return;
   }
   try {
-    var p = fn(${jsonEncode(args)});
+    var p = fn.apply(null, ${jsonEncode(args)});
     if (p && typeof p.then === "function") {
       p.then(function(v){
         sendMessage('$_resultChannel', JSON.stringify({ id: ${jsonEncode(id)}, value: v === undefined ? null : v }));

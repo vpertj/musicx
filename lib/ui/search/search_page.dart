@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/search_controller.dart';
+import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/widgets/download_picker.dart';
+import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
+import 'package:musicx/core/plugins/plugin_info.dart';
+import 'package:musicx/models/music_item.dart';
 
-/// 搜索页:品牌头部 + 搜索历史/推荐 + 结果列表。
+/// 发现页:渐变品牌头部 + 搜索框 + 热门推荐/历史 + 插件引导。
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.onOpenPlugins});
 
@@ -46,7 +51,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _history.insert(0, keyword);
       if (_history.length > 8) _history.removeLast();
     });
-    ref.read(searchControllerProvider.notifier).search(keyword);
+    ref.read(searchControllerProvider.notifier)
+        .search(keyword, source: ref.read(searchSourceProvider));
+  }
+
+  /// 切换音源:更新全局设置;若已有搜索词则用新音源重新搜索。
+  void _selectSource(String? platform) {
+    ref.read(searchSourceProvider.notifier).select(platform);
+    final query = _controller.text.trim();
+    if (query.isNotEmpty) {
+      ref.read(searchControllerProvider.notifier).search(query, source: platform);
+    }
   }
 
   void _pickSuggestion(String keyword) {
@@ -72,7 +87,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               controller: _controller,
               onSubmit: _submit,
               onClear: _clear,
+              onOpenPlugins: widget.onOpenPlugins,
             ),
+            // 音源切换条
+            _SourceBar(selected: ref.watch(searchSourceProvider), onSelect: _selectSource),
             Expanded(
               child: hasQuery
                   ? _ResultView(
@@ -84,6 +102,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       onPlay: (index) => ref
                           .read(playerControllerProvider.notifier)
                           .playFromList(state.results, index),
+                      onLoadMore: () => ref
+                          .read(searchControllerProvider.notifier)
+                          .loadMore(),
+                      onAdd: (song) => showPlaylistPicker(context, ref, song),
+                      onDownload: (song) => showDownloadPicker(context, ref, song),
                     )
                   : _IdleView(
                       history: _history,
@@ -100,88 +123,116 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-/// 品牌头部 + 搜索框。
+/// 简洁头部:仅搜索框。
 class _Header extends StatelessWidget {
   const _Header({
     required this.controller,
     required this.onSubmit,
     required this.onClear,
+    this.onOpenPlugins,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
+  final VoidCallback? onOpenPlugins;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ShaderMask(
-                shaderCallback: (bounds) =>
-                    AppTheme.accentGradient.createShader(bounds),
-                child: Text(
-                  'MusicX',
-                  style: textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.accentGradient,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Text(
-                  'FREE',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '插件化音乐播放器',
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ],
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+      child: TextField(
+        controller: controller,
+        textInputAction: TextInputAction.search,
+        onSubmitted: onSubmit,
+        decoration: InputDecoration(
+          hintText: '搜索歌曲 / 歌手 / 专辑',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: '清空',
+                icon: const Icon(Icons.close_rounded, size: 20),
+                onPressed: onClear,
+              );
+            },
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: controller,
-            textInputAction: TextInputAction.search,
-            onSubmitted: onSubmit,
-            decoration: InputDecoration(
-              hintText: '搜索歌曲 / 歌手 / 专辑',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
-                builder: (context, value, _) {
-                  if (value.text.isEmpty) return const SizedBox.shrink();
-                  return IconButton(
-                    tooltip: '清空',
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    onPressed: onClear,
-                  );
-                },
+        ),
+      ),
+    );
+  }
+}
+
+/// 音源切换条:自动 + 已装插件,横滑选择。
+class _SourceBar extends ConsumerWidget {
+  const _SourceBar({required this.selected, required this.onSelect});
+
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<PluginInfo>>(
+      future: ref.read(pluginManagerProvider).listPlugins(),
+      builder: (context, snapshot) {
+        final plugins = snapshot.data ?? const <PluginInfo>[];
+        return SizedBox(
+          height: 46,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            itemCount: plugins.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final String? platform = i == 0 ? null : plugins[i - 1].platform;
+              return _SourceChip(
+                label: i == 0 ? '自动' : platform!,
+                selected: selected == platform,
+                onTap: () => onSelect(platform),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  const _SourceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: selected ? AppTheme.violet : scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Center(
+            child: Text(
+              label,
+              style: textTheme.labelMedium?.copyWith(
+                color: selected ? Colors.white : scheme.onSurfaceVariant,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -203,28 +254,44 @@ class _IdleView extends StatelessWidget {
   final VoidCallback onClearHistory;
   final VoidCallback? onOpenPlugins;
 
+  static const List<LinearGradient> _cardGradients = [
+    LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+    LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
+    LinearGradient(colors: [Color(0xFFA78BFA), Color(0xFF7C3AED)]),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 0, 24),
       children: [
-        Text(
-          '发现好音乐',
-          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '输入关键词,从已安装的插件源搜索全网音乐',
-          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        _SectionTitle('热门推荐', icon: Icons.local_fire_department_rounded),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 108,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(right: 20),
+            itemCount: suggestions.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final kw = suggestions[i];
+              return _SuggestionCard(
+                keyword: kw,
+                index: i,
+                onTap: () => onPick(kw),
+              );
+            },
+          ),
         ),
         if (history.isNotEmpty) ...[
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           Row(
             children: [
-              _SectionTitle('最近搜索'),
+              _SectionTitle('最近搜索', icon: Icons.history_rounded),
               const Spacer(),
               InkWell(
                 onTap: onClearHistory,
@@ -239,82 +306,67 @@ class _IdleView extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final kw in history)
-                ActionChip(
-                  avatar: Icon(Icons.history_rounded,
-                      size: 16, color: scheme.onSurfaceVariant),
-                  label: Text(kw),
-                  onPressed: () => onPick(kw),
-                ),
-            ],
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final kw in history)
+                  ActionChip(label: Text(kw), onPressed: () => onPick(kw)),
+              ],
+            ),
           ),
         ],
-        const SizedBox(height: 28),
-        _SectionTitle('热门推荐'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final kw in suggestions)
-              ActionChip(
-                avatar: Icon(Icons.local_fire_department_rounded,
-                    size: 16, color: AppTheme.pink),
-                label: Text(kw),
-                onPressed: () => onPick(kw),
-              ),
-          ],
-        ),
         if (onOpenPlugins != null) ...[
-          const SizedBox(height: 32),
-          Material(
-            color: scheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: onOpenPlugins,
+          const SizedBox(height: 28),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Material(
+              color: scheme.surfaceContainer,
               borderRadius: BorderRadius.circular(18),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.softGradient,
-                        borderRadius: BorderRadius.circular(13),
+              child: InkWell(
+                onTap: onOpenPlugins,
+                borderRadius: BorderRadius.circular(18),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.softGradient,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.extension_rounded,
+                            color: Colors.white, size: 20),
                       ),
-                      child: const Icon(Icons.extension_rounded,
-                          color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '音乐由插件驱动',
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '音乐由插件驱动',
+                              style: textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '前往插件页安装更多音乐源',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
+                            const SizedBox(height: 1),
+                            Text(
+                              '前往「我的」页安装更多音源',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(Icons.chevron_right_rounded, color: scheme.outline),
-                  ],
+                      Icon(Icons.chevron_right_rounded, color: scheme.outline),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -325,42 +377,153 @@ class _IdleView extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+/// 热门推荐横滑卡片:渐变底 + 序号 + 关键词。
+class _SuggestionCard extends StatelessWidget {
+  const _SuggestionCard({
+    required this.keyword,
+    required this.index,
+    required this.onTap,
+  });
 
-  final String text;
+  final String keyword;
+  final int index;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(context)
-          .textTheme
-          .titleSmall
-          ?.copyWith(fontWeight: FontWeight.w700),
+    final textTheme = Theme.of(context).textTheme;
+    final gradient =
+        _IdleView._cardGradients[index % _IdleView._cardGradients.length];
+
+    return Material(
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        width: 148,
+        decoration: BoxDecoration(gradient: gradient),
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -14,
+                bottom: -16,
+                child: Icon(
+                  Icons.music_note_rounded,
+                  size: 72,
+                  color: Colors.white.withValues(alpha: .16),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'TOP ${index + 1}',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: Colors.white.withValues(alpha: .75),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      keyword,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text, {this.icon});
+
+  final String text;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context)
+        .textTheme
+        .titleSmall
+        ?.copyWith(fontWeight: FontWeight.w700);
+    return Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 18, color: AppTheme.violet),
+          const SizedBox(width: 6),
+        ],
+        Text(text, style: style),
+      ],
     );
   }
 }
 
 /// 结果态:加载 / 错误 / 空 / 列表。
-class _ResultView extends StatelessWidget {
+class _ResultView extends StatefulWidget {
   const _ResultView({
     required this.state,
     required this.onRetry,
     required this.onPlayAll,
     required this.onPlay,
+    required this.onLoadMore,
+    this.onAdd,
+    this.onDownload,
   });
 
   final SearchState state;
   final VoidCallback onRetry;
   final VoidCallback onPlayAll;
   final ValueChanged<int> onPlay;
+  final VoidCallback onLoadMore;
+  final void Function(MusicItem)? onAdd;
+  final void Function(MusicItem)? onDownload;
+
+  @override
+  State<_ResultView> createState() => _ResultViewState();
+}
+
+class _ResultViewState extends State<_ResultView> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    // 滚动到底部附近时加载下一页
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 400) {
+      widget.onLoadMore();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     if (state.loading) return _LoadingView(query: state.query);
     if (state.error != null) {
-      return _ErrorView(error: state.error!, onRetry: onRetry);
+      return _ErrorView(error: state.error!, onRetry: widget.onRetry);
     }
     if (state.results.isEmpty) return _EmptyResultView(query: state.query);
 
@@ -388,7 +551,7 @@ class _ResultView extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               TextButton.icon(
-                onPressed: onPlayAll,
+                onPressed: widget.onPlayAll,
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.pink,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -402,6 +565,7 @@ class _ResultView extends StatelessWidget {
         const Divider(),
         Expanded(
           child: ListView.builder(
+            controller: _scroll,
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
             itemCount: state.results.length,
             itemBuilder: (context, index) {
@@ -409,7 +573,11 @@ class _ResultView extends StatelessWidget {
               return SongTile(
                 song: song,
                 showPlatform: true,
-                onTap: () => onPlay(index),
+                onTap: () => widget.onPlay(index),
+                onAdd: widget.onAdd == null ? null : () => widget.onAdd!(song),
+                onDownload: widget.onDownload == null
+                    ? null
+                    : () => widget.onDownload!(song),
               );
             },
           ),

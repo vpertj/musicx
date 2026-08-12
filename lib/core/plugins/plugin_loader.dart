@@ -19,11 +19,13 @@ class PluginLoadException implements Exception {
 
 /// 把 CommonJS 插件源码包进 IIFE,提供 module/exports/require,
 /// 并把导出挂到 globalThis.__musicx_export 供 Bridge 调用。
+/// require 使用 JsRuntimeFactory 注入的白名单注册表(__musicx_require),
+/// 以兼容 MusicFree 官方插件的运行时依赖(axios 等)。
 String cjsShim(String source) => '''
 var __musicx_module = { exports: {} };
 (function (module, exports, require) {
 $source
-})(__musicx_module, __musicx_module.exports, function (name) {
+})(__musicx_module, __musicx_module.exports, typeof __musicx_require === "function" ? __musicx_require : function (name) {
   throw new Error("require() not supported at load time: " + name);
 });
 globalThis.__musicx_export = __musicx_module.exports;

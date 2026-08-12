@@ -9,10 +9,12 @@ void main() {
       'artwork': 'http://x/a.jpg', 'duration': 210000,
       'platform': 'test-plugin', 'songId': 's1',
       'extra': {'quality': 'hq'},
+      'qualities': {'standard': {'size': 123}},
     };
     final item = MusicItem.fromJson(json);
     expect(item.title, '测试歌曲');
     expect(item.platform, 'test-plugin');
+    expect(item.qualities, isNotNull);
     expect(item.toJson(), json);
   });
 

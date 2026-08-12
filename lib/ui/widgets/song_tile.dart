@@ -13,6 +13,8 @@ class SongTile extends StatelessWidget {
     this.highlighted = false,
     this.showPlatform = false,
     this.artworkSize = 52,
+    this.onAdd,
+    this.onDownload,
   });
 
   final MusicItem song;
@@ -21,6 +23,12 @@ class SongTile extends StatelessWidget {
   final bool highlighted;
   final bool showPlatform;
   final double artworkSize;
+
+  /// 提供时显示「+」加入歌单按钮。
+  final VoidCallback? onAdd;
+
+  /// 提供时显示「下载」按钮。
+  final VoidCallback? onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +85,31 @@ class SongTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: trailing ?? (showPlatform ? PlatformBadge(platform: song.platform) : null),
+      trailing: trailing ??
+          (onAdd != null || onDownload != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showPlatform) PlatformBadge(platform: song.platform),
+                    if (onDownload != null)
+                      IconButton(
+                        tooltip: '下载',
+                        iconSize: 20,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.download_rounded),
+                        onPressed: onDownload,
+                      ),
+                    if (onAdd != null)
+                      IconButton(
+                        tooltip: '加入歌单',
+                        iconSize: 20,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        onPressed: onAdd,
+                      ),
+                  ],
+                )
+              : (showPlatform ? PlatformBadge(platform: song.platform) : null)),
     );
   }
 }

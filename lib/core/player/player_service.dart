@@ -30,8 +30,12 @@ class PlayerService {
   Duration? get duration => _player.duration;
 
   Future<void> playUrl(String url) async {
+    // 先停止旧播放,避免加载被打断抛 PlayerInterruptedException
+    await _player.stop();
     await _player.setUrl(url);
-    await _player.play();
+    // 注意:just_audio 的 play() 要等暂停/播完才返回,不能 await,
+    // 否则后续状态更新永远执行不到。播放状态经 playerStateStream 回调。
+    unawaited(_player.play());
   }
 
   Future<void> pause() async {

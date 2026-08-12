@@ -9,10 +9,10 @@ void main() {
     final runtime = JsRuntimeFactory.create();
     PluginLoader(runtime).loadPlugin(
       'module.exports = { platform: "demo", version: "0.1.0", '
-      'search: function(q){ return new Promise(function(resolve){ setTimeout(function(){ resolve({ list: [q.keyword] }); }, 30); }); } };',
+      'search: function(keyword){ return new Promise(function(resolve){ setTimeout(function(){ resolve({ list: [keyword] }); }, 30); }); } };',
     );
     final bridge = PluginBridgeAsync(runtime);
-    final result = await bridge.callAsync('search', {'keyword': '周杰伦'});
+    final result = await bridge.callAsync('search', ['周杰伦']);
     expect(result['list'], ['周杰伦']);
   });
 }

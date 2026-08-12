@@ -33,12 +33,12 @@ module.exports = { platform: "demo-source", version: "0.1.0", srcUrl: "",
       // search 返回 Promise → 走异步通道 callAsync。
       final asyncBridge = PluginBridgeAsync(runtime);
       final searchResult =
-          await asyncBridge.callAsync('search', {'keyword': '示例'});
+          await asyncBridge.callAsync('search', ['示例']);
       final first = (searchResult['data'] as List).first as Map<String, dynamic>;
 
       // getMediaSource 同步返回 → 走同步通道 callSync。
       final bridge = PluginBridge(runtime);
-      final media = bridge.callSync('getMediaSource', first);
+      final media = bridge.callSync('getMediaSource', [first]);
       return {
         'platform': meta['platform'],
         'title': first['title'],

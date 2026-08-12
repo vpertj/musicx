@@ -9,6 +9,9 @@ class MusicItem {
   final String songId;
   final Map<String, dynamic>? extra;
 
+  /// 音质信息(部分插件如完整版网易云依赖 qualities 解析播放地址)。
+  final Map<String, dynamic>? qualities;
+
   const MusicItem({
     required this.id,
     required this.title,
@@ -19,6 +22,7 @@ class MusicItem {
     required this.platform,
     required this.songId,
     this.extra,
+    this.qualities,
   });
 
   factory MusicItem.fromJson(Map<String, dynamic> json) {
@@ -39,6 +43,8 @@ class MusicItem {
       platform: platform,
       songId: songId,
       extra: (json['extra'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
+      qualities:
+          (json['qualities'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
     );
   }
 
@@ -46,5 +52,6 @@ class MusicItem {
         'id': id, 'title': title, 'artist': artist, 'album': album,
         'artwork': artwork, 'duration': duration,
         'platform': platform, 'songId': songId, 'extra': extra,
+        'qualities': qualities,
       };
 }

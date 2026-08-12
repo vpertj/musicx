@@ -34,5 +34,41 @@ void main() {
 
     expect(find.text('demo'), findsOneWidget);
     expect(find.text('v0.1.0'), findsOneWidget);
+
+    // 安装入口菜单:在线安装 / 导入订阅源 / 本地文件
+    await tester.tap(find.byTooltip('安装插件'));
+    await tester.pumpAndSettle();
+    expect(find.text('在线安装'), findsOneWidget);
+    expect(find.text('导入订阅源'), findsOneWidget);
+    expect(find.text('本地文件'), findsOneWidget);
+  });
+
+  testWidgets('PluginPage edit dialog prefills name and srcUrl', (tester) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
+        ],
+        child: const MaterialApp(home: PluginPage()),
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+
+    // 打开编辑弹窗
+    await tester.tap(find.byTooltip('编辑'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑音源'), findsOneWidget);
+    expect(find.text('音源名称'), findsOneWidget);
+    expect(find.text('音源地址 (srcUrl)'), findsOneWidget);
+
+    // 名称输入框预填当前音源名
+    final nameField = tester.widget<TextField>(find.byType(TextField).first);
+    expect(nameField.controller?.text, 'demo');
+
+    // 取消关闭弹窗
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑音源'), findsNothing);
   });
 }

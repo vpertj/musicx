@@ -16,7 +16,7 @@ void main() {
         'module.exports = { platform: "demo", version: "0.1.0", '
         'getMediaSource: function(){ return { url: "http://ok" }; } };',
       );
-      return PluginBridge(runtime).callSync('getMediaSource', {});
+      return PluginBridge(runtime).callSync('getMediaSource', [{}]);
     });
     expect(value['url'], 'http://ok');
   });

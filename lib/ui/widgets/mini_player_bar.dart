@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
 
-/// 底部常驻迷你播放条:封面 + 歌名/歌手 + 播放暂停;点击展开全屏播放器。
+/// 底部常驻迷你播放条:封面 + 歌名/歌手 + 播放暂停 + 播放进度条。
+/// 点击封面/歌名区域展开全屏播放器。
 class MiniPlayerBar extends ConsumerWidget {
   const MiniPlayerBar({super.key, required this.onOpen});
 
@@ -17,66 +19,105 @@ class MiniPlayerBar extends ConsumerWidget {
 
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final progress = state.duration.inMilliseconds > 0
+        ? (state.position.inMilliseconds / state.duration.inMilliseconds)
+            .clamp(0.0, 1.0)
+        : 0.0;
 
     return Material(
       color: scheme.surfaceContainer,
-      child: InkWell(
-        onTap: onOpen,
-        child: Container(
-          height: 66,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: Colors.white.withValues(alpha: .07)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 进度条(顶部细线,可点击跳转)
+          SizedBox(
+            height: 3,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: .5),
+                ),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progress,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: AppTheme.accentGradient,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              Hero(
-                tag: 'player-artwork',
-                child: ArtworkView(url: song.artwork, size: 46, radius: 10),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+          InkWell(
+            onTap: onOpen,
+            child: Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Hero(
+                    tag: 'player-artwork',
+                    child: ArtworkView(url: song.artwork, size: 44, radius: 10),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.artist ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      song.artist ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                  ),
+                  Text(
+                    _fmt(state.position),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: scheme.outline,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: state.isPlaying ? '暂停' : '播放',
+                    iconSize: 28,
+                    icon: Icon(
+                      state.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    onPressed: () =>
+                        ref.read(playerControllerProvider.notifier).togglePlay(),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: state.isPlaying ? '暂停' : '播放',
-                iconSize: 30,
-                icon: Icon(
-                  state.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-                onPressed: () =>
-                    ref.read(playerControllerProvider.notifier).togglePlay(),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  static String _fmt(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 }

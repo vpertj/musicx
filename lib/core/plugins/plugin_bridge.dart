@@ -13,9 +13,10 @@ class PluginBridge {
   final JavascriptRuntime runtime;
   PluginBridge(this.runtime);
 
-  Map<String, dynamic> callSync(String method, Map<String, dynamic> args) {
+  /// 同步调用插件函数 [method]。[args] 按 MusicFree 协议以位置参数传给插件函数。
+  Map<String, dynamic> callSync(String method, List<dynamic> args) {
     // jsonEncode(method) 生成合法的 JS 字符串字面量(含引号与转义),
-    // argsJson 同理 —— JSON 对象字面量本身就是合法 JS 表达式,
+    // argsJson 同理 —— JSON 数组字面量本身就是合法 JS 表达式,
     // 两者直接嵌入 JS 源码,不需要额外拼接。
     final methodKey = jsonEncode(method);
     final argsJson = jsonEncode(args);
@@ -24,7 +25,7 @@ class PluginBridge {
   var fn = globalThis.__musicx_export && globalThis.__musicx_export[$methodKey];
   if (typeof fn !== "function") { return JSON.stringify({ error: "method not found: " + $methodKey }); }
   try {
-    var out = fn($argsJson);
+    var out = fn.apply(null, $argsJson);
     return JSON.stringify({ value: out === undefined ? null : out });
   } catch (e) {
     return JSON.stringify({ error: String(e && e.message || e) });
