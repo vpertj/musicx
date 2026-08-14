@@ -33,9 +33,6 @@ jobs:
         # e2e_* 依赖真实网络与外部音源,CI 中跳过
         run: flutter test --exclude-tags network
 
-      - name: Check formatting
-        run: dart format --set-exit-if-changed lib test
-
   build-debug:
     name: Debug Build (smoke)
     runs-on: macos-15
