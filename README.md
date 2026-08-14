@@ -1,34 +1,34 @@
 # MusicX
 
-插件化、跨平台的免费音乐播放器(Flutter)。
+A plugin-based, cross-platform free music player (Flutter).
 
-## 当前进度
+## Current Progress
 
-- **Phase 1(已完成)**:插件运行时层——CommonJS 插件加载、JS↔Dart 桥、isolate 隔离与超时熔断、MusicFree 兼容数据模型。
-- **Phase 2(已完成)**:插件管理、搜索、播放(just_audio)与播放队列。
-- **Phase 2.5(已完成)**:全新现代化 UI——深色沉浸主题(紫→粉渐变强调)、迷你播放条、全屏播放器(渐变进度条/循环/随机/队列)、搜索页(历史/推荐/结果卡片)、插件卡片式管理。
+- **Phase 1 (Done)**: Plugin runtime layer — CommonJS plugin loading, JS↔Dart bridge, isolate isolation with timeout circuit breaker, MusicFree-compatible data models.
+- **Phase 2 (Done)**: Plugin management, search, playback (just_audio), and play queue.
+- **Phase 2.5 (Done)**: Brand-new modern UI — immersive dark theme (purple→pink gradient accents), mini player bar, full-screen player (gradient progress bar / loop / shuffle / queue), search page (history / recommendations / result cards), card-based plugin management.
 
-## 运行
+## Running
 
 ```bash
 flutter pub get
-flutter run -d macos   # 或 android / windows
+flutter run -d macos   # or android / windows
 ```
 
-1. 在"插件"页点击 + ,输入示例插件路径 `example/plugins/demo_plugin.js` 安装;
-2. 切到"搜索"页,输入任意关键词(如 `SoundHelix`),回车;
-3. 点击结果歌曲,即开始播放(示例插件返回 SoundHelix 公开测试音频)。
+1. On the "Plugins" page, tap + and install the sample plugin by entering its path `example/plugins/demo_plugin.js`;
+2. Switch to the "Search" page, type any keyword (e.g. `SoundHelix`), and press Enter;
+3. Tap a result song to start playback (the sample plugin returns SoundHelix's public test audio).
 
-## 测试
+## Testing
 
 ```bash
 flutter test
 ```
 
-## 架构
+## Architecture
 
-五层:UI(Flutter)→ 状态管理(Riverpod)→ 插件运行时层(QuickJS)→ 播放引擎(just_audio)→ 数据层(Drift,Phase 3)。
+Five layers: UI (Flutter) → State management (Riverpod) → Plugin runtime layer (QuickJS) → Playback engine (just_audio) → Data layer (Drift, Phase 3).
 
-## 协议合规
+## License Compliance
 
-自研实现,插件协议兼容 MusicFree(CommonJS 模块导出 platform/version/search/getMediaSource 等),不复制其源码(规避 AGPL 传染)。
+Self-built implementation; the plugin protocol is compatible with MusicFree (CommonJS modules exporting platform/version/search/getMediaSource, etc.) without copying its source code (to avoid AGPL contamination).
