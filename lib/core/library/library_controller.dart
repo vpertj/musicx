@@ -10,10 +10,7 @@ class LibraryState {
   final List<MusicItem> favorites;
   final List<Playlist> playlists;
 
-  const LibraryState({
-    this.favorites = const [],
-    this.playlists = const [],
-  });
+  const LibraryState({this.favorites = const [], this.playlists = const []});
 
   LibraryState copyWith({
     List<MusicItem>? favorites,
@@ -68,10 +65,12 @@ class LibraryController extends Notifier<LibraryState> {
 
   void _save(LibraryState s) {
     try {
-      dataFile().writeAsStringSync(jsonEncode({
-        'favorites': s.favorites.map((e) => e.toJson()).toList(),
-        'playlists': s.playlists.map((e) => e.toJson()).toList(),
-      }));
+      dataFile().writeAsStringSync(
+        jsonEncode({
+          'favorites': s.favorites.map((e) => e.toJson()).toList(),
+          'playlists': s.playlists.map((e) => e.toJson()).toList(),
+        }),
+      );
     } catch (_) {
       // 持久化失败不阻塞
     }
@@ -85,7 +84,9 @@ class LibraryController extends Notifier<LibraryState> {
   /// 喜欢/取消喜欢(按 id+platform 判重)。
   void toggleFavorite(MusicItem song) {
     final favs = List<MusicItem>.of(state.favorites);
-    final idx = favs.indexWhere((s) => s.id == song.id && s.platform == song.platform);
+    final idx = favs.indexWhere(
+      (s) => s.id == song.id && s.platform == song.platform,
+    );
     if (idx >= 0) {
       favs.removeAt(idx);
     } else {
@@ -95,8 +96,9 @@ class LibraryController extends Notifier<LibraryState> {
   }
 
   bool isFavorite(MusicItem song) {
-    return state.favorites
-        .any((s) => s.id == song.id && s.platform == song.platform);
+    return state.favorites.any(
+      (s) => s.id == song.id && s.platform == song.platform,
+    );
   }
 
   /// 新建歌单。
@@ -112,48 +114,60 @@ class LibraryController extends Notifier<LibraryState> {
 
   /// 重命名歌单。
   void renamePlaylist(String id, String name) {
-    _update(state.copyWith(
-      playlists: [
-        for (final p in state.playlists)
-          if (p.id == id) p.copyWith(name: name) else p,
-      ],
-    ));
+    _update(
+      state.copyWith(
+        playlists: [
+          for (final p in state.playlists)
+            if (p.id == id) p.copyWith(name: name) else p,
+        ],
+      ),
+    );
   }
 
   /// 删除歌单。
   void deletePlaylist(String id) {
-    _update(state.copyWith(
-      playlists: state.playlists.where((p) => p.id != id).toList(),
-    ));
+    _update(
+      state.copyWith(
+        playlists: state.playlists.where((p) => p.id != id).toList(),
+      ),
+    );
   }
 
   /// 添加歌曲到歌单(已存在则忽略)。
   void addSongToPlaylist(String playlistId, MusicItem song) {
-    _update(state.copyWith(
-      playlists: [
-        for (final p in state.playlists)
-          if (p.id == playlistId)
-            p.songs.any((s) => s.id == song.id && s.platform == song.platform)
-                ? p
-                : p.copyWith(songs: [...p.songs, song])
-          else
-            p,
-      ],
-    ));
+    _update(
+      state.copyWith(
+        playlists: [
+          for (final p in state.playlists)
+            if (p.id == playlistId)
+              p.songs.any((s) => s.id == song.id && s.platform == song.platform)
+                  ? p
+                  : p.copyWith(songs: [...p.songs, song])
+            else
+              p,
+        ],
+      ),
+    );
   }
 
   /// 从歌单移除歌曲。
   void removeSongFromPlaylist(String playlistId, MusicItem song) {
-    _update(state.copyWith(
-      playlists: [
-        for (final p in state.playlists)
-          if (p.id == playlistId)
-            p.copyWith(songs: p.songs
-                .where((s) => !(s.id == song.id && s.platform == song.platform))
-                .toList())
-          else
-            p,
-      ],
-    ));
+    _update(
+      state.copyWith(
+        playlists: [
+          for (final p in state.playlists)
+            if (p.id == playlistId)
+              p.copyWith(
+                songs: p.songs
+                    .where(
+                      (s) => !(s.id == song.id && s.platform == song.platform),
+                    )
+                    .toList(),
+              )
+            else
+              p,
+        ],
+      ),
+    );
   }
 }

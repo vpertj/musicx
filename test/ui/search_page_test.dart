@@ -33,12 +33,14 @@ void main() {
   tearDown(() => tmp.deleteSync(recursive: true));
 
   testWidgets('typing query and submitting shows song results', (tester) async {
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
-      ],
-      child: const MaterialApp(home: SearchPage()),
-    ));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
+        ],
+        child: const MaterialApp(home: SearchPage()),
+      ),
+    );
 
     await tester.runAsync(() async {
       await tester.enterText(find.byType(TextField), '示例');

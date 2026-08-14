@@ -6,8 +6,10 @@ class AppTheme {
 
   /// 品牌紫罗兰
   static const Color violet = Color(0xFF8B5CF6);
+
   /// 强调粉
   static const Color pink = Color(0xFFEC4899);
+
   /// 辅助橙
   static const Color orange = Color(0xFFF59E0B);
 
@@ -34,24 +36,24 @@ class AppTheme {
   );
 
   static ThemeData get dark => _build(
-        brightness: Brightness.dark,
-        background: bgDark,
-        surface: surfaceDark,
-        surfaceHi: surfaceDarkHi,
-        onSurface: const Color(0xFFEDE9F6),
-        muted: const Color(0xFF8B84A3),
-        outline: const Color(0xFF3E3557),
-      );
+    brightness: Brightness.dark,
+    background: bgDark,
+    surface: surfaceDark,
+    surfaceHi: surfaceDarkHi,
+    onSurface: const Color(0xFFEDE9F6),
+    muted: const Color(0xFF8B84A3),
+    outline: const Color(0xFF3E3557),
+  );
 
   static ThemeData get light => _build(
-        brightness: Brightness.light,
-        background: bgLight,
-        surface: surfaceLight,
-        surfaceHi: surfaceLightHi,
-        onSurface: const Color(0xFF1C1630),
-        muted: const Color(0xFF6B6591),
-        outline: const Color(0xFFD5CFE8),
-      );
+    brightness: Brightness.light,
+    background: bgLight,
+    surface: surfaceLight,
+    surfaceHi: surfaceLightHi,
+    onSurface: const Color(0xFF1C1630),
+    muted: const Color(0xFF6B6591),
+    outline: const Color(0xFFD5CFE8),
+  );
 
   static ThemeData _build({
     required Brightness brightness,
@@ -63,21 +65,26 @@ class AppTheme {
     required Color outline,
   }) {
     final isDark = brightness == Brightness.dark;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: violet,
-      brightness: brightness,
-    ).copyWith(
-      primary: isDark ? const Color(0xFFB39DFF) : const Color(0xFF6D28D9),
-      onPrimary: isDark ? const Color(0xFF1E0B46) : Colors.white,
-      secondary: pink,
-      onSurface: onSurface,
-      surface: surface,
-      surfaceContainer: surfaceHi,
-      surfaceContainerHigh: isDark ? const Color(0xFF241D38) : const Color(0xFFEAE5F5),
-      surfaceContainerHighest: isDark ? const Color(0xFF2A2242) : const Color(0xFFE2DCF1),
-      outline: outline,
-      error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: violet,
+          brightness: brightness,
+        ).copyWith(
+          primary: isDark ? const Color(0xFFB39DFF) : const Color(0xFF6D28D9),
+          onPrimary: isDark ? const Color(0xFF1E0B46) : Colors.white,
+          secondary: pink,
+          onSurface: onSurface,
+          surface: surface,
+          surfaceContainer: surfaceHi,
+          surfaceContainerHigh: isDark
+              ? const Color(0xFF241D38)
+              : const Color(0xFFEAE5F5),
+          surfaceContainerHighest: isDark
+              ? const Color(0xFF2A2242)
+              : const Color(0xFFE2DCF1),
+          outline: outline,
+          error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -125,10 +132,7 @@ class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
-          return IconThemeData(
-            color: selected ? onSurface : muted,
-            size: 23,
-          );
+          return IconThemeData(color: selected ? onSurface : muted, size: 23);
         }),
       ),
       cardTheme: CardThemeData(
@@ -137,7 +141,9 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: isDark ? .06 : .5)),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: isDark ? .06 : .5),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -146,7 +152,10 @@ class AppTheme {
         hintStyle: TextStyle(color: muted),
         prefixIconColor: muted,
         suffixIconColor: muted,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 13,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -209,10 +218,7 @@ class AppTheme {
         thickness: 1,
         space: 1,
       ),
-      listTileTheme: ListTileThemeData(
-        iconColor: muted,
-        textColor: onSurface,
-      ),
+      listTileTheme: ListTileThemeData(iconColor: muted, textColor: onSurface),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF2A2242) : const Color(0xFF35305C),

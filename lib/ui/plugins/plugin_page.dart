@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/search_controller.dart'
-    show pluginManagerProvider;
+    show pluginManagerProvider, pluginListProvider;
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';
 import 'package:musicx/theme/app_theme.dart';
@@ -67,6 +67,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     try {
       await ref.read(pluginManagerProvider).installFromFile(path.trim());
       if (mounted) setState(() => _reload++);
+      _bumpPluginList();
       messenger.showSnackBar(const SnackBar(content: Text('插件安装成功')));
     } catch (e) {
       if (mounted) setState(() => _reload++);
@@ -117,6 +118,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       final info = await manager.installFromUrl(url);
       if (!mounted) return;
       setState(() => _reload++);
+      _bumpPluginList();
       messenger.showSnackBar(
         SnackBar(content: Text('已安装插件「${info.platform}」v${info.version}')),
       );
@@ -194,6 +196,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             final info = await manager.installFromUrl(source.url);
             if (!mounted) return;
             setState(() => _reload++);
+            _bumpPluginList();
             messenger.showSnackBar(
               SnackBar(content: Text('已安装插件「${info.platform}」')),
             );
@@ -232,9 +235,11 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     final manager = ref.read(pluginManagerProvider);
     await manager.uninstall(p);
     if (mounted) setState(() => _reload++);
+    _bumpPluginList();
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('已卸载插件')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已卸载插件')));
   }
 
   /// 编辑已安装音源:修改音源名称与订阅地址(srcUrl),保存后立即生效。
@@ -242,19 +247,16 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     final messenger = ScaffoldMessenger.of(context);
     final result = await showDialog<({String name, String srcUrl})>(
       context: context,
-      builder: (_) => _EditSourceDialog(
-        name: p.platform,
-        srcUrl: p.srcUrl ?? '',
-      ),
+      builder: (_) =>
+          _EditSourceDialog(name: p.platform, srcUrl: p.srcUrl ?? ''),
     );
     if (result == null) return;
     try {
-      await ref.read(pluginManagerProvider).updatePlugin(
-            p,
-            name: result.name,
-            srcUrl: result.srcUrl,
-          );
+      await ref
+          .read(pluginManagerProvider)
+          .updatePlugin(p, name: result.name, srcUrl: result.srcUrl);
       if (mounted) setState(() => _reload++);
+      _bumpPluginList();
       messenger.showSnackBar(const SnackBar(content: Text('音源信息已更新')));
     } catch (e) {
       if (mounted) setState(() => _reload++);
@@ -264,7 +266,9 @@ class _PluginPageState extends ConsumerState<PluginPage> {
 
   /// 弹出默认音源选择器(自动 + 已装插件)。
   Future<void> _pickDefaultSource(
-      List<PluginInfo> plugins, String? current) async {
+    List<PluginInfo> plugins,
+    String? current,
+  ) async {
     const autoMark = '__auto__';
     final picked = await showModalBottomSheet<String>(
       context: context,
@@ -281,16 +285,22 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
                 child: Text(
                   '默认音源',
-                  style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               ListTile(
-                leading: Icon(Icons.auto_awesome_rounded,
-                    color: scheme.onSurfaceVariant),
+                leading: Icon(
+                  Icons.auto_awesome_rounded,
+                  color: scheme.onSurfaceVariant,
+                ),
                 title: const Text('自动'),
                 subtitle: Text(
                   '按顺序尝试所有已装音源',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 trailing: current == null
                     ? Icon(Icons.check_circle_rounded, color: AppTheme.violet)
@@ -306,13 +316,18 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                       gradient: AppTheme.softGradient,
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: const Icon(Icons.extension_rounded,
-                        color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.extension_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                   title: Text(p.platform),
                   subtitle: Text(
                     'v${p.version}',
-                    style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   trailing: current == p.platform
                       ? Icon(Icons.check_circle_rounded, color: AppTheme.violet)
@@ -326,8 +341,14 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       },
     );
     if (picked == null) return;
-    ref.read(searchSourceProvider.notifier)
+    ref
+        .read(searchSourceProvider.notifier)
         .select(picked == autoMark ? null : picked);
+  }
+
+  /// 插件列表已变更:使缓存的插件列表失效,下次读取时重新扫描。
+  void _bumpPluginList() {
+    ref.invalidate(pluginListProvider);
   }
 
   @override
@@ -396,55 +417,56 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
               child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-              _ProfileCard(
-                pluginCount: plugins.length,
-                onInstall: _installFromUrl,
-              ),
-              const SizedBox(height: 22),
-              Row(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 children: [
-                  const _SectionTitle2('已安装音源'),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: _installFromUrl,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.pink,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('安装'),
+                  _ProfileCard(
+                    pluginCount: plugins.length,
+                    onInstall: _installFromUrl,
                   ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              for (final p in plugins)
-                _PluginCard(
-                  plugin: p,
-                  selected: source == p.platform,
-                  onTap: () =>
-                      ref.read(searchSourceProvider.notifier).select(p.platform),
-                  onEdit: () => _editPlugin(p),
-                  onDelete: () => _uninstall(p),
-                ),
-              const SizedBox(height: 6),
-              Text(
-                '点击音源可设为默认,发现页搜索将优先使用',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      const _SectionTitle2('已安装音源'),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _installFromUrl,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.pink,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('安装'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  for (final p in plugins)
+                    _PluginCard(
+                      plugin: p,
+                      selected: source == p.platform,
+                      onTap: () => ref
+                          .read(searchSourceProvider.notifier)
+                          .select(p.platform),
+                      onEdit: () => _editPlugin(p),
+                      onDelete: () => _uninstall(p),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '点击音源可设为默认,发现页搜索将优先使用',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
-              ),
-              const SizedBox(height: 22),
-              const _SectionTitle2('通用'),
-              const SizedBox(height: 8),
-              _DefaultSourceRow(
-                current: source,
-                onTap: () => _pickDefaultSource(plugins, source),
-              ),
-              const SizedBox(height: 20),
-              const _AboutCard(),
-            ],
+                  ),
+                  const SizedBox(height: 22),
+                  const _SectionTitle2('通用'),
+                  const SizedBox(height: 8),
+                  _DefaultSourceRow(
+                    current: source,
+                    onTap: () => _pickDefaultSource(plugins, source),
+                  ),
+                  const SizedBox(height: 20),
+                  const _AboutCard(),
+                ],
               ),
             ),
           );
@@ -482,8 +504,11 @@ class _ProfileCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: .18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.music_note_rounded,
-                    color: Colors.white, size: 32),
+                child: const Icon(
+                  Icons.music_note_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -511,8 +536,10 @@ class _ProfileCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: .16),
                   borderRadius: BorderRadius.circular(14),
@@ -520,8 +547,11 @@ class _ProfileCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.extension_rounded,
-                        color: Colors.white, size: 15),
+                    const Icon(
+                      Icons.extension_rounded,
+                      color: Colors.white,
+                      size: 15,
+                    ),
                     const SizedBox(width: 5),
                     Text(
                       '$pluginCount 个插件',
@@ -551,10 +581,9 @@ class _SectionTitle2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: Theme.of(context)
-          .textTheme
-          .titleSmall
-          ?.copyWith(fontWeight: FontWeight.w700),
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 }
@@ -579,11 +608,17 @@ class _AboutCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 18, color: AppTheme.violet),
+              Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: AppTheme.violet,
+              ),
               const SizedBox(width: 6),
               Text(
                 '关于 MusicX',
-                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -632,15 +667,23 @@ class _DefaultSourceRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   '默认音源',
-                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
                 current ?? '自动',
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(width: 4),
-              Icon(Icons.chevron_right_rounded, size: 18, color: scheme.outline),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: scheme.outline,
+              ),
             ],
           ),
         ),
@@ -662,10 +705,12 @@ class _EditSourceDialog extends StatefulWidget {
 }
 
 class _EditSourceDialogState extends State<_EditSourceDialog> {
-  late final TextEditingController _nameCtrl =
-      TextEditingController(text: widget.name);
-  late final TextEditingController _urlCtrl =
-      TextEditingController(text: widget.srcUrl);
+  late final TextEditingController _nameCtrl = TextEditingController(
+    text: widget.name,
+  );
+  late final TextEditingController _urlCtrl = TextEditingController(
+    text: widget.srcUrl,
+  );
 
   @override
   void dispose() {
@@ -710,10 +755,10 @@ class _EditSourceDialogState extends State<_EditSourceDialog> {
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            (name: _nameCtrl.text, srcUrl: _urlCtrl.text),
-          ),
+          onPressed: () => Navigator.pop(context, (
+            name: _nameCtrl.text,
+            srcUrl: _urlCtrl.text,
+          )),
           child: const Text('保存'),
         ),
       ],
@@ -758,97 +803,107 @@ class _PluginCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: AppTheme.softGradient,
-              borderRadius: BorderRadius.circular(15),
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: AppTheme.softGradient,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.extension_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
-            child: const Icon(Icons.extension_rounded,
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  plugin.platform,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      'v${plugin.version}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    plugin.platform,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    if (plugin.srcUrl != null && plugin.srcUrl!.isNotEmpty) ...[
-                      const SizedBox(width: 8),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
                       Flexible(
                         child: Text(
-                          plugin.srcUrl!,
+                          'v${plugin.version}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodySmall?.copyWith(
-                            color: scheme.outline,
-                            fontSize: 10,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       ),
+                      if (plugin.srcUrl != null &&
+                          plugin.srcUrl!.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            plugin.srcUrl!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: scheme.outline,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // 启用状态指示
-          Tooltip(
-            message: plugin.enabled ? '已启用' : '已停用',
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: plugin.enabled
-                    ? const Color(0xFF34D399)
-                    : scheme.outline,
-                boxShadow: [
-                  BoxShadow(
-                    color: (plugin.enabled
-                            ? const Color(0xFF34D399)
-                            : scheme.outline)
-                        .withValues(alpha: .5),
-                    blurRadius: 6,
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(width: 6),
-          IconButton(
-            tooltip: '编辑',
-            icon: Icon(Icons.edit_outlined,
-                color: scheme.onSurfaceVariant),
-            onPressed: onEdit,
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            tooltip: '卸载',
-            icon: Icon(Icons.delete_outline_rounded,
-                color: scheme.onSurfaceVariant),
-            onPressed: onDelete,
-          ),
-        ],
+            const SizedBox(width: 8),
+            // 启用状态指示
+            Tooltip(
+              message: plugin.enabled ? '已启用' : '已停用',
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: plugin.enabled
+                      ? const Color(0xFF34D399)
+                      : scheme.outline,
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          (plugin.enabled
+                                  ? const Color(0xFF34D399)
+                                  : scheme.outline)
+                              .withValues(alpha: .5),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: '编辑',
+              icon: Icon(Icons.edit_outlined, color: scheme.onSurfaceVariant),
+              onPressed: onEdit,
+            ),
+            const SizedBox(width: 2),
+            IconButton(
+              tooltip: '卸载',
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
+              onPressed: onDelete,
+            ),
+          ],
         ),
       ),
     );
@@ -880,19 +935,27 @@ class _EmptyPlugins extends StatelessWidget {
                 gradient: AppTheme.softGradient,
                 borderRadius: BorderRadius.circular(28),
               ),
-              child: const Icon(Icons.extension_rounded,
-                  color: Colors.white, size: 42),
+              child: const Icon(
+                Icons.extension_rounded,
+                color: Colors.white,
+                size: 42,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               '尚未安装插件',
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               '在线安装或导入订阅源,启用搜索与播放',
               textAlign: TextAlign.center,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, height: 1.6),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
@@ -935,12 +998,16 @@ class _SourceSheet extends StatelessWidget {
               children: [
                 Text(
                   '订阅源插件',
-                  style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   '${sources.length} 个',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -961,20 +1028,27 @@ class _SourceSheet extends StatelessWidget {
                       gradient: AppTheme.softGradient,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.extension_rounded,
-                        color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.extension_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                   title: Text(
                     s.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   subtitle: Text(
                     s.version.isNotEmpty ? 'v${s.version}' : s.url,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   trailing: isInstalled
                       ? Text(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
@@ -35,10 +36,9 @@ class PlayerState {
     this.lyric = const [],
   });
 
-  MusicItem? get current =>
-      currentIndex >= 0 && currentIndex < queue.length
-          ? queue[currentIndex]
-          : null;
+  MusicItem? get current => currentIndex >= 0 && currentIndex < queue.length
+      ? queue[currentIndex]
+      : null;
 
   PlayerState copyWith({
     List<MusicItem>? queue,
@@ -77,6 +77,12 @@ final pluginManagerProvider = Provider<PluginManager>((ref) {
   return PluginManager(dir);
 });
 
+/// 已安装插件列表(缓存):插件安装/卸载/更新后调用
+/// `ref.invalidate(pluginListProvider)` 刷新,避免每次 build 都重新扫描磁盘。
+final pluginListProvider = FutureProvider<List<PluginInfo>>((ref) {
+  return ref.watch(pluginManagerProvider).listPlugins();
+});
+
 final playerControllerProvider =
     NotifierProvider<PlayerController, PlayerState>(PlayerController.new);
 
@@ -87,17 +93,23 @@ class PlayerController extends Notifier<PlayerState> {
   @override
   PlayerState build() {
     final service = ref.read(playerServiceProvider);
-    _subs.add(service.positionStream.listen(
-      (pos) => state = state.copyWith(position: pos),
-    ));
-    _subs.add(service.playingStream.listen((playing) {
-      if (state.isPlaying != playing) {
-        state = state.copyWith(isPlaying: playing);
-      }
-    }));
-    _subs.add(service.durationStream.listen(
-      (d) => state = state.copyWith(duration: d ?? Duration.zero),
-    ));
+    _subs.add(
+      service.positionStream.listen(
+        (pos) => state = state.copyWith(position: pos),
+      ),
+    );
+    _subs.add(
+      service.playingStream.listen((playing) {
+        if (state.isPlaying != playing) {
+          state = state.copyWith(isPlaying: playing);
+        }
+      }),
+    );
+    _subs.add(
+      service.durationStream.listen(
+        (d) => state = state.copyWith(duration: d ?? Duration.zero),
+      ),
+    );
     // 一首播完自动切下一首(遵循循环/随机模式)
     _subs.add(service.completedStream.listen((_) => next()));
     ref.onDispose(() {
@@ -124,7 +136,9 @@ class PlayerController extends Notifier<PlayerState> {
 
   /// 跳转到队列中的某一首。
   Future<void> playAt(int index) async {
-    if (index < 0 || index >= state.queue.length || index == state.currentIndex) {
+    if (index < 0 ||
+        index >= state.queue.length ||
+        index == state.currentIndex) {
       return;
     }
     state = state.copyWith(
@@ -244,8 +258,7 @@ class PlayerController extends Notifier<PlayerState> {
     final token = ++_playToken;
     try {
       final manager = ref.read(pluginManagerProvider);
-      final media =
-          await manager.resolveMediaSource(current.toJson());
+      final media = await manager.resolveMediaSource(current.toJson());
       final url = media['url'] as String;
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
@@ -253,11 +266,7 @@ class PlayerController extends Notifier<PlayerState> {
       final lyricText = await manager.resolveLyric(current.toJson());
       final lyric = parseLrc(lyricText);
       if (token != _playToken) return;
-      state = state.copyWith(
-        isPlaying: true,
-        clearError: true,
-        lyric: lyric,
-      );
+      state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
     } catch (e) {
       if (token != _playToken) return;
       // 旧加载被新请求打断不算错误

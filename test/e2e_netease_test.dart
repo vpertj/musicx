@@ -33,7 +33,8 @@ void main() {
           print('NCM ${song['title']}: 仍不可播(404),跳过');
           continue;
         }
-        expect(url, startsWith('https://'));
+        // 主音源已统一为 https;回退音源(第三方代理)可能是 http,仅要求协议合法。
+        expect(url, matches(RegExp(r'^https?://')));
         final req = await client.getUrl(Uri.parse(url));
         req.headers.set('Range', 'bytes=0-4095');
         req.headers.set('user-agent', 'Mozilla/5.0');

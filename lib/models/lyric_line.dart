@@ -5,7 +5,9 @@ class LyricLine {
 
   /// 解析单行 LRC,如 `[01:23.45]歌词`;无时间戳的元信息行返回 text 为空的实例。
   factory LyricLine.fromLrc(String rawLine) {
-    final match = RegExp(r'\[(\d+):(\d+)(?:[.:](\d+))?\](.*)').firstMatch(rawLine);
+    final match = RegExp(
+      r'\[(\d+):(\d+)(?:[.:](\d+))?\](.*)',
+    ).firstMatch(rawLine);
     if (match == null) {
       return const LyricLine(time: Duration.zero, text: '');
     }
@@ -30,9 +32,9 @@ List<LyricLine> parseLrc(String lrc) {
   final lines = <LyricLine>[];
   for (final raw in lrc.split('\n')) {
     // 多时间戳行 `[00:01][01:02]歌词` 展开为多行
-    final timestamps = RegExp(r'\[(\d+):(\d+)(?:[.:](\d+))?\]')
-        .allMatches(raw)
-        .toList();
+    final timestamps = RegExp(
+      r'\[(\d+):(\d+)(?:[.:](\d+))?\]',
+    ).allMatches(raw).toList();
     if (timestamps.isEmpty) continue;
     final text = raw.replaceAll(RegExp(r'\[[^\]]*\]'), '').trim();
     if (text.isEmpty) continue;
@@ -46,11 +48,16 @@ List<LyricLine> parseLrc(String lrc) {
             ? int.parse(millisRaw) * 10
             : int.parse(millisRaw.padRight(3, '0').substring(0, 3));
       }
-      lines.add(LyricLine(
-        time:
-            Duration(minutes: minutes, seconds: seconds, milliseconds: millis),
-        text: text,
-      ));
+      lines.add(
+        LyricLine(
+          time: Duration(
+            minutes: minutes,
+            seconds: seconds,
+            milliseconds: millis,
+          ),
+          text: text,
+        ),
+      );
     }
   }
   lines.sort((a, b) => a.time.compareTo(b.time));

@@ -23,9 +23,13 @@ class PluginInfo {
   }) {
     final platform = meta['platform'];
     final version = meta['version'];
-    if (platform is! String || platform.isEmpty ||
-        version is! String || version.isEmpty) {
-      throw ArgumentError('Plugin requires non-empty platform and version: $meta');
+    if (platform is! String ||
+        platform.isEmpty ||
+        version is! String ||
+        version.isEmpty) {
+      throw ArgumentError(
+        'Plugin requires non-empty platform and version: $meta',
+      );
     }
     return PluginInfo(
       platform: platform,

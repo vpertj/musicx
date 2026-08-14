@@ -30,7 +30,9 @@ Future<void> showPlaylistPicker(
               padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
               child: Text(
                 '加入歌单',
-                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Padding(
@@ -39,7 +41,9 @@ Future<void> showPlaylistPicker(
                 song.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
             ListTile(
@@ -51,24 +55,32 @@ Future<void> showPlaylistPicker(
               trailing: isFav
                   ? Text(
                       '已加入',
-                      style: textTheme.bodySmall?.copyWith(color: scheme.primary),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: scheme.primary,
+                      ),
                     )
                   : null,
               onTap: () {
                 notifier.toggleFavorite(song);
                 Navigator.pop(ctx);
-                messenger.showSnackBar(SnackBar(
-                  content: Text(isFav ? '已取消喜欢' : '已加入「我喜欢的音乐」'),
-                ));
+                messenger.showSnackBar(
+                  SnackBar(content: Text(isFav ? '已取消喜欢' : '已加入「我喜欢的音乐」')),
+                );
               },
             ),
             for (final p in state.playlists)
               ListTile(
                 leading: const Icon(Icons.queue_music_rounded),
-                title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 subtitle: Text(
                   '${p.songs.length} 首',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 onTap: () {
                   notifier.addSongToPlaylist(p.id, song);
@@ -99,7 +111,8 @@ Future<void> showPlaylistPicker(
                         child: const Text('取消'),
                       ),
                       FilledButton(
-                        onPressed: () => Navigator.pop(dctx, controller.text.trim()),
+                        onPressed: () =>
+                            Navigator.pop(dctx, controller.text.trim()),
                         child: const Text('创建'),
                       ),
                     ],

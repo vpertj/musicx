@@ -30,7 +30,10 @@ class MusicItem {
     final title = json['title'];
     final platform = json['platform'];
     final songId = json['songId'];
-    if (id is! String || title is! String || platform is! String || songId is! String) {
+    if (id is! String ||
+        title is! String ||
+        platform is! String ||
+        songId is! String) {
       throw ArgumentError('MusicItem requires id/title/platform/songId: $json');
     }
     return MusicItem(
@@ -43,15 +46,21 @@ class MusicItem {
       platform: platform,
       songId: songId,
       extra: (json['extra'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
-      qualities:
-          (json['qualities'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
+      qualities: (json['qualities'] as Map<String, dynamic>?)
+          ?.cast<String, dynamic>(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id, 'title': title, 'artist': artist, 'album': album,
-        'artwork': artwork, 'duration': duration,
-        'platform': platform, 'songId': songId, 'extra': extra,
-        'qualities': qualities,
-      };
+    'id': id,
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'artwork': artwork,
+    'duration': duration,
+    'platform': platform,
+    'songId': songId,
+    'extra': extra,
+    'qualities': qualities,
+  };
 }

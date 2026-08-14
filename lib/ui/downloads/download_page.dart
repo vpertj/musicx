@@ -37,19 +37,24 @@ class DownloadPage extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.download_for_offline_outlined,
-                      size: 56, color: scheme.outline),
+                  Icon(
+                    Icons.download_for_offline_outlined,
+                    size: 56,
+                    color: scheme.outline,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     '还没有下载的歌曲',
-                    style: textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '在搜索结果点「⬇」选择音质下载',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -75,7 +80,9 @@ class DownloadPage extends ConsumerWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: scheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
@@ -92,8 +99,10 @@ class DownloadPage extends ConsumerWidget {
                         tooltip: '删除下载',
                         iconSize: 20,
                         visualDensity: VisualDensity.compact,
-                        icon: Icon(Icons.delete_outline_rounded,
-                            color: scheme.onSurfaceVariant),
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          color: scheme.onSurfaceVariant,
+                        ),
                         onPressed: () => ref
                             .read(downloadControllerProvider.notifier)
                             .remove(d),

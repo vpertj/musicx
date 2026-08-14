@@ -48,7 +48,8 @@ class PluginBridgeAsync {
     try {
       // 遵循 Task 6 教训:参数直接嵌入 JSON 数组字面量,不套 JSON.parse。
       // jsonEncode(method) 生成合法 JS 字符串字面量。
-      final js = '''
+      final js =
+          '''
 (function(){
   var fn = globalThis.__musicx_export && globalThis.__musicx_export[${jsonEncode(method)}];
   if (typeof fn !== "function") {
@@ -75,7 +76,8 @@ class PluginBridgeAsync {
       if (result.isError) {
         // evaluate 本身报错(语法/运行时错误),而不是通道回传的 {error}。
         completer.completeError(
-            PluginCallException(method, result.stringResult));
+          PluginCallException(method, result.stringResult),
+        );
       }
       return await completer.future.timeout(
         timeout,
@@ -118,14 +120,16 @@ class PluginBridgeAsync {
     if (call == null) return; // 已超时/已清理,丢弃迟到消息。
     if (data.containsKey('error')) {
       call.completer.completeError(
-          PluginCallException(call.method, data['error'] as String));
+        PluginCallException(call.method, data['error'] as String),
+      );
     } else {
       final value = data['value'];
       if (value is Map<String, dynamic>) {
         call.completer.complete(value);
       } else {
-        call.completer.completeError(PluginCallException(
-            call.method, 'plugin returned non-object value'));
+        call.completer.completeError(
+          PluginCallException(call.method, 'plugin returned non-object value'),
+        );
       }
     }
   }

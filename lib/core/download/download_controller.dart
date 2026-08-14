@@ -3,14 +3,16 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:musicx/core/search/search_controller.dart' show pluginManagerProvider;
+import 'package:musicx/core/search/search_controller.dart'
+    show pluginManagerProvider;
 import 'package:musicx/models/downloaded_song.dart';
 import 'package:musicx/models/music_item.dart';
 
 /// 下载管理:下载歌曲、记录列表、本地删除。状态持久化到 ~/.musicx/downloads.json。
 final downloadControllerProvider =
     NotifierProvider<DownloadController, List<DownloadedSong>>(
-        DownloadController.new);
+      DownloadController.new,
+    );
 
 class DownloadController extends Notifier<List<DownloadedSong>> {
   /// 下载目录:优先 ~/Downloads/MusicX(沙箱已关闭),退回临时目录。
@@ -63,7 +65,8 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
   void _save() {
     try {
       _dataFile().writeAsStringSync(
-          jsonEncode(state.map((d) => d.toJson()).toList()));
+        jsonEncode(state.map((d) => d.toJson()).toList()),
+      );
     } catch (_) {}
   }
 

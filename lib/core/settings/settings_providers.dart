@@ -9,5 +9,6 @@ class SearchSourceNotifier extends Notifier<String?> {
   void select(String? source) => state = source;
 }
 
-final searchSourceProvider =
-    NotifierProvider<SearchSourceNotifier, String?>(SearchSourceNotifier.new);
+final searchSourceProvider = NotifierProvider<SearchSourceNotifier, String?>(
+  SearchSourceNotifier.new,
+);

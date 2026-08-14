@@ -24,18 +24,19 @@ class Playlist {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-        'songs': songs.map((s) => s.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'createdAt': createdAt.millisecondsSinceEpoch,
+    'songs': songs.map((s) => s.toJson()).toList(),
+  };
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
     return Playlist(
       id: json['id'] as String,
       name: json['name'] as String,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
-          (json['createdAt'] as num?)?.toInt() ?? 0),
+        (json['createdAt'] as num?)?.toInt() ?? 0,
+      ),
       songs: ((json['songs'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(MusicItem.fromJson)

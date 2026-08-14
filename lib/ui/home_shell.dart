@@ -54,9 +54,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const PluginPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const PluginPage()));
   }
 
   /// 从迷你播放条展开全屏播放器(底部滑入)。
@@ -90,7 +90,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final showMiniPlayer = hasSong && _index != 1;
     return Column(
       children: [
-        Expanded(child: IndexedStack(index: _index, children: _pages)),
+        Expanded(
+          child: IndexedStack(index: _index, children: _pages),
+        ),
         if (showMiniPlayer) MiniPlayerBar(onOpen: _openPlayer),
       ],
     );
@@ -242,7 +244,10 @@ class _Sidebar extends ConsumerWidget {
                     tooltip: '新建歌单',
                     iconSize: 18,
                     visualDensity: VisualDensity.compact,
-                    icon: Icon(Icons.add_rounded, color: scheme.onSurfaceVariant),
+                    icon: Icon(
+                      Icons.add_rounded,
+                      color: scheme.onSurfaceVariant,
+                    ),
                     onPressed: () => _createPlaylist(context, ref),
                   ),
                 ],
@@ -348,8 +353,11 @@ class _PlaylistNavItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           child: Row(
             children: [
-              Icon(Icons.queue_music_rounded,
-                  size: 17, color: scheme.onSurfaceVariant),
+              Icon(
+                Icons.queue_music_rounded,
+                size: 17,
+                color: scheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -357,15 +365,15 @@ class _PlaylistNavItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               Text(
                 '$count',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.outline,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: scheme.outline),
               ),
             ],
           ),
@@ -417,12 +425,11 @@ class _NavItem extends StatelessWidget {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w500,
-                        color: selected
-                            ? scheme.onSurface
-                            : scheme.onSurfaceVariant,
-                      ),
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? scheme.onSurface
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

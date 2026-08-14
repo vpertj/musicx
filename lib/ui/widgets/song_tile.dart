@@ -60,7 +60,9 @@ class SongTile extends StatelessWidget {
                   artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             if (artist.isNotEmpty && album.isNotEmpty)
@@ -85,7 +87,8 @@ class SongTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: trailing ??
+      trailing:
+          trailing ??
           (onAdd != null || onDownload != null
               ? Row(
                   mainAxisSize: MainAxisSize.min,

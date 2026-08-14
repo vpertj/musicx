@@ -20,8 +20,10 @@ class MiniPlayerBar extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final progress = state.duration.inMilliseconds > 0
-        ? (state.position.inMilliseconds / state.duration.inMilliseconds)
-            .clamp(0.0, 1.0)
+        ? (state.position.inMilliseconds / state.duration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          )
         : 0.0;
 
     return Material(
@@ -29,25 +31,31 @@ class MiniPlayerBar extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 进度条(顶部细线,可点击跳转)
+          // 进度条(顶部细线,点击/拖动可跳转)
           SizedBox(
-            height: 3,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ColoredBox(
-                  color: scheme.surfaceContainerHighest.withValues(alpha: .5),
-                ),
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: progress,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: AppTheme.accentGradient,
+            height: 6,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => _seekTo(context, ref, d.localPosition.dx),
+              onHorizontalDragUpdate: (d) =>
+                  _seekTo(context, ref, d.localPosition.dx),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: scheme.surfaceContainerHighest.withValues(alpha: .5),
+                  ),
+                  FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: AppTheme.accentGradient,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           InkWell(
@@ -103,8 +111,9 @@ class MiniPlayerBar extends ConsumerWidget {
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                     ),
-                    onPressed: () =>
-                        ref.read(playerControllerProvider.notifier).togglePlay(),
+                    onPressed: () => ref
+                        .read(playerControllerProvider.notifier)
+                        .togglePlay(),
                   ),
                 ],
               ),
@@ -113,6 +122,21 @@ class MiniPlayerBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 按点击横向位置跳转播放进度。
+  static void _seekTo(BuildContext context, WidgetRef ref, double dx) {
+    final state = ref.read(playerControllerProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    if (width <= 0 || state.duration.inMilliseconds <= 0) return;
+    final fraction = (dx / width).clamp(0.0, 1.0);
+    ref
+        .read(playerControllerProvider.notifier)
+        .seek(
+          Duration(
+            milliseconds: (state.duration.inMilliseconds * fraction).round(),
+          ),
+        );
   }
 
   static String _fmt(Duration d) {

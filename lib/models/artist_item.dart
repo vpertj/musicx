@@ -30,7 +30,10 @@ class ArtistItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id, 'name': name, 'platform': platform,
-        'artwork': artwork, 'extra': extra,
-      };
+    'id': id,
+    'name': name,
+    'platform': platform,
+    'artwork': artwork,
+    'extra': extra,
+  };
 }

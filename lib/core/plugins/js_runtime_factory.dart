@@ -1,11 +1,10 @@
 import 'package:flutter_js/flutter_js.dart';
-// enableXhr() 是 flutter_js 的独立 extension,未从主库导出
-import 'package:flutter_js/extensions/xhr.dart';
 import 'package:musicx/core/plugins/modules/axios_module.dart';
 import 'package:musicx/core/plugins/modules/cheerio_module.dart';
 import 'package:musicx/core/plugins/modules/crypto_js_module.dart';
 import 'package:musicx/core/plugins/modules/dayjs_module.dart';
 import 'package:musicx/core/plugins/modules/he_module.dart';
+import 'package:musicx/core/plugins/xhr_safe.dart';
 import 'dart:convert';
 
 /// require() 白名单注册表:插件可 require 的模块(与 MusicFree 宿主对齐)。
@@ -26,7 +25,9 @@ function __musicx_define(name, factory) {
   }
   __musicx_modules[name] = m.exports;
 }
-''';/// 基于 XMLHttpRequest shim 的 fetch polyfill(内联字符串版)。
+''';
+
+/// 基于 XMLHttpRequest shim 的 fetch polyfill(内联字符串版)。
 ///
 /// flutter_js 自带的 enableFetch() 通过 rootBundle 异步加载 fetch.js,
 /// 而插件运行在独立 isolate,rootBundle(ServicesBinding) 不可用,会抛
@@ -100,12 +101,12 @@ class JsRuntimeFactory {
   ///
   /// 插件在 PluginSandbox 的 Isolate.run 中执行,该环境无 ServicesBinding,
   /// 不能使用 flutter_js 的 enableFetch()(内部依赖 rootBundle)。这里改用
-  /// 同步的 enableXhr() + 内联 fetch polyfill,两处都不依赖主 isolate 资源。
+  /// 同步的 enableSafeXhr() + 内联 fetch polyfill,两处都不依赖主 isolate 资源。
   /// 同时注入 require 白名单模块(axios/dayjs/he/crypto-js/cheerio),
   /// 兼容 MusicFree 官方插件的运行时依赖。
   static JavascriptRuntime createIsolateSafe() {
     final runtime = getJavascriptRuntime(xhr: false);
-    runtime.enableXhr();
+    enableSafeXhr(runtime);
     runtime.evaluate(fetchPolyfillSource);
     runtime.evaluate(moduleRegistrySource);
     _defineModule(runtime, 'axios', axiosModuleSource);
@@ -114,13 +115,19 @@ class JsRuntimeFactory {
     _defineModule(runtime, 'crypto-js', crypto_jsModuleSource);
     _defineModule(runtime, 'cheerio', cheerioModuleSource);
     // MusicFree 宿主 env API(部分生态插件依赖,如读用户 cookie)
-    runtime.evaluate('globalThis.env = { getUserVariables: function () { return {}; } };');
+    runtime.evaluate(
+      'globalThis.env = { getUserVariables: function () { return {}; } };',
+    );
     return runtime;
   }
 
   static void _defineModule(
-      JavascriptRuntime runtime, String name, String source) {
-    final js = '__musicx_define(${jsonEncode(name)}, function (module, exports, require) {\n$source\n});';
+    JavascriptRuntime runtime,
+    String name,
+    String source,
+  ) {
+    final js =
+        '__musicx_define(${jsonEncode(name)}, function (module, exports, require) {\n$source\n});';
     final r = runtime.evaluate(js);
     if (r.isError) {
       throw StateError('failed to init module $name: ${r.stringResult}');

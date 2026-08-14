@@ -2,7 +2,8 @@
 ///
 /// 供插件运行时 require() 白名单使用,与 MusicFree 宿主环境对齐。
 /// 生成自:he.js,勿手改。
-const String heModuleSource = r'''/*! https://mths.be/he v1.2.0 by @mathias | MIT license */
+const String heModuleSource =
+    r'''/*! https://mths.be/he v1.2.0 by @mathias | MIT license */
 ;(function(root) {
 
 	// Detect free variables `exports`.

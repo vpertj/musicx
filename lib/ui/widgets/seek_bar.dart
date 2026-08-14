@@ -48,13 +48,17 @@ class _SeekBarState extends State<SeekBar> {
         final width = constraints.maxWidth;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (d) => _updateFromDx(d.localPosition.dx, width),
-          onHorizontalDragUpdate: (d) => _updateFromDx(d.localPosition.dx, width),
+          onHorizontalDragStart: (d) =>
+              _updateFromDx(d.localPosition.dx, width),
+          onHorizontalDragUpdate: (d) =>
+              _updateFromDx(d.localPosition.dx, width),
           onHorizontalDragEnd: (_) => _commit(),
           onTapDown: (d) {
             final f = (d.localPosition.dx / width).clamp(0.0, 1.0);
             widget.onSeekEnd?.call(
-              Duration(milliseconds: (widget.duration.inMilliseconds * f).round()),
+              Duration(
+                milliseconds: (widget.duration.inMilliseconds * f).round(),
+              ),
             );
           },
           child: SizedBox(
@@ -80,7 +84,7 @@ class _SeekBarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const trackH = 5.0;
+    const trackH = 6.0;
     final trackRect = Rect.fromLTWH(
       0,
       (size.height - trackH) / 2,
@@ -123,7 +127,7 @@ class _SeekBarPainter extends CustomPainter {
     }
 
     // 拇指
-    final thumbR = dragging ? 9.0 : 6.5;
+    final thumbR = dragging ? 10.0 : 7.5;
     final cx = size.width * fraction;
     final cy = size.height / 2;
     if (fraction > 0) {
@@ -133,11 +137,7 @@ class _SeekBarPainter extends CustomPainter {
         Paint()..color = AppTheme.pink.withValues(alpha: .35),
       );
     }
-    canvas.drawCircle(
-      Offset(cx, cy),
-      thumbR,
-      Paint()..color = Colors.white,
-    );
+    canvas.drawCircle(Offset(cx, cy), thumbR, Paint()..color = Colors.white);
   }
 
   @override

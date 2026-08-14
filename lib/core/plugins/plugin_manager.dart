@@ -13,8 +13,8 @@ class PluginManager {
   final PluginStore _store;
   final PluginSandbox _sandbox;
   PluginManager(this.rootDir)
-      : _store = PluginStore(rootDir),
-        _sandbox = PluginSandbox();
+    : _store = PluginStore(rootDir),
+      _sandbox = PluginSandbox();
 
   Future<List<PluginInfo>> listPlugins() async {
     final files = _store.scanPluginFiles();
@@ -49,12 +49,18 @@ class PluginManager {
     final meta = _store.parseMeta(body);
     final platform = meta['platform'];
     final version = meta['version'];
-    if (platform is! String || platform.isEmpty ||
-        version is! String || version.isEmpty) {
+    if (platform is! String ||
+        platform.isEmpty ||
+        version is! String ||
+        version.isEmpty) {
       throw ArgumentError('下载内容不是有效的插件(缺少 platform/version):$url');
     }
     final path = await _writePlugin(body, source: url);
-    return PluginInfo.fromJsMeta(meta, hash: await _store.sha256Of(File(path)), path: path);
+    return PluginInfo.fromJsMeta(
+      meta,
+      hash: await _store.sha256Of(File(path)),
+      path: path,
+    );
   }
 
   /// 拉取订阅源(plugins.json),返回插件条目列表。
@@ -179,7 +185,10 @@ class PluginManager {
     final m = re.firstMatch(tail);
     if (m != null) {
       return tail.replaceRange(
-          m.start, m.end, '${m.group(1)}$value${m.group(2)}');
+        m.start,
+        m.end,
+        '${m.group(1)}$value${m.group(2)}',
+      );
     }
     if (!insertIfMissing) {
       throw ArgumentError('插件文件中未找到 $field 字段');
@@ -195,8 +204,7 @@ class PluginManager {
       return tail.replaceRange(pm.end, pm.end, ', $field: "$value"');
     }
     // 在 platform 行的换行之后另起一行插入
-    return tail.replaceRange(
-        lineEnd + 1, lineEnd + 1, '  $field: "$value",\n');
+    return tail.replaceRange(lineEnd + 1, lineEnd + 1, '  $field: "$value",\n');
   }
 
   /// 搜索歌曲。[platform] 指定音源插件(不传则按顺序尝试全部,
@@ -212,31 +220,27 @@ class PluginManager {
       throw Exception('plugin not installed: $platform');
     }
     // 自动模式优先完整歌曲源,避免默认命中 iTunes 30 秒试听
-    final ordered = platform != null
-        ? plugins
-        : [...plugins]..sort((a, b) {
-            int prio(String p) => switch (p) {
-                  'netease' => 0,
-                  'kuwo' => 1,
-                  _ => 10,
-                };
-            return prio(a.platform).compareTo(prio(b.platform));
-          });
+    final ordered = platform != null ? plugins : [...plugins]
+      ..sort((a, b) {
+        int prio(String p) => switch (p) {
+          'netease' => 0,
+          'kuwo' => 1,
+          _ => 10,
+        };
+        return prio(a.platform).compareTo(prio(b.platform));
+      });
     for (final plugin in ordered) {
       if (platform != null && plugin.platform != platform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(
-          () async {
-            final runtime = JsRuntimeFactory.createIsolateSafe();
-            final loader = PluginLoader(runtime);
-            loader.loadPlugin(source);
-            final bridge = PluginBridgeAsync(runtime);
-            // MusicFree 协议:search(keyword, page, type) 位置参数
-            return bridge.callAsync('search', [keyword, page, 'music']);
-          },
-          timeout: timeout,
-        );
+        final result = await _sandbox.isolate(() async {
+          final runtime = JsRuntimeFactory.createIsolateSafe();
+          final loader = PluginLoader(runtime);
+          loader.loadPlugin(source);
+          final bridge = PluginBridgeAsync(runtime);
+          // MusicFree 协议:search(keyword, page, type) 位置参数
+          return bridge.callAsync('search', [keyword, page, 'music']);
+        }, timeout: timeout);
         // 宿主补全:MusicFree 协议中 platform/songId 由宿主填充,
         // 插件结果往往缺省(如 bilibili 只返回 id)。
         _normalizeResults(result, platform: plugin.platform);
@@ -251,7 +255,10 @@ class PluginManager {
   /// 补全搜索结果:platform 一律写入当前插件名(保证改名后播放路由一致,
   /// 避免插件内硬编码旧名导致 getMediaSource 匹配失败);
   /// songId 缺省时取 id。
-  void _normalizeResults(Map<String, dynamic> result, {required String platform}) {
+  void _normalizeResults(
+    Map<String, dynamic> result, {
+    required String platform,
+  }) {
     final data = result['data'];
     if (data is! List) return;
     for (final item in data) {
@@ -280,17 +287,14 @@ class PluginManager {
       if (wantPlatform != null && plugin.platform != wantPlatform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(
-          () async {
-            final runtime = JsRuntimeFactory.createIsolateSafe();
-            final loader = PluginLoader(runtime);
-            loader.loadPlugin(source);
-            final bridge = PluginBridgeAsync(runtime);
-            // MusicFree 协议:getMediaSource(musicItem, quality) 位置参数
-            return bridge.callAsync('getMediaSource', [musicItem, quality]);
-          },
-          timeout: timeout,
-        );
+        final result = await _sandbox.isolate(() async {
+          final runtime = JsRuntimeFactory.createIsolateSafe();
+          final loader = PluginLoader(runtime);
+          loader.loadPlugin(source);
+          final bridge = PluginBridgeAsync(runtime);
+          // MusicFree 协议:getMediaSource(musicItem, quality) 位置参数
+          return bridge.callAsync('getMediaSource', [musicItem, quality]);
+        }, timeout: timeout);
         if (result['url'] != null) {
           // 规范化播放地址:跟随重定向拿最终 URL,http 转 https(规避 macOS ATS)
           final raw = result['url'] as String;
@@ -317,17 +321,19 @@ class PluginManager {
       if (wantPlatform != null && plugin.platform != wantPlatform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(
-          () async {
-            final runtime = JsRuntimeFactory.createIsolateSafe();
-            final loader = PluginLoader(runtime);
-            loader.loadPlugin(source);
-            final bridge = PluginBridgeAsync(runtime);
-            // MusicFree 协议:getLyric(musicItem) 位置参数
-            return bridge.callAsync('getLyric', [musicItem]);
-          },
-          timeout: timeout,
-        );
+        final result = await _sandbox.isolate(() async {
+          final runtime = JsRuntimeFactory.createIsolateSafe();
+          final loader = PluginLoader(runtime);
+          loader.loadPlugin(source);
+          final bridge = PluginBridgeAsync(runtime);
+          // MusicFree 协议:getLyric(musicItem) 位置参数
+          return bridge.callAsync('getLyric', [musicItem]);
+        }, timeout: timeout);
+        // MusicFree 协议:插件可返回 `rawLrc`(歌词纯文本)或 `url`(歌词源地址)
+        final rawLrc = result['rawLrc'];
+        if (rawLrc is String && rawLrc.isNotEmpty) {
+          return rawLrc;
+        }
         final url = result['url'];
         if (url is String && url.isNotEmpty) {
           final client = http.Client();
@@ -367,15 +373,14 @@ class PluginManager {
   }
 
   /// 把插件返回的播放地址规范化:
-  /// 1. http:// 转 https://(macOS 沙箱 ATS 拦截明文 http)
-  /// 2. 跟随重定向(如网易云 media/outer/url 的 302),返回最终音频地址
+  /// 1. 跟随重定向(如网易云 media/outer/url 的 302),返回最终音频地址
+  /// 2. 不再强制 http→https:酷狗等 CDN 的 https 证书不匹配或返回 403,
+  ///    强制转 https 反而导致播放一会就中断。明文 http 已通过 Info.plist
+  ///    的 ATS 例外(NSAllowsArbitraryLoads)放行。
   /// 规范化失败时返回原地址,交由播放器自行处理。
   Future<String> _normalizeMediaUrl(String url) async {
     var u = url.trim();
     if (u.isEmpty) return u;
-    if (u.startsWith('http://')) {
-      u = 'https://${u.substring(7)}';
-    }
     final client = HttpClient();
     try {
       var current = Uri.parse(u);
@@ -385,7 +390,8 @@ class PluginManager {
             .timeout(const Duration(seconds: 4));
         req.followRedirects = false;
         req.headers.set('user-agent', 'Mozilla/5.0');
-        req.headers.set('referer', 'https://music.163.com/');
+        // 用目标自身域名做 referer,避免写死 music.163.com 导致其它源被拒
+        req.headers.set('referer', '${current.scheme}://${current.host}/');
         final resp = await req.close();
         final code = resp.statusCode;
         final loc = resp.headers.value(HttpHeaders.locationHeader);
@@ -396,11 +402,7 @@ class PluginManager {
         }
         break;
       }
-      var finalUrl = current.toString();
-      if (finalUrl.startsWith('http://')) {
-        finalUrl = 'https://${finalUrl.substring(7)}';
-      }
-      return finalUrl;
+      return current.toString();
     } catch (_) {
       return u;
     } finally {

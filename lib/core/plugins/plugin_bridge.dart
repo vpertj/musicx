@@ -20,7 +20,8 @@ class PluginBridge {
     // 两者直接嵌入 JS 源码,不需要额外拼接。
     final methodKey = jsonEncode(method);
     final argsJson = jsonEncode(args);
-    final js = '''
+    final js =
+        '''
 (function(){
   var fn = globalThis.__musicx_export && globalThis.__musicx_export[$methodKey];
   if (typeof fn !== "function") { return JSON.stringify({ error: "method not found: " + $methodKey }); }

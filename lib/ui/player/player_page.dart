@@ -26,10 +26,12 @@ class PlayerPage extends ConsumerWidget {
       extendBody: true,
       body: Container(
         decoration: const BoxDecoration(
+          // 顶部品牌紫光晕 + 底部深黑,营造沉浸氛围
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF241B4A), Color(0xFF0D0A16)],
+            colors: [Color(0xFF2E2356), Color(0xFF1A1330), Color(0xFF0D0A16)],
+            stops: [0, .45, 1],
           ),
         ),
         child: SafeArea(
@@ -91,6 +93,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
             ],
           ),
         ),
+        // 内容区:唱片 / 歌词(均不含进度条与控制,由底部固定控制台提供)
         Expanded(
           child: _showLyric
               ? _LyricView(
@@ -137,12 +140,13 @@ class _PlayerBodyState extends State<_PlayerBody> {
                               const SizedBox(height: 10),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .error
-                                      .withValues(alpha: .12),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.error.withValues(alpha: .12),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -151,8 +155,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: textTheme.bodySmall?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.error,
+                                    color: Theme.of(context).colorScheme.error,
                                   ),
                                 ),
                               ),
@@ -160,53 +163,16 @@ class _PlayerBodyState extends State<_PlayerBody> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 30),
-                        child: Column(
-                          children: [
-                            SeekBar(
-                              position: widget.state.position,
-                              duration: widget.state.duration,
-                              onSeekEnd: widget.ctrl.seek,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _TimeText(
-                                      formatDuration(widget.state.position)),
-                                  _TimeText(
-                                      formatDuration(widget.state.duration)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      _Controls(
-                        state: widget.state,
-                        ctrl: widget.ctrl,
-                      ),
-                      const SizedBox(height: 2),
-                      TextButton.icon(
-                        onPressed: () => _showQueue(context),
-                        style: TextButton.styleFrom(
-                          foregroundColor: scheme.onSurfaceVariant,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                        ),
-                        icon: const Icon(Icons.queue_music_rounded, size: 18),
-                        label:
-                            Text('播放队列 (${widget.state.queue.length})'),
-                      ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
+        ),
+        // 底部固定控制台:进度条 + 时间 + 控制按钮 + 播放队列,两种视图共用
+        _BottomConsole(
+          state: widget.state,
+          ctrl: widget.ctrl,
+          onShowQueue: () => _showQueue(context),
         ),
       ],
     );
@@ -249,17 +215,90 @@ class _ViewToggle extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16,
-                  color: selected ? Colors.white : scheme.onSurfaceVariant),
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? Colors.white : scheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: selected
-                          ? Colors.white
-                          : scheme.onSurfaceVariant,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
+                  color: selected ? Colors.white : scheme.onSurfaceVariant,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 底部固定控制台:进度条 + 时间 + 控制按钮 + 播放队列。
+/// 唱片 / 歌词视图共用,始终可见,避免歌词模式下无法控制播放。
+class _BottomConsole extends StatelessWidget {
+  const _BottomConsole({
+    required this.state,
+    required this.ctrl,
+    required this.onShowQueue,
+  });
+
+  final PlayerState state;
+  final PlayerController ctrl;
+  final VoidCallback onShowQueue;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black.withValues(alpha: .28)],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 6, 24, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 进度条 + 时间
+              SeekBar(
+                position: state.position,
+                duration: state.duration,
+                onSeekEnd: ctrl.seek,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _TimeText(formatDuration(state.position)),
+                    _TimeText(formatDuration(state.duration)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 2),
+              _Controls(state: state, ctrl: ctrl),
+              const SizedBox(height: 2),
+              // 播放队列入口
+              TextButton.icon(
+                onPressed: onShowQueue,
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.onSurfaceVariant,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
+                ),
+                icon: const Icon(Icons.queue_music_rounded, size: 18),
+                label: Text('播放队列 (${state.queue.length})'),
               ),
             ],
           ),
@@ -283,6 +322,9 @@ class _LyricView extends StatefulWidget {
 class _LyricViewState extends State<_LyricView> {
   final ScrollController _scroll = ScrollController();
 
+  /// 上一次高亮的歌词行,用于仅在行切换时滚动(避免每次进度更新都触发动画)。
+  int _lastIndex = -1;
+
   int get _currentIndex {
     var idx = -1;
     for (var i = 0; i < widget.lyric.length; i++) {
@@ -299,15 +341,19 @@ class _LyricViewState extends State<_LyricView> {
   void didUpdateWidget(covariant _LyricView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final idx = _currentIndex;
+    if (idx == _lastIndex) return;
+    _lastIndex = idx;
     if (idx >= 0 && _scroll.hasClients) {
-      final target = (idx * 44.0) - 100;
-      if (target >= 0) {
-        _scroll.animateTo(
-          target,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
+      // 估算行高:普通行 15px 字体 + 上下 padding 16 ≈ 40;高亮行稍高
+      // 目标:当前行尽量位于可视区中部(近似),保留上下留白
+      const lineHeight = 44.0;
+      final viewport = _scroll.position.viewportDimension;
+      final target = (idx * lineHeight) - (viewport / 2) + lineHeight / 2;
+      _scroll.animateTo(
+        target < 0 ? 0 : target,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 
@@ -330,8 +376,9 @@ class _LyricViewState extends State<_LyricView> {
             const SizedBox(height: 14),
             Text(
               '暂无歌词',
-              style: textTheme.bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -434,7 +481,8 @@ class _Artwork extends StatefulWidget {
   State<_Artwork> createState() => _ArtworkState();
 }
 
-class _ArtworkState extends State<_Artwork> with SingleTickerProviderStateMixin {
+class _ArtworkState extends State<_Artwork>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _spin;
 
   @override
@@ -596,10 +644,12 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPrev = state.currentIndex > 0 ||
+    final canPrev =
+        state.currentIndex > 0 ||
         state.repeatMode != LoopMode.off ||
         state.shuffle;
-    final canNext = state.currentIndex < state.queue.length - 1 ||
+    final canNext =
+        state.currentIndex < state.queue.length - 1 ||
         state.repeatMode != LoopMode.off ||
         state.shuffle;
     final repeatLabel = switch (state.repeatMode) {
@@ -612,39 +662,48 @@ class _Controls extends StatelessWidget {
       _ => Icons.repeat_rounded,
     };
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _RoundToggle(
-          tooltip: '随机播放',
-          icon: Icons.shuffle_rounded,
-          active: state.shuffle,
-          onPressed: ctrl.toggleShuffle,
-        ),
-        const SizedBox(width: 18),
-        IconButton(
-          tooltip: '上一首',
-          iconSize: 42,
-          icon: const Icon(Icons.skip_previous_rounded),
-          onPressed: canPrev ? ctrl.previous : null,
-        ),
-        const SizedBox(width: 12),
-        _PlayButton(playing: state.isPlaying, onPressed: ctrl.togglePlay),
-        const SizedBox(width: 12),
-        IconButton(
-          tooltip: '下一首',
-          iconSize: 42,
-          icon: const Icon(Icons.skip_next_rounded),
-          onPressed: canNext ? ctrl.next : null,
-        ),
-        const SizedBox(width: 18),
-        _RoundToggle(
-          tooltip: repeatLabel,
-          icon: repeatIcon,
-          active: state.repeatMode != LoopMode.off,
-          onPressed: ctrl.toggleRepeat,
-        ),
-      ],
+    // 窄屏(<380)使用紧凑间距与按钮,避免溢出
+    final compact = MediaQuery.sizeOf(context).width < 380;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _RoundToggle(
+            tooltip: '随机播放',
+            icon: Icons.shuffle_rounded,
+            active: state.shuffle,
+            onPressed: ctrl.toggleShuffle,
+          ),
+          SizedBox(width: compact ? 10 : 18),
+          IconButton(
+            tooltip: '上一首',
+            iconSize: compact ? 36 : 42,
+            icon: const Icon(Icons.skip_previous_rounded),
+            onPressed: canPrev ? ctrl.previous : null,
+          ),
+          SizedBox(width: compact ? 6 : 12),
+          _PlayButton(
+            playing: state.isPlaying,
+            onPressed: ctrl.togglePlay,
+            compact: compact,
+          ),
+          SizedBox(width: compact ? 6 : 12),
+          IconButton(
+            tooltip: '下一首',
+            iconSize: compact ? 36 : 42,
+            icon: const Icon(Icons.skip_next_rounded),
+            onPressed: canNext ? ctrl.next : null,
+          ),
+          SizedBox(width: compact ? 10 : 18),
+          _RoundToggle(
+            tooltip: repeatLabel,
+            icon: repeatIcon,
+            active: state.repeatMode != LoopMode.off,
+            onPressed: ctrl.toggleRepeat,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -679,10 +738,17 @@ class _RoundToggle extends StatelessWidget {
 
 /// 大号渐变播放 / 暂停键。
 class _PlayButton extends StatelessWidget {
-  const _PlayButton({required this.playing, required this.onPressed});
+  const _PlayButton({
+    required this.playing,
+    required this.onPressed,
+    this.compact = false,
+  });
 
   final bool playing;
   final VoidCallback onPressed;
+
+  /// 窄屏紧凑模式:缩小按钮尺寸。
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -701,8 +767,8 @@ class _PlayButton extends StatelessWidget {
         color: Colors.transparent,
         shape: const CircleBorder(),
         child: Ink(
-          width: 74,
-          height: 74,
+          width: compact ? 62 : 74,
+          height: compact ? 62 : 74,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: AppTheme.accentGradient,
@@ -712,7 +778,7 @@ class _PlayButton extends StatelessWidget {
             onTap: onPressed,
             child: Icon(
               playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: 42,
+              size: compact ? 36 : 42,
               color: Colors.white,
             ),
           ),
@@ -762,12 +828,16 @@ class _QueueSheet extends ConsumerWidget {
               children: [
                 Text(
                   '播放队列',
-                  style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   '${state.queue.length} 首',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -779,7 +849,9 @@ class _QueueSheet extends ConsumerWidget {
                     child: Center(
                       child: Text(
                         '队列为空,去搜索页添加歌曲吧',
-                        style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   )
@@ -795,8 +867,11 @@ class _QueueSheet extends ConsumerWidget {
                         highlighted: isCurrent,
                         onTap: () => ctrl.playAt(i),
                         trailing: isCurrent
-                            ? Icon(Icons.volume_up_rounded,
-                                size: 20, color: scheme.primary)
+                            ? Icon(
+                                Icons.volume_up_rounded,
+                                size: 20,
+                                color: scheme.primary,
+                              )
                             : null,
                       );
                     },
@@ -857,12 +932,16 @@ class _EmptyPlayer extends StatelessWidget {
                 const SizedBox(height: 20),
                 Text(
                   '暂无播放内容',
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '去搜索页发现好音乐吧',
-                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

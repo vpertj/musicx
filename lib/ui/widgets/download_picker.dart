@@ -27,7 +27,9 @@ Future<void> showDownloadPicker(
               padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
               child: Text(
                 '下载音质',
-                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Padding(
@@ -36,7 +38,9 @@ Future<void> showDownloadPicker(
                 song.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
             _QualityTile(
@@ -44,16 +48,8 @@ Future<void> showDownloadPicker(
               sub: '128kbps · 体积小',
               value: 'standard',
             ),
-            _QualityTile(
-              label: '高品音质',
-              sub: '320kbps · 推荐',
-              value: 'high',
-            ),
-            _QualityTile(
-              label: '无损音质',
-              sub: 'FLAC · 需要会员支持',
-              value: 'super',
-            ),
+            _QualityTile(label: '高品音质', sub: '320kbps · 推荐', value: 'high'),
+            _QualityTile(label: '无损音质', sub: 'FLAC · 需要会员支持', value: 'super'),
             const SizedBox(height: 8),
           ],
         ),
@@ -64,8 +60,9 @@ Future<void> showDownloadPicker(
 
   messenger.showSnackBar(SnackBar(content: Text('开始下载: ${song.title}…')));
   try {
-    final path =
-        await ref.read(downloadControllerProvider.notifier).download(song, quality);
+    final path = await ref
+        .read(downloadControllerProvider.notifier)
+        .download(song, quality);
     messenger.showSnackBar(SnackBar(content: Text('✅ 已下载: $path')));
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('下载失败: $e')));
@@ -95,7 +92,11 @@ class _QualityTile extends StatelessWidget {
           gradient: AppTheme.softGradient,
           borderRadius: BorderRadius.circular(11),
         ),
-        child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+        child: const Icon(
+          Icons.download_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
       ),
       title: Text(label),
       subtitle: Text(

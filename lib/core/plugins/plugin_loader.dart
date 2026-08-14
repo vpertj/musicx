@@ -21,7 +21,8 @@ class PluginLoadException implements Exception {
 /// 并把导出挂到 globalThis.__musicx_export 供 Bridge 调用。
 /// require 使用 JsRuntimeFactory 注入的白名单注册表(__musicx_require),
 /// 以兼容 MusicFree 官方插件的运行时依赖(axios 等)。
-String cjsShim(String source) => '''
+String cjsShim(String source) =>
+    '''
 var __musicx_module = { exports: {} };
 (function (module, exports, require) {
 $source
@@ -60,9 +61,6 @@ class PluginLoader {
     if (meta == null) {
       throw ArgumentError('Plugin does not export required platform/version');
     }
-    return {
-      ...meta,
-      'functions': decoded['functions'],
-    };
+    return {...meta, 'functions': decoded['functions']};
   }
 }

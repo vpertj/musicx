@@ -3,7 +3,7 @@ import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/models/music_item.dart';
 
 export 'package:musicx/core/player/player_controller.dart'
-    show pluginManagerProvider;
+    show pluginManagerProvider, pluginListProvider;
 export 'package:musicx/core/plugins/plugin_manager.dart' show PluginManager;
 
 class SearchState {
@@ -58,7 +58,12 @@ class SearchController extends Notifier<SearchState> {
           ? await manager.search(keyword, page: 1)
           : await manager.search(keyword, platform: source, page: 1);
       final items = _parse(result);
-      state = SearchState(query: keyword, results: items, source: source, page: 1);
+      state = SearchState(
+        query: keyword,
+        results: items,
+        source: source,
+        page: 1,
+      );
     } catch (e) {
       state = SearchState(query: keyword, error: e.toString(), source: source);
     }
@@ -90,14 +95,11 @@ class SearchController extends Notifier<SearchState> {
   List<MusicItem> _parse(Map<String, dynamic> result) {
     final data = (result['data'] as List? ?? const [])
         .cast<Map<String, dynamic>>();
-    return data
-        .map(MusicItem.fromJson)
-        .where((m) {
-          final d = m.duration;
-          if (d == null || d <= 0) return true; // 未知时长保留
-          return d >= _minSongDurationMs;
-        })
-        .toList();
+    return data.map(MusicItem.fromJson).where((m) {
+      final d = m.duration;
+      if (d == null || d <= 0) return true; // 未知时长保留
+      return d >= _minSongDurationMs;
+    }).toList();
   }
 
   /// 清空搜索状态,回到空闲页。

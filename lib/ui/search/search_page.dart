@@ -51,7 +51,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _history.insert(0, keyword);
       if (_history.length > 8) _history.removeLast();
     });
-    ref.read(searchControllerProvider.notifier)
+    ref
+        .read(searchControllerProvider.notifier)
         .search(keyword, source: ref.read(searchSourceProvider));
   }
 
@@ -60,7 +61,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref.read(searchSourceProvider.notifier).select(platform);
     final query = _controller.text.trim();
     if (query.isNotEmpty) {
-      ref.read(searchControllerProvider.notifier).search(query, source: platform);
+      ref
+          .read(searchControllerProvider.notifier)
+          .search(query, source: platform);
     }
   }
 
@@ -81,42 +84,54 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            _Header(
-              controller: _controller,
-              onSubmit: _submit,
-              onClear: _clear,
-              onOpenPlugins: widget.onOpenPlugins,
+        // 桌面宽屏内容限宽居中,与「我的」页保持一致
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              children: [
+                _Header(
+                  controller: _controller,
+                  onSubmit: _submit,
+                  onClear: _clear,
+                  onOpenPlugins: widget.onOpenPlugins,
+                ),
+                // 音源切换条
+                _SourceBar(
+                  selected: ref.watch(searchSourceProvider),
+                  onSelect: _selectSource,
+                ),
+                Expanded(
+                  child: hasQuery
+                      ? _ResultView(
+                          state: state,
+                          onRetry: () => _submit(state.query),
+                          onPlayAll: () => ref
+                              .read(playerControllerProvider.notifier)
+                              .playFromList(state.results, 0),
+                          onPlay: (index) => ref
+                              .read(playerControllerProvider.notifier)
+                              .playFromList(state.results, index),
+                          onLoadMore: () => ref
+                              .read(searchControllerProvider.notifier)
+                              .loadMore(),
+                          onAdd: (song) =>
+                              showPlaylistPicker(context, ref, song),
+                          onDownload: (song) =>
+                              showDownloadPicker(context, ref, song),
+                        )
+                      : _IdleView(
+                          history: _history,
+                          suggestions: _suggestions,
+                          onPick: _pickSuggestion,
+                          onClearHistory: () => setState(_history.clear),
+                          onOpenPlugins: widget.onOpenPlugins,
+                        ),
+                ),
+              ],
             ),
-            // 音源切换条
-            _SourceBar(selected: ref.watch(searchSourceProvider), onSelect: _selectSource),
-            Expanded(
-              child: hasQuery
-                  ? _ResultView(
-                      state: state,
-                      onRetry: () => _submit(state.query),
-                      onPlayAll: () => ref
-                          .read(playerControllerProvider.notifier)
-                          .playFromList(state.results, 0),
-                      onPlay: (index) => ref
-                          .read(playerControllerProvider.notifier)
-                          .playFromList(state.results, index),
-                      onLoadMore: () => ref
-                          .read(searchControllerProvider.notifier)
-                          .loadMore(),
-                      onAdd: (song) => showPlaylistPicker(context, ref, song),
-                      onDownload: (song) => showDownloadPicker(context, ref, song),
-                    )
-                  : _IdleView(
-                      history: _history,
-                      suggestions: _suggestions,
-                      onPick: _pickSuggestion,
-                      onClearHistory: () => setState(_history.clear),
-                      onOpenPlugins: widget.onOpenPlugins,
-                    ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -165,7 +180,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// 音源切换条:自动 + 已装插件,横滑选择。
+/// 音源切换条:自动 + 已装插件,自适应换行展示。
 class _SourceBar extends ConsumerWidget {
   const _SourceBar({required this.selected, required this.onSelect});
 
@@ -174,28 +189,26 @@ class _SourceBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<List<PluginInfo>>(
-      future: ref.read(pluginManagerProvider).listPlugins(),
-      builder: (context, snapshot) {
-        final plugins = snapshot.data ?? const <PluginInfo>[];
-        return SizedBox(
-          height: 46,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            itemCount: plugins.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final String? platform = i == 0 ? null : plugins[i - 1].platform;
-              return _SourceChip(
-                label: i == 0 ? '自动' : platform!,
-                selected: selected == platform,
-                onTap: () => onSelect(platform),
-              );
-            },
+    final plugins = ref.watch(pluginListProvider).value ?? const <PluginInfo>[];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _SourceChip(
+            label: '自动',
+            selected: selected == null,
+            onTap: () => onSelect(null),
           ),
-        );
-      },
+          for (final p in plugins)
+            _SourceChip(
+              label: p.platform,
+              selected: selected == p.platform,
+              onTap: () => onSelect(p.platform),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -222,14 +235,12 @@ class _SourceChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Center(
-            child: Text(
-              label,
-              style: textTheme.labelMedium?.copyWith(
-                color: selected ? Colors.white : scheme.onSurfaceVariant,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            label,
+            style: textTheme.labelMedium?.copyWith(
+              color: selected ? Colors.white : scheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
@@ -270,22 +281,29 @@ class _IdleView extends StatelessWidget {
       children: [
         _SectionTitle('热门推荐', icon: Icons.local_fire_department_rounded),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 108,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(right: 20),
-            itemCount: suggestions.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final kw = suggestions[i];
-              return _SuggestionCard(
-                keyword: kw,
-                index: i,
-                onTap: () => onPick(kw),
-              );
-            },
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(right: 20),
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 170,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: 108,
+              ),
+              itemCount: suggestions.length,
+              itemBuilder: (context, i) {
+                final kw = suggestions[i];
+                return _SuggestionCard(
+                  keyword: kw,
+                  index: i,
+                  onTap: () => onPick(kw),
+                );
+              },
+            );
+          },
         ),
         if (history.isNotEmpty) ...[
           const SizedBox(height: 24),
@@ -340,8 +358,11 @@ class _IdleView extends StatelessWidget {
                           gradient: AppTheme.softGradient,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.extension_rounded,
-                            color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.extension_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -399,7 +420,6 @@ class _SuggestionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: Ink(
-        width: 148,
         decoration: BoxDecoration(gradient: gradient),
         child: InkWell(
           onTap: onTap,
@@ -456,10 +476,9 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context)
-        .textTheme
-        .titleSmall
-        ?.copyWith(fontWeight: FontWeight.w700);
+    final style = Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700);
     return Row(
       children: [
         if (icon != null) ...[
@@ -542,12 +561,16 @@ class _ResultViewState extends State<_ResultView> {
                   '“${state.query}”的搜索结果',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Text(
                 '${state.results.length} 首',
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(width: 4),
               TextButton.icon(
@@ -604,7 +627,9 @@ class _LoadingView extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             '正在搜索 “$query”…',
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -632,7 +657,9 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               '搜索失败',
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -640,7 +667,9 @@ class _ErrorView extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
@@ -673,7 +702,9 @@ class _EmptyResultView extends StatelessWidget {
           Text(
             '未找到与 “$query” 相关的歌曲',
             textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 6),
           Text(

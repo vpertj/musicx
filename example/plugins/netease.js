@@ -523,8 +523,12 @@ async function getMediaSource(musicItem, quality) {
         level: qualityMap[quality]
     })).data;
     if (_ && _[0] && _[0].url) {
+        // 网易云 CDN 偶尔返回 http:// 地址,Android 9+ 默认禁止明文流量,
+        // 统一升级为 https(m*.music.126.net 支持 https)。
+        let u = String(_[0].url).split("?")[0];
+        if (/^http:\/\//i.test(u)) u = "https://" + u.slice(7);
         return {
-            url: String(_[0].url).split("?")[0],
+            url: u,
             size: _[0].size,
             quality,
             // userAgent: "",
