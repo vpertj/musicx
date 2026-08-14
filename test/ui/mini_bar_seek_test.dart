@@ -38,14 +38,16 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     final recorder = _SeekRecorder();
-    final container = ProviderContainer(overrides: [
-      playerControllerProvider.overrideWith(() => recorder),
-    ]);
+    final container = ProviderContainer(
+      overrides: [playerControllerProvider.overrideWith(() => recorder)],
+    );
     addTearDown(container.dispose);
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: const MaterialApp(home: HomeShell()),
-    ));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HomeShell()),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 300));
 
     // 进度条是最顶部那个:高度 6 的 SizedBox 内的 GestureDetector

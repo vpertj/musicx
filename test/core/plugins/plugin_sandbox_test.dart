@@ -24,13 +24,10 @@ void main() {
   test('isolate kills work that exceeds timeout and throws', () async {
     final sandbox = PluginSandbox();
     expect(
-      () => sandbox.isolate(
-        () async {
-          await Future.delayed(const Duration(seconds: 5));
-          return 'too late';
-        },
-        timeout: const Duration(milliseconds: 100),
-      ),
+      () => sandbox.isolate(() async {
+        await Future.delayed(const Duration(seconds: 5));
+        return 'too late';
+      }, timeout: const Duration(milliseconds: 100)),
       throwsA(isA<PluginIsolateTimeoutException>()),
     );
   });

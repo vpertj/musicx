@@ -23,7 +23,9 @@ void main() {
   });
 
   test('PluginInfo rejects missing platform/version', () {
-    expect(() => PluginInfo.fromJsMeta({'platform': 'x'}, hash: 'h', path: 'p'),
-        throwsArgumentError);
+    expect(
+      () => PluginInfo.fromJsMeta({'platform': 'x'}, hash: 'h', path: 'p'),
+      throwsArgumentError,
+    );
   });
 }

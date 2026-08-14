@@ -26,9 +26,9 @@ void main() {
   tearDown(() => tmp.deleteSync(recursive: true));
 
   test('search populates results from plugin', () async {
-    final container = ProviderContainer(overrides: [
-      pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
-    ]);
+    final container = ProviderContainer(
+      overrides: [pluginManagerProvider.overrideWithValue(PluginManager(tmp))],
+    );
     addTearDown(container.dispose);
     final ctrl = container.read(searchControllerProvider.notifier);
     await ctrl.search('示例');
@@ -58,9 +58,9 @@ module.exports = { platform: "demo", version: "0.1.0",
 ''';
     File('${tmp.path}/demo.js').deleteSync();
     File('${tmp.path}/mixed.js').writeAsStringSync(mixed);
-    final container = ProviderContainer(overrides: [
-      pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
-    ]);
+    final container = ProviderContainer(
+      overrides: [pluginManagerProvider.overrideWithValue(PluginManager(tmp))],
+    );
     addTearDown(container.dispose);
     final ctrl = container.read(searchControllerProvider.notifier);
     await ctrl.search('示例');

@@ -15,13 +15,18 @@ void main() {
     Directory('${tmp.path}/sub').createSync();
     File('${tmp.path}/sub/c.js').writeAsStringSync('// z');
     final store = PluginStore(tmp);
-    final files = store.scanPluginFiles().map((f) => f.path.split('/').last).toList();
+    final files = store
+        .scanPluginFiles()
+        .map((f) => f.path.split('/').last)
+        .toList();
     expect(files, ['a.js']);
   });
 
   test('loadMeta extracts platform/version from CommonJS export', () async {
     final f = File('${tmp.path}/demo.js');
-    f.writeAsStringSync('module.exports = { platform: "demo", version: "0.2.0", srcUrl: "http://x" };');
+    f.writeAsStringSync(
+      'module.exports = { platform: "demo", version: "0.2.0", srcUrl: "http://x" };',
+    );
     final info = await PluginStore(tmp).loadMeta(f);
     expect(info.platform, 'demo');
     expect(info.version, '0.2.0');

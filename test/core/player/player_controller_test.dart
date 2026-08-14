@@ -7,8 +7,8 @@ void main() {
   // 控制器 build 会实例化 PlayerService(just_audio),需要绑定平台通道
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  MusicItem _song(int i) => MusicItem(
-        id: '$i', title: '歌$i', platform: 'demo', songId: '$i');
+  MusicItem _song(int i) =>
+      MusicItem(id: '$i', title: '歌$i', platform: 'demo', songId: '$i');
 
   test('playFromList sets queue and current index', () {
     final container = ProviderContainer();

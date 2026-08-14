@@ -3,12 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/models/music_item.dart';
 
-MusicItem song(String id) => MusicItem(
-      id: id,
-      title: '歌$id',
-      platform: 'test',
-      songId: id,
-    );
+MusicItem song(String id) =>
+    MusicItem(id: id, title: '歌$id', platform: 'test', songId: id);
 
 void main() {
   test('歌单:新建/加歌/喜欢/持久化', () {
@@ -27,8 +23,11 @@ void main() {
     ctrl.toggleFavorite(song('2'));
     expect(container.read(libraryControllerProvider).favorites.length, 2);
     ctrl.toggleFavorite(song('1'));
-    expect(container.read(libraryControllerProvider).favorites.length, 1,
-        reason: '重复点击取消喜欢');
+    expect(
+      container.read(libraryControllerProvider).favorites.length,
+      1,
+      reason: '重复点击取消喜欢',
+    );
 
     // 新建歌单 + 加歌
     final p = ctrl.createPlaylist('我的最爱');
@@ -48,7 +47,9 @@ void main() {
     final container2 = ProviderContainer();
     addTearDown(container2.dispose);
     expect(container2.read(libraryControllerProvider).playlists.length, 1);
-    expect(container2.read(libraryControllerProvider).playlists.single.name,
-        '持久化歌单');
+    expect(
+      container2.read(libraryControllerProvider).playlists.single.name,
+      '持久化歌单',
+    );
   });
 }

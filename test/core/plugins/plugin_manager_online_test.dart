@@ -38,14 +38,19 @@ void main() {
     server.listen((request) async {
       final path = request.uri.path;
       if (path == '/plugin.js') {
-        request.response.headers.contentType = ContentType('application', 'javascript');
+        request.response.headers.contentType = ContentType(
+          'application',
+          'javascript',
+        );
         request.response.write(_pluginJs);
       } else if (path == '/plugins.json') {
         request.response.headers.contentType = ContentType.json;
         final urlBase = 'http://127.0.0.1:${server.port}';
-        request.response.write(_pluginsJson
-            .replaceAll('URL_PLACEHOLDER_alpha', '$urlBase/plugin.js')
-            .replaceAll('URL_PLACEHOLDER_beta', '$urlBase/plugin.js'));
+        request.response.write(
+          _pluginsJson
+              .replaceAll('URL_PLACEHOLDER_alpha', '$urlBase/plugin.js')
+              .replaceAll('URL_PLACEHOLDER_beta', '$urlBase/plugin.js'),
+        );
       } else if (path == '/bad.js') {
         request.response.write('this is not a plugin');
       } else {
@@ -62,7 +67,9 @@ void main() {
 
   test('installFromUrl downloads and installs a valid plugin', () async {
     final manager = PluginManager(tmp);
-    final info = await manager.installFromUrl('http://127.0.0.1:${server.port}/plugin.js');
+    final info = await manager.installFromUrl(
+      'http://127.0.0.1:${server.port}/plugin.js',
+    );
 
     expect(info.platform, 'online-test');
     expect(info.version, '1.2.3');
@@ -82,19 +89,26 @@ void main() {
   test('installFromUrl rejects invalid URLs', () async {
     final manager = PluginManager(tmp);
     expect(() => manager.installFromUrl('not a url'), throwsArgumentError);
-    expect(() => manager.installFromUrl('file:///etc/passwd'), throwsArgumentError);
+    expect(
+      () => manager.installFromUrl('file:///etc/passwd'),
+      throwsArgumentError,
+    );
   });
 
-  test('fetchPluginSources parses plugins.json and filters bad entries', () async {
-    final manager = PluginManager(tmp);
-    final sources =
-        await manager.fetchPluginSources('http://127.0.0.1:${server.port}/plugins.json');
+  test(
+    'fetchPluginSources parses plugins.json and filters bad entries',
+    () async {
+      final manager = PluginManager(tmp);
+      final sources = await manager.fetchPluginSources(
+        'http://127.0.0.1:${server.port}/plugins.json',
+      );
 
-    expect(sources.length, 2);
-    expect(sources[0].name, 'alpha');
-    expect(sources[0].version, '0.1.0');
-    expect(sources[1].name, 'beta');
-  });
+      expect(sources.length, 2);
+      expect(sources[0].name, 'alpha');
+      expect(sources[0].version, '0.1.0');
+      expect(sources[1].name, 'beta');
+    },
+  );
 
   test('isInstalled reflects installed plugins', () async {
     final manager = PluginManager(tmp);

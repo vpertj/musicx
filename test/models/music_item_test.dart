@@ -5,11 +5,18 @@ import 'package:musicx/models/music_item.dart';
 void main() {
   test('MusicItem fromJson → toJson roundtrip', () {
     final json = {
-      'id': 'abc', 'title': '测试歌曲', 'artist': '歌手甲', 'album': '专辑乙',
-      'artwork': 'http://x/a.jpg', 'duration': 210000,
-      'platform': 'test-plugin', 'songId': 's1',
+      'id': 'abc',
+      'title': '测试歌曲',
+      'artist': '歌手甲',
+      'album': '专辑乙',
+      'artwork': 'http://x/a.jpg',
+      'duration': 210000,
+      'platform': 'test-plugin',
+      'songId': 's1',
       'extra': {'quality': 'hq'},
-      'qualities': {'standard': {'size': 123}},
+      'qualities': {
+        'standard': {'size': 123},
+      },
     };
     final item = MusicItem.fromJson(json);
     expect(item.title, '测试歌曲');
