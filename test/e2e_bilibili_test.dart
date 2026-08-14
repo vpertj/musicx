@@ -7,6 +7,9 @@
 @Tags(['network'])
 library;
 
+// e2e 诊断输出使用 print,属预期行为
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';

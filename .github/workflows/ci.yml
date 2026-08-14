@@ -26,7 +26,8 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze
+        # info 级 lint(如测试中的 print)不作为失败条件
+        run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         # e2e_* 依赖真实网络与外部音源,CI 中跳过

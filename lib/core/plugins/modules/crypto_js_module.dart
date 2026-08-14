@@ -1,3 +1,4 @@
+// ignore_for_file: constant_identifier_names
 /// 内联模块:crypto_js(MusicFree 宿主提供模块的浏览器版)。
 ///
 /// 供插件运行时 require() 白名单使用,与 MusicFree 宿主环境对齐。
