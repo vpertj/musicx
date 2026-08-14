@@ -632,7 +632,7 @@ class _AboutCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'MusicX v1.0.0 · 插件协议兼容 MusicFree',
+            'MusicX v1.1.0 · 插件协议兼容 MusicFree',
             style: textTheme.labelSmall?.copyWith(color: scheme.outline),
           ),
         ],
