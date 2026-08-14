@@ -1,12 +1,14 @@
+/// 歌词链路验证:网易云插件 getLyric 返回 rawLrc → Dart 解析出带时间戳行。
+/// 依赖安全 XHR 桥(xhr_safe.dart):flutter_js 自带桥会把响应 JSON 里的
+/// \n 转义破坏,导致 lrc.lyric 无法解析,本用例回归该问题。
+@Tags(['network'])
+library;
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 import 'package:musicx/models/lyric_line.dart';
 
-/// 歌词链路验证:网易云插件 getLyric 返回 rawLrc → Dart 解析出带时间戳行。
-/// 依赖安全 XHR 桥(xhr_safe.dart):flutter_js 自带桥会把响应 JSON 里的
-/// \n 转义破坏,导致 lrc.lyric 无法解析,本用例回归该问题。
-@Tags(['network'])
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;

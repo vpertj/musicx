@@ -1,7 +1,3 @@
-import 'dart:io';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:musicx/core/plugins/plugin_manager.dart';
-
 /// bilibili 官方插件真实链路验证:
 /// 在线安装(gitee) → 加载(require 白名单) → 搜索(bilibili API)。
 ///
@@ -9,6 +5,12 @@ import 'package:musicx/core/plugins/plugin_manager.dart';
 /// 因此本测试对「安装/解析/加载」做硬断言,搜索尽力而为:
 /// 成功则输出结果数,被风控则跳过(核心兼容性由 plugin_ecosystem_test 稳定覆盖)。
 @Tags(['network'])
+library;
+
+import 'dart:io';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:musicx/core/plugins/plugin_manager.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;

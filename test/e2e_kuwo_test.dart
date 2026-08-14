@@ -1,9 +1,11 @@
+/// 酷我音源插件验证:搜索 → 播放地址解析(https 完整歌曲)。
+@Tags(['network'])
+library;
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 
-/// 酷我音源插件验证:搜索 → 播放地址解析(https 完整歌曲)。
-@Tags(['network'])
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;

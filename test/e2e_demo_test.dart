@@ -1,8 +1,10 @@
+@Tags(['network'])
+library;
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 
-@Tags(['network'])
 void main() {
   // fetch polyfill 经 rootBundle 加载,需要初始化 binding
   TestWidgetsFlutterBinding.ensureInitialized();

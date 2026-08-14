@@ -1,9 +1,11 @@
+/// 网易云音源插件验证:搜索(过滤 VIP) → 播放地址解析(完整歌曲)。
+@Tags(['network'])
+library;
+
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
 
-/// 网易云音源插件验证:搜索(过滤 VIP) → 播放地址解析(完整歌曲)。
-@Tags(['network'])
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
