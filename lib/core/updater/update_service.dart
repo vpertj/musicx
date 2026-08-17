@@ -160,22 +160,28 @@ class UpdateService {
     if (file.existsSync()) file.deleteSync();
 
     final req = http.Request('GET', Uri.parse(url));
-    final resp = await _client.send(req);
+    // GitHub 下载需要 UA,否则部分 CDN 拒绝
+    req.headers['User-Agent'] = 'MusicX/${currentVersion()}';
+    final resp = await _client.send(req).timeout(const Duration(seconds: 30));
     if (resp.statusCode != 200) {
-      throw HttpException('下载失败 (HTTP ${resp.statusCode})');
+      await resp.stream.drain<void>();
+      throw HttpException('下载失败 (HTTP ${resp.statusCode})\n请检查网络后重试');
     }
     final total = resp.contentLength;
     var received = 0;
     final sink = file.openWrite();
-    await for (final chunk in resp.stream) {
-      sink.add(chunk);
-      received += chunk.length;
-      if (total != null && total > 0 && onProgress != null) {
-        onProgress(received / total);
+    try {
+      await for (final chunk in resp.stream) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total != null && total > 0 && onProgress != null) {
+          onProgress(received / total);
+        }
       }
+    } finally {
+      await sink.flush();
+      await sink.close();
     }
-    await sink.flush();
-    await sink.close();
     return file;
   }
 

@@ -166,16 +166,33 @@ class _UpdateProgressDialog extends ConsumerWidget {
     final failed = state.phase == UpdatePhase.error && state.error != null;
 
     return AlertDialog(
-      title: Text(installing ? '正在安装更新…' : '正在下载更新…'),
+      title: Text(
+        installing
+            ? '正在安装更新…'
+            : failed
+            ? '更新失败'
+            : '正在下载更新…',
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (failed)
+          if (failed) ...[
+            Icon(Icons.error_outline_rounded, size: 40, color: scheme.error),
+            const SizedBox(height: 12),
             Text(
-              state.error!,
+              state.error ?? '未知错误',
+              textAlign: TextAlign.center,
               style: textTheme.bodySmall?.copyWith(color: scheme.error),
-            )
-          else if (downloading) ...[
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '可以稍后重试,或前往 GitHub Releases 手动下载',
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ] else if (downloading) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -195,6 +212,14 @@ class _UpdateProgressDialog extends ConsumerWidget {
           ] else if (installing)
             Text(
               '正在替换应用,完成后将自动重启…',
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            )
+          else
+            Text(
+              '准备中…',
               style: textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
