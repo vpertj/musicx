@@ -9,6 +9,7 @@ import 'package:musicx/ui/downloads/download_page.dart';
 import 'package:musicx/ui/library/library_page.dart';
 import 'package:musicx/ui/player/player_page.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
+import 'package:musicx/ui/plugins/update_row.dart';
 import 'package:musicx/ui/search/search_page.dart';
 import 'package:musicx/ui/widgets/mini_player_bar.dart';
 
@@ -27,15 +28,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   /// 我的页当前显示的歌单(null = 我喜欢的音乐)。
   String? _libraryPlaylistId;
+
+  /// 本次会话是否已弹出过更新提示(避免重复弹窗)。
+  bool _updatePromptShown = false;
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    // 启动后静默检查更新(后台执行,发现新版后由设置页提示)
+    // 启动后检查更新:发现新版后自动弹窗提示
     Future.microtask(() {
       if (mounted) {
-        ref.read(updateControllerProvider.notifier).check(silent: true);
+        ref.read(updateControllerProvider.notifier).check();
       }
     });
     _pages = [
@@ -107,6 +111,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 监听更新状态:检测到新版本时自动弹窗提示
+    ref.listen(updateControllerProvider, (prev, next) {
+      if (next.phase == UpdatePhase.ready &&
+          next.info != null &&
+          next.info!.hasUpdate &&
+          !_updatePromptShown) {
+        _updatePromptShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) showUpdatePrompt(context, next.info!);
+        });
+      }
+    });
+
     final isDesktop = MediaQuery.of(context).size.width >= 760;
 
     if (isDesktop) {

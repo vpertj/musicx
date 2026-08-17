@@ -4,6 +4,69 @@ import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/core/updater/update_service.dart';
 import 'package:musicx/theme/app_theme.dart';
 
+/// 弹出"发现新版本"对话框(启动自动提示与设置页共用)。
+/// 用户可选择「立即更新」(下载→安装→重启)或「稍后」。
+Future<void> showUpdatePrompt(BuildContext context, UpdateInfo info) async {
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('发现新版本 v${info.latestVersion}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '当前版本 v${info.currentVersion}',
+            style: Theme.of(ctx).textTheme.bodySmall,
+          ),
+          if (info.releaseNotes != null && info.releaseNotes!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: SingleChildScrollView(
+                child: Text(
+                  info.releaseNotes!,
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('稍后'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.pop(ctx);
+            showUpdateProgress(context);
+          },
+          icon: const Icon(Icons.download_rounded, size: 18),
+          label: const Text('立即更新'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// 显示下载/安装进度对话框并启动更新流程。
+void showUpdateProgress(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const _UpdateProgressDialog(),
+  );
+  // 从 ProviderScope 获取 controller
+  final container = ProviderScope.containerOf(context);
+  container.read(updateControllerProvider.notifier).update();
+}
+
 /// 设置页「检查更新」行:显示当前版本,有新版本时高亮提示。
 class UpdateRow extends ConsumerWidget {
   const UpdateRow({super.key});
@@ -93,61 +156,7 @@ class UpdateRow extends ConsumerWidget {
     }
     final info = ref.read(updateControllerProvider).info;
     if (info == null || !context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('发现新版本 v${info.latestVersion}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '当前版本 v${info.currentVersion}',
-              style: Theme.of(ctx).textTheme.bodySmall,
-            ),
-            if (info.releaseNotes != null && info.releaseNotes!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 180),
-                child: SingleChildScrollView(
-                  child: Text(
-                    info.releaseNotes!,
-                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('稍后'),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showDownloadProgress(context, ref);
-            },
-            icon: const Icon(Icons.download_rounded, size: 18),
-            label: const Text('立即更新'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 下载 + 安装进度对话框,完成后自动重启。
-  void _showDownloadProgress(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const _UpdateProgressDialog(),
-    );
-    ref.read(updateControllerProvider.notifier).update();
+    await showUpdatePrompt(context, info);
   }
 }
 

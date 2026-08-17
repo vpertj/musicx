@@ -223,29 +223,46 @@ class UpdateService {
     if (newApp == null) throw HttpException('更新包中没有找到应用');
 
     // 3. 覆盖当前应用
+    //    先复制到临时位置再原子替换,避免运行中的 .app 被占用导致失败
     final exe = Platform.resolvedExecutable;
     final currentApp = File(exe).parent.parent.parent; // .../musicx.app
+    final backup = Directory('${currentApp.path}.old');
+    if (backup.existsSync()) backup.deleteSync(recursive: true);
+    // 复制旧版到备份(若失败不阻断;仅用于回滚)
+    await Process.run('ditto', ['--rsrc', currentApp.path, backup.path]);
+    // 复制新版覆盖当前 .app
     final copy = await Process.run('ditto', [
       '--rsrc',
       newApp.path,
       currentApp.path,
     ]);
     if (copy.exitCode != 0) {
+      // 替换失败:回滚备份
+      if (backup.existsSync()) {
+        await Process.run('ditto', ['--rsrc', backup.path, currentApp.path]);
+      }
       throw HttpException('替换应用失败: ${copy.stderr}');
     }
+    // 清理备份
+    if (backup.existsSync()) backup.deleteSync(recursive: true);
 
     // 4. 卸载 DMG
     await Process.run('hdiutil', ['detach', mountPoint, '-force']);
 
-    // 5. 生成重启脚本(延迟 2s,本进程退出后启动新版本)
+    // 5. 生成重启脚本(延迟 2s,等本进程退出后启动新版本)
+    //    用 nohup + 独立进程组,确保父进程 exit 后脚本仍执行
     final script = File('${Directory.systemTemp.path}/musicx_restart.sh');
     script.writeAsStringSync(
       '#!/bin/sh\n'
+      '# 等待当前进程完全退出\n'
       'sleep 2\n'
       'open "${currentApp.path}"\n',
     );
     await Process.run('chmod', ['+x', script.path]);
-    Process.start('/bin/sh', [script.path]);
+    // detached 模式:脚本独立于本进程运行,exit(0) 不会杀掉它
+    await Process.start('/bin/sh', [
+      script.path,
+    ], mode: ProcessStartMode.detached);
 
     // 6. 退出当前进程,让重启脚本接管
     exit(0);
