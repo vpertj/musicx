@@ -276,6 +276,11 @@ class PluginManager {
   /// 按 musicItem.platform 匹配对应插件,避免跨源错误调用
   /// (如用网易云 songId 去酷我接口拿到错误提示)。
   /// [quality]: 音质(low/standard/high/super),默认 standard。
+  /// 根据 musicItem 解析真实播放地址(走插件 getMediaSource)。
+  /// 按 musicItem.platform 匹配对应插件,避免跨源错误调用;
+  /// 若精确匹配的插件解析失败(如酷我独家音源官方 API 失效),
+  /// 自动降级尝试同平台其它插件(platform 包含相同关键词)。
+  /// [quality]: 音质(low/standard/high/super),默认 standard。
   Future<Map<String, dynamic>> resolveMediaSource(
     Map<String, dynamic> musicItem, {
     String quality = 'standard',
@@ -283,30 +288,79 @@ class PluginManager {
   }) async {
     final plugins = await listPlugins();
     final wantPlatform = musicItem['platform'] as String?;
+
+    // 第一轮:精确匹配指定插件
     for (final plugin in plugins) {
       if (wantPlatform != null && plugin.platform != wantPlatform) continue;
       try {
-        final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(() async {
-          final runtime = JsRuntimeFactory.createIsolateSafe();
-          final loader = PluginLoader(runtime);
-          loader.loadPlugin(source);
-          final bridge = PluginBridgeAsync(runtime);
-          // MusicFree 协议:getMediaSource(musicItem, quality) 位置参数
-          return bridge.callAsync('getMediaSource', [musicItem, quality]);
-        }, timeout: timeout);
-        if (result['url'] != null) {
-          // 规范化播放地址:跟随重定向拿最终 URL,http 转 https(规避 macOS ATS)
-          final raw = result['url'] as String;
-          if (raw.isEmpty) continue;
-          result['url'] = await _normalizeMediaUrl(raw);
+        final result = await _callGetMediaSource(
+          plugin,
+          musicItem,
+          quality,
+          timeout,
+        );
+        if (result['url'] != null && (result['url'] as String).isNotEmpty) {
           return result;
         }
       } catch (_) {
-        // 该插件解析失败,继续下一个(通常仅当未匹配到指定插件时)
+        // 继续尝试下一个
       }
     }
-    throw Exception('no plugin resolved media source');
+
+    // 第二轮降级:同平台其它插件(关键词匹配,如『酷我(独家音源)』→『酷我』『酷我(念心音源)』)
+    if (wantPlatform != null) {
+      // 提取平台关键词:取括号前的主名,如『酷我』『酷狗』『网易音乐』
+      final base = wantPlatform.split('(').first.trim();
+      if (base.isNotEmpty) {
+        for (final plugin in plugins) {
+          if (plugin.platform == wantPlatform) continue; // 已试过
+          if (plugin.platform != base && !plugin.platform.startsWith(base)) {
+            continue;
+          }
+          try {
+            final result = await _callGetMediaSource(
+              plugin,
+              musicItem,
+              quality,
+              timeout,
+            );
+            if (result['url'] != null && (result['url'] as String).isNotEmpty) {
+              return result;
+            }
+          } catch (_) {
+            // 继续
+          }
+        }
+      }
+    }
+
+    throw Exception(
+      'no plugin resolved media source: ${wantPlatform ?? 'auto'}',
+    );
+  }
+
+  /// 调用单个插件的 getMediaSource,统一处理 URL 规范化。
+  Future<Map<String, dynamic>> _callGetMediaSource(
+    PluginInfo plugin,
+    Map<String, dynamic> musicItem,
+    String quality,
+    Duration timeout,
+  ) async {
+    final source = await File(plugin.path).readAsString();
+    final result = await _sandbox.isolate(() async {
+      final runtime = JsRuntimeFactory.createIsolateSafe();
+      final loader = PluginLoader(runtime);
+      loader.loadPlugin(source);
+      final bridge = PluginBridgeAsync(runtime);
+      // MusicFree 协议:getMediaSource(musicItem, quality) 位置参数
+      return bridge.callAsync('getMediaSource', [musicItem, quality]);
+    }, timeout: timeout);
+    final raw = result['url'] as String?;
+    if (raw == null || raw.isEmpty) {
+      throw Exception('plugin returned empty url');
+    }
+    result['url'] = await _normalizeMediaUrl(raw);
+    return result;
   }
 
   /// 按 musicItem.platform 匹配插件获取歌词源 URL,再由 Dart 侧下载解析。
