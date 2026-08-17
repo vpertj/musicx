@@ -632,10 +632,7 @@ class _Disc extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Hero(
-              tag: 'player-artwork',
-              child: ArtworkView(url: song.artwork, size: size, radius: 0),
-            ),
+            ArtworkView(url: song.artwork, size: size, radius: 0),
             // CD 外圈高光环
             DecoratedBox(
               decoration: BoxDecoration(

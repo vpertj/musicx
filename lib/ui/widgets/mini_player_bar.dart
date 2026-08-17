@@ -80,7 +80,7 @@ class MiniPlayerBar extends ConsumerWidget {
               child: Row(
                 children: [
                   Hero(
-                    tag: 'player-artwork',
+                    tag: 'mini-player-artwork',
                     child: ArtworkView(url: song.artwork, size: 44, radius: 10),
                   ),
                   const SizedBox(width: 12),
