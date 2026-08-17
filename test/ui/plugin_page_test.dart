@@ -8,7 +8,10 @@ import 'package:musicx/core/search/search_controller.dart'
 import 'package:musicx/ui/plugins/plugin_page.dart';
 
 const _demoPlugin = '''
-module.exports = { platform: "demo", version: "0.1.0", search: function(q){ return Promise.resolve({isEnd:true,data:[]}); } };
+module.exports = { platform: "demo", version: "0.1.0",
+  search: function(q){ return Promise.resolve({isEnd:true,data:[{id:"1",title:"测试歌",artist:"歌手",songId:"1"}]}); },
+  getMediaSource: function(m){ return Promise.resolve({url:"https://example.com/test.mp3"}); }
+};
 ''';
 
 void main() {

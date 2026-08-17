@@ -347,6 +347,36 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         .select(picked == autoMark ? null : picked);
   }
 
+  /// 测试音源可用性:搜索 + 解析,结果以 SnackBar 展示。
+  Future<void> _testPlugin(PluginInfo p) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(content: Text('正在测试「${p.platform}」…')));
+    try {
+      final result = await ref
+          .read(pluginManagerProvider)
+          .testPlugin(p.platform);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                result.ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: result.ok ? const Color(0xFF34D399) : Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text('「${p.platform}」${result.detail}')),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text('「${p.platform}」测试失败:$e')));
+    }
+  }
+
   /// 插件列表已变更:使缓存的插件列表失效,下次读取时重新扫描。
   void _bumpPluginList() {
     ref.invalidate(pluginListProvider);
@@ -450,6 +480,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                           .select(p.platform),
                       onEdit: () => _editPlugin(p),
                       onDelete: () => _uninstall(p),
+                      onTest: () => _testPlugin(p),
                     ),
                   const SizedBox(height: 6),
                   Text(
@@ -776,6 +807,7 @@ class _PluginCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    this.onTest,
   });
 
   final PluginInfo plugin;
@@ -783,6 +815,7 @@ class _PluginCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onTest;
 
   @override
   Widget build(BuildContext context) {
@@ -892,6 +925,12 @@ class _PluginCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
+            if (onTest != null)
+              IconButton(
+                tooltip: '测试音源',
+                icon: Icon(Icons.radar_rounded, color: scheme.onSurfaceVariant),
+                onPressed: onTest,
+              ),
             IconButton(
               tooltip: '编辑',
               icon: Icon(Icons.edit_outlined, color: scheme.onSurfaceVariant),

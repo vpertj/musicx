@@ -250,6 +250,32 @@ class PluginManager {
   /// - 已知失效音源(官方 API 已死且无代理兜底)直接跳过,避免拖慢搜索
   /// - 同平台多个变体只保留一个(如多个『酷我』),减少重复请求
   /// - 其余按优先级排序(netease/kuwo 优先)
+
+  /// 测试音源是否可用:执行一次搜索 + 播放地址解析。
+  /// 返回 (是否可用, 详情)。供设置页『测试』按钮使用。
+  Future<({bool ok, String detail})> testPlugin(String platform) async {
+    final sw = Stopwatch()..start();
+    try {
+      final r = await search('晴天', platform: platform, page: 1);
+      final data = (r['data'] as List?) ?? [];
+      if (data.isEmpty) {
+        return (ok: false, detail: '搜索无结果');
+      }
+      final song = Map<String, dynamic>.from(data.first as Map);
+      final media = await resolveMediaSource(song);
+      final url = media['url'] as String? ?? '';
+      if (url.isEmpty) return (ok: false, detail: '解析播放地址为空');
+      sw.stop();
+      return (
+        ok: true,
+        detail: '可用 · ${sw.elapsedMilliseconds}ms · ${song['title'] ?? ''}',
+      );
+    } catch (e) {
+      sw.stop();
+      return (ok: false, detail: '失效 · ${sw.elapsedMilliseconds}ms · $e');
+    }
+  }
+
   List<PluginInfo> _prioritizeAutoPlugins(List<PluginInfo> plugins) {
     // 已知完全失效的音源(无法搜索或解析)
     const dead = {'酷狗(独家音源)', '喜马拉雅(公开API)'};
