@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/search_controller.dart';
+import 'package:musicx/core/search/search_history.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
@@ -23,7 +24,8 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<String> _history = [];
+  // 下拉是否可见(聚焦或输入时)
+  bool _dropdownOpen = false;
 
   static const List<String> _suggestions = [
     'SoundHelix',
@@ -46,11 +48,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final keyword = raw.trim();
     if (keyword.isEmpty) return;
     FocusScope.of(context).unfocus();
-    setState(() {
-      _history.remove(keyword);
-      _history.insert(0, keyword);
-      if (_history.length > 8) _history.removeLast();
-    });
+    setState(() => _dropdownOpen = false);
+    // 记录搜索历史(持久化)
+    ref.read(searchHistoryProvider.notifier).add(keyword);
     ref
         .read(searchControllerProvider.notifier)
         .search(keyword, source: ref.read(searchSourceProvider));
@@ -96,7 +96,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   onSubmit: _submit,
                   onClear: _clear,
                   onOpenPlugins: widget.onOpenPlugins,
+                  onFocusChanged: (f) =>
+                      setState(() => _dropdownOpen = f && !hasQuery),
                 ),
+                // 历史下拉:聚焦且未搜索时显示(占布局流,可靠可点击)
+                if (_dropdownOpen &&
+                    ref.watch(searchHistoryProvider).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                    child: _HistoryDropdown(
+                      onPick: (kw) {
+                        _controller.text = kw;
+                        _submit(kw);
+                      },
+                      onClearAll: () =>
+                          ref.read(searchHistoryProvider.notifier).clear(),
+                    ),
+                  ),
                 // 音源切换条
                 _SourceBar(
                   selected: ref.watch(searchSourceProvider),
@@ -122,10 +138,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                               showDownloadPicker(context, ref, song),
                         )
                       : _IdleView(
-                          history: _history,
+                          history: ref.watch(searchHistoryProvider),
                           suggestions: _suggestions,
                           onPick: _pickSuggestion,
-                          onClearHistory: () => setState(_history.clear),
+                          onClearHistory: () =>
+                              ref.read(searchHistoryProvider.notifier).clear(),
                           onOpenPlugins: widget.onOpenPlugins,
                         ),
                 ),
@@ -139,42 +156,172 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 /// 简洁头部:仅搜索框。
-class _Header extends StatelessWidget {
+class _Header extends StatefulWidget {
   const _Header({
     required this.controller,
     required this.onSubmit,
     required this.onClear,
     this.onOpenPlugins,
+    this.onFocusChanged,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
   final VoidCallback? onOpenPlugins;
+  final ValueChanged<bool>? onFocusChanged;
+
+  @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      widget.onFocusChanged?.call(_focus.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
       child: TextField(
-        controller: controller,
+        controller: widget.controller,
         textInputAction: TextInputAction.search,
-        onSubmitted: onSubmit,
+        onSubmitted: widget.onSubmit,
+        focusNode: _focus,
         decoration: InputDecoration(
           hintText: '搜索歌曲 / 歌手 / 专辑',
           prefixIcon: const Icon(Icons.search_rounded),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
+            valueListenable: widget.controller,
             builder: (context, value, _) {
               if (value.text.isEmpty) return const SizedBox.shrink();
               return IconButton(
                 tooltip: '清空',
                 icon: const Icon(Icons.close_rounded, size: 20),
-                onPressed: onClear,
+                onPressed: widget.onClear,
               );
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 搜索历史下拉面板:悬浮于搜索框下方,展示最近搜索。
+/// 点击条目触发搜索;每条可单独删除;底部可清空全部。
+class _HistoryDropdown extends ConsumerWidget {
+  const _HistoryDropdown({required this.onPick, required this.onClearAll});
+
+  final ValueChanged<String> onPick;
+  final VoidCallback onClearAll;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(searchHistoryProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    if (history.isEmpty) return const SizedBox.shrink();
+
+    return Material(
+      elevation: 8,
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题行
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+            child: Row(
+              children: [
+                Icon(Icons.history_rounded, size: 15, color: scheme.outline),
+                const SizedBox(width: 6),
+                Text(
+                  '最近搜索',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: scheme.outline,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: onClearAll,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      '清空',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: scheme.outline,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 历史条目
+          for (final kw in history.take(8))
+            InkWell(
+              key: ValueKey('history-item-$kw'),
+              onTap: () => onPick(kw),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 9,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      size: 16,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        kw,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyMedium,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () =>
+                          ref.read(searchHistoryProvider.notifier).remove(kw),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: scheme.outline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
