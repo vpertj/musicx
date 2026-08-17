@@ -68,7 +68,18 @@ class UpdateService {
   }
 
   /// 检查最新版本。失败时抛出异常。
+  ///
+  /// 优先走 GitHub API;若触发未认证限流(403),降级为直接访问 releases/latest
+  /// 网页并解析其中的版本号与 DMG 下载链接。
   Future<UpdateInfo> checkForUpdate() async {
+    try {
+      return await _checkViaApi();
+    } on HttpException {
+      return await _checkViaWebPage();
+    }
+  }
+
+  Future<UpdateInfo> _checkViaApi() async {
     final uri = Uri.https(
       'api.github.com',
       '/repos/$kGitHubRepo/releases/latest',
@@ -101,6 +112,43 @@ class UpdateService {
       dmgUrl: dmgUrl,
       releaseUrl: json['html_url'] as String? ?? '',
       releaseNotes: json['body'] as String?,
+    );
+  }
+
+  /// 降级方案:抓取 releases/latest 页面解析版本号,
+  /// 再请求 expanded_assets 端点(HTML 片段)解析 DMG 直链。
+  Future<UpdateInfo> _checkViaWebPage() async {
+    final url = 'https://github.com/$kGitHubRepo/releases/latest';
+    final resp = await _client.get(Uri.parse(url));
+    if (resp.statusCode != 200) {
+      throw HttpException('检查更新失败 (HTTP ${resp.statusCode})');
+    }
+    final tagRe = RegExp('releases/tag/(v[0-9][^"\\s]*)');
+    final tagMatch = tagRe.firstMatch(resp.body);
+    if (tagMatch == null) throw HttpException('无法解析最新版本号');
+    final tag = tagMatch.group(1)!;
+    final latest = tag.startsWith('v') ? tag.substring(1) : tag;
+
+    // 请求资产列表端点(返回 HTML 片段,含下载链接)
+    final assetsUrl =
+        'https://github.com/$kGitHubRepo/releases/expanded_assets/$tag';
+    final assetsResp = await _client.get(Uri.parse(assetsUrl));
+    if (assetsResp.statusCode != 200) {
+      throw HttpException('无法获取更新包列表 (HTTP ${assetsResp.statusCode})');
+    }
+    final dmgRe = RegExp('href="([^"]*\\.dmg)"');
+    final dmgMatch = dmgRe.firstMatch(assetsResp.body);
+    final dmgUrl = dmgMatch == null
+        ? ''
+        : 'https://github.com${dmgMatch.group(1)}';
+    if (dmgUrl.isEmpty) {
+      throw HttpException('最新 Release 中没有找到 DMG 安装包');
+    }
+    return UpdateInfo(
+      latestVersion: latest,
+      currentVersion: currentVersion(),
+      dmgUrl: dmgUrl,
+      releaseUrl: url,
     );
   }
 
