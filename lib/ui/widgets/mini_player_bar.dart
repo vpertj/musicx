@@ -32,29 +32,43 @@ class MiniPlayerBar extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 进度条(顶部细线,点击/拖动可跳转)
-          SizedBox(
-            height: 6,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (d) => _seekTo(context, ref, d.localPosition.dx),
-              onHorizontalDragUpdate: (d) =>
-                  _seekTo(context, ref, d.localPosition.dx),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(
-                    color: scheme.surfaceContainerHighest.withValues(alpha: .5),
-                  ),
-                  FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: progress,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: AppTheme.accentGradient,
+          // 用 LayoutBuilder 取迷你条实际宽度,避免桌面端(侧边栏旁)seek 偏差
+          LayoutBuilder(
+            builder: (context, constraints) => SizedBox(
+              height: 6,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (d) => _seekTo(
+                  context,
+                  ref,
+                  d.localPosition.dx,
+                  constraints.maxWidth,
+                ),
+                onHorizontalDragUpdate: (d) => _seekTo(
+                  context,
+                  ref,
+                  d.localPosition.dx,
+                  constraints.maxWidth,
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(
+                      color: scheme.surfaceContainerHighest.withValues(
+                        alpha: .5,
                       ),
                     ),
-                  ),
-                ],
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: progress,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: AppTheme.accentGradient,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -125,9 +139,14 @@ class MiniPlayerBar extends ConsumerWidget {
   }
 
   /// 按点击横向位置跳转播放进度。
-  static void _seekTo(BuildContext context, WidgetRef ref, double dx) {
+  /// [width] 为迷你条实际宽度(桌面端侧边栏旁会小于屏幕宽)。
+  static void _seekTo(
+    BuildContext context,
+    WidgetRef ref,
+    double dx,
+    double width,
+  ) {
     final state = ref.read(playerControllerProvider);
-    final width = MediaQuery.sizeOf(context).width;
     if (width <= 0 || state.duration.inMilliseconds <= 0) return;
     final fraction = (dx / width).clamp(0.0, 1.0);
     ref

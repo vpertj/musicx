@@ -64,8 +64,6 @@ class _PlayerBodyState extends State<_PlayerBody> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
     final song = widget.state.current!;
 
     return Column(
@@ -94,78 +92,73 @@ class _PlayerBodyState extends State<_PlayerBody> {
           ),
         ),
         // 内容区:唱片 / 歌词(均不含进度条与控制,由底部固定控制台提供)
+        // 桌面宽屏(>=760)左右分栏:左唱片、右信息;窄屏保持居中纵向
         Expanded(
           child: _showLyric
               ? _LyricView(
                   lyric: widget.state.lyric,
                   position: widget.state.position,
                 )
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      _Artwork(
-                        song: song,
-                        playing: widget.state.isPlaying,
-                        compact: true,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 36),
-                        child: Column(
-                          children: [
-                            Text(
-                              song.title,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              [song.artist, song.album]
-                                  .whereType<String>()
-                                  .where((s) => s.isNotEmpty)
-                                  .join(' · '),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            if (widget.state.error != null) ...[
-                              const SizedBox(height: 10),
-                              Container(
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 760;
+                    if (wide) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Center(
+                              child: SingleChildScrollView(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
+                                  vertical: 16,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.error.withValues(alpha: .12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '播放失败:${widget.state.error}',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
+                                child: _Artwork(
+                                  song: song,
+                                  playing: widget.state.isPlaying,
                                 ),
                               ),
-                            ],
-                          ],
-                        ),
+                            ),
+                          ),
+                          const VerticalDivider(width: 1),
+                          Expanded(
+                            flex: 4,
+                            child: Center(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 36,
+                                  vertical: 16,
+                                ),
+                                child: _SongInfo(
+                                  song: song,
+                                  error: widget.state.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          _Artwork(
+                            song: song,
+                            playing: widget.state.isPlaying,
+                            compact: true,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 36),
+                            child: _SongInfo(
+                              song: song,
+                              error: widget.state.error,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                    );
+                  },
                 ),
         ),
         // 底部固定控制台:进度条 + 时间 + 控制按钮 + 播放队列,两种视图共用
@@ -459,6 +452,68 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
       ),
+    );
+  }
+}
+
+/// 歌曲信息区:标题 + 歌手/专辑 + 播放错误提示。
+/// 桌面分栏与窄屏纵向布局共用。
+class _SongInfo extends StatelessWidget {
+  const _SongInfo({required this.song, this.error});
+
+  final MusicItem song;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final isWide = MediaQuery.sizeOf(context).width >= 760;
+
+    return Column(
+      crossAxisAlignment: isWide
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        Text(
+          song.title,
+          textAlign: isWide ? TextAlign.left : TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          [
+            song.artist,
+            song.album,
+          ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+          textAlign: isWide ? TextAlign.left : TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: scheme.error.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '播放失败:$error',
+              textAlign: isWide ? TextAlign.left : TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodySmall?.copyWith(color: scheme.error),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
