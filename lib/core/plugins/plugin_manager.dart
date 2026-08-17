@@ -219,16 +219,10 @@ class PluginManager {
     if (platform != null && plugins.every((p) => p.platform != platform)) {
       throw Exception('plugin not installed: $platform');
     }
-    // 自动模式优先完整歌曲源,避免默认命中 iTunes 30 秒试听
-    final ordered = platform != null ? plugins : [...plugins]
-      ..sort((a, b) {
-        int prio(String p) => switch (p) {
-          'netease' => 0,
-          'kuwo' => 1,
-          _ => 10,
-        };
-        return prio(a.platform).compareTo(prio(b.platform));
-      });
+    // 自动模式:优先完整歌曲源 + 跳过已知失效音源 + 同平台去重
+    final ordered = platform != null
+        ? plugins
+        : _prioritizeAutoPlugins(plugins);
     for (final plugin in ordered) {
       if (platform != null && plugin.platform != platform) continue;
       try {
@@ -250,6 +244,54 @@ class PluginManager {
       }
     }
     throw Exception('no plugin returned search results');
+  }
+
+  /// 自动模式插件排序与过滤:
+  /// - 已知失效音源(官方 API 已死且无代理兜底)直接跳过,避免拖慢搜索
+  /// - 同平台多个变体只保留一个(如多个『酷我』),减少重复请求
+  /// - 其余按优先级排序(netease/kuwo 优先)
+  List<PluginInfo> _prioritizeAutoPlugins(List<PluginInfo> plugins) {
+    // 已知完全失效的音源(无法搜索或解析)
+    const dead = {'酷狗(独家音源)', '喜马拉雅(公开API)'};
+    final seen = <String>{};
+    final result = <PluginInfo>[];
+    // 排序:健康优先、主流源优先
+    final sorted = [...plugins]
+      ..sort((a, b) {
+        int prio(String p) {
+          if (dead.contains(p)) return 100;
+          if (p.contains('独家') || p.contains('独家音源')) return 30;
+          return switch (p) {
+            'netease' || '网易音乐' => 0,
+            'kuwo' || '酷我' => 1,
+            _ => 10,
+          };
+        }
+
+        return prio(a.platform).compareTo(prio(b.platform));
+      });
+    for (final p in sorted) {
+      if (dead.contains(p.platform)) continue; // 跳过僵尸音源
+      // 同平台去重:提取主名(括号前),同一主名只保留代理优先的一个
+      final base = p.platform.split('(').first.trim();
+      if (base.isEmpty) {
+        result.add(p);
+        continue;
+      }
+      final idx = seen.contains(base)
+          ? result.indexWhere((e) => e.platform.split('(').first.trim() == base)
+          : -1;
+      if (idx >= 0) {
+        // 保留评分更高者(代理源优先)
+        if (_proxyScore(p.platform) > _proxyScore(result[idx].platform)) {
+          result[idx] = p;
+        }
+        continue;
+      }
+      seen.add(base);
+      result.add(p);
+    }
+    return result;
   }
 
   /// 补全搜索结果:platform 一律写入当前插件名(保证改名后播放路由一致,
