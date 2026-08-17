@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/downloads/download_page.dart';
 import 'package:musicx/ui/library/library_page.dart';
@@ -31,6 +32,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   void initState() {
     super.initState();
+    // 启动后静默检查更新(后台执行,发现新版后由设置页提示)
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(updateControllerProvider.notifier).check(silent: true);
+      }
+    });
     _pages = [
       SearchPage(onOpenPlugins: () => _openSettings()),
       const PlayerPage(),

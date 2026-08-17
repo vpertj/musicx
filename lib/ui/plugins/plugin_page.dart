@@ -6,6 +6,7 @@ import 'package:musicx/core/search/search_controller.dart'
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/plugins/update_row.dart';
 
 /// 安装入口类型。
 enum _InstallAction { url, source, file }
@@ -464,6 +465,8 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     current: source,
                     onTap: () => _pickDefaultSource(plugins, source),
                   ),
+                  const SizedBox(height: 10),
+                  const UpdateRow(),
                   const SizedBox(height: 20),
                   const _AboutCard(),
                 ],
