@@ -307,16 +307,21 @@ class PluginManager {
       }
     }
 
-    // 第二轮降级:同平台其它插件(关键词匹配,如『酷我(独家音源)』→『酷我』『酷我(念心音源)』)
+    // 第二轮降级:同平台其它插件(关键词匹配,如『酷我(独家音源)』→『酷我(念心音源)』)
+    // 候选排序:代理型音源(念心/met 等第三方中转,通常返回完整音频)优先,
+    // 避免先命中官方 CDN 的『请在手机客户端播放』提示音(短音频)。
     if (wantPlatform != null) {
-      // 提取平台关键词:取括号前的主名,如『酷我』『酷狗』『网易音乐』
       final base = wantPlatform.split('(').first.trim();
       if (base.isNotEmpty) {
-        for (final plugin in plugins) {
-          if (plugin.platform == wantPlatform) continue; // 已试过
-          if (plugin.platform != base && !plugin.platform.startsWith(base)) {
-            continue;
-          }
+        final candidates =
+            plugins.where((p) {
+              if (p.platform == wantPlatform) return false; // 已试过
+              return p.platform == base || p.platform.startsWith(base);
+            }).toList()..sort(
+              (a, b) =>
+                  _proxyScore(b.platform).compareTo(_proxyScore(a.platform)),
+            );
+        for (final plugin in candidates) {
           try {
             final result = await _callGetMediaSource(
               plugin,
@@ -324,9 +329,11 @@ class PluginManager {
               quality,
               timeout,
             );
-            if (result['url'] != null && (result['url'] as String).isNotEmpty) {
-              return result;
-            }
+            final url = result['url'] as String?;
+            if (url == null || url.isEmpty) continue;
+            // 短音频检测:HEAD 请求,内容长度 < 256KB 视为可疑提示音,跳过
+            if (await _isSuspiciousShortAudio(url)) continue;
+            return result;
           } catch (_) {
             // 继续
           }
@@ -337,6 +344,45 @@ class PluginManager {
     throw Exception(
       'no plugin resolved media source: ${wantPlatform ?? 'auto'}',
     );
+  }
+
+  /// 代理型音源评分:越高的越优先尝试。
+  /// 官方 CDN 直链(kuwo.cn 等)常返回『请在手机客户端播放』提示音,
+  /// 第三方代理(nxinxz/meting 等)通常返回完整音频。
+  int _proxyScore(String platform) {
+    final p = platform.toLowerCase();
+    if (p.contains('念心') || p.contains('nxinxz') || p.contains('met')) {
+      return 10;
+    }
+    if (p.contains('代理') || p.contains('proxy')) return 8;
+    if (p == 'kuwo' || p.contains('酷我') || p.contains('kuwo')) return 3;
+    return 0;
+  }
+
+  /// 短音频检测:HEAD 请求看内容长度,<256KB 视为可疑提示音。
+  /// 完整歌曲(128kbps 约 3 分钟)通常 >2MB;『请在手机客户端播放』提示
+  /// 音频约 11 秒 181KB。
+  Future<bool> _isSuspiciousShortAudio(String url) async {
+    try {
+      final client = HttpClient();
+      try {
+        final req = await client
+            .openUrl('HEAD', Uri.parse(url))
+            .timeout(const Duration(seconds: 5));
+        req.followRedirects = false;
+        final resp = await req.close();
+        final len = resp.contentLength;
+        await resp.drain<void>();
+        // 重定向(302)交给播放器跟随,不判定为可疑
+        if (resp.statusCode >= 300 && resp.statusCode < 400) return false;
+        if (len > 0 && len < 256 * 1024) return true;
+        return false;
+      } finally {
+        client.close(force: true);
+      }
+    } catch (_) {
+      return false; // 检测失败不阻断
+    }
   }
 
   /// 调用单个插件的 getMediaSource,统一处理 URL 规范化。
