@@ -45,19 +45,6 @@ class AppTheme {
   static Color _accentSoft(Brightness b) =>
       b == Brightness.dark ? accentSoftDark : accentSoft;
 
-  /// 页面背景色(供需要直接引用的地方)。
-  static Color bgOf(Brightness b) => _bg(b);
-
-  /// 封面占位渐变(柔和,基于品牌红而非紫粉)。
-  static LinearGradient albumPlaceholder(Brightness b) => LinearGradient(
-        colors: [
-          _accent(b).withValues(alpha: .28),
-          _accent(b).withValues(alpha: .10),
-        ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-
   static ThemeData get light => _build(Brightness.light);
   static ThemeData get dark => _build(Brightness.dark);
 

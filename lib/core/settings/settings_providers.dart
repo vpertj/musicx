@@ -21,7 +21,13 @@ final searchSourceProvider = NotifierProvider<SearchSourceNotifier, String?>(
 /// 测试可 override 到临时文件,避免污染真实配置。
 final settingsFileProvider = Provider<File>((ref) {
   final home = Platform.environment['HOME'];
-  final dir = Directory(home == null || home.isEmpty ? '.musicx' : '$home/.musicx');
+  if (home != null && home.isNotEmpty) {
+    final dir = Directory('$home/.musicx');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    return File('${dir.path}/settings.json');
+  }
+  final dir = Directory('${Directory.systemTemp.path}/musicx_data');
+  if (!dir.existsSync()) dir.createSync(recursive: true);
   return File('${dir.path}/settings.json');
 });
 

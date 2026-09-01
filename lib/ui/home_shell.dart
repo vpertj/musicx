@@ -65,9 +65,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   void _openSettings() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const PluginPage()));
+    setState(() => _index = 2);
   }
 
   /// 从迷你播放条展开全屏播放器(底部滑入)。

@@ -413,9 +413,9 @@ class _IdleView extends StatelessWidget {
   final VoidCallback? onOpenPlugins;
 
   static const List<LinearGradient> _cardGradients = [
-    LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
-    LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)]),
-    LinearGradient(colors: [Color(0xFFA78BFA), Color(0xFF7C3AED)]),
+    LinearGradient(colors: [Color(0xFFE0324A), Color(0xFFC4343F)]),
+    LinearGradient(colors: [Color(0xFFFA3B4D), Color(0xFFE0324A)]),
+    LinearGradient(colors: [Color(0xFFFF7A85), Color(0xFFFA3B4D)]),
   ];
 
   @override
