@@ -11,6 +11,12 @@ class PluginManager {
   final PluginStore _store;
   final PluginSandbox _sandbox;
   final http.Client _client;
+
+  /// 共享的 dart:io HttpClient(短音频检测/URL 规范化复用,避免每次新建)。
+  /// 延迟初始化;随 manager 生命周期存活,不主动关闭。
+  HttpClient? _dartIoClient;
+  HttpClient get _dartIo => _dartIoClient ??= HttpClient();
+
   PluginManager(this.rootDir, {http.Client? client})
     : _store = PluginStore(rootDir),
       _sandbox = PluginSandbox(),
@@ -443,7 +449,7 @@ class PluginManager {
   /// 音频约 11 秒 181KB。
   Future<bool> _isSuspiciousShortAudio(String url) async {
     try {
-      final client = HttpClient();
+      final client = _dartIo;
       try {
         final req = await client
             .openUrl('HEAD', Uri.parse(url))
@@ -456,8 +462,9 @@ class PluginManager {
         if (resp.statusCode >= 300 && resp.statusCode < 400) return false;
         if (len > 0 && len < 256 * 1024) return true;
         return false;
-      } finally {
-        client.close(force: true);
+      } catch (_) {
+        // 请求失败不阻断,视为非可疑
+        return false;
       }
     } catch (_) {
       return false; // 检测失败不阻断
@@ -556,7 +563,7 @@ class PluginManager {
   Future<String> _normalizeMediaUrl(String url) async {
     var u = url.trim();
     if (u.isEmpty) return u;
-    final client = HttpClient();
+    final client = _dartIo;
     try {
       var current = Uri.parse(u);
       for (var i = 0; i < 5; i++) {
@@ -580,8 +587,6 @@ class PluginManager {
       return current.toString();
     } catch (_) {
       return u;
-    } finally {
-      client.close(force: true);
     }
   }
 
