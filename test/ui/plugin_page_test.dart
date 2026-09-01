@@ -22,7 +22,7 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  testWidgets('PluginPage lists installed plugins', (tester) async {
+  testWidgets('PluginPage shows grouped settings sections', (tester) async {
     // listPlugins 涉及真实 File IO,flutter_test 的 FakeAsync zone 无法推进
     // 真实异步(见 search_page_test 同款注释),需在 runAsync 中完成 future。
     await tester.runAsync(() async {
@@ -38,20 +38,20 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    expect(find.text('demo'), findsOneWidget);
-    expect(find.text('v0.1.0'), findsOneWidget);
+    // 主设置页采用分组菜单,不再平铺插件卡片
+    expect(find.text('音乐源'), findsOneWidget);
+    expect(find.text('外观'), findsOneWidget);
+    expect(find.text('通用'), findsOneWidget);
 
-    // 安装入口菜单:在线安装 / 导入订阅源 / 本地文件
-    await tester.tap(find.byTooltip('安装插件'));
-    await tester.pumpAndSettle();
-    expect(find.text('在线安装'), findsOneWidget);
-    expect(find.text('导入订阅源'), findsOneWidget);
-    expect(find.text('本地文件'), findsOneWidget);
+    // 音乐源分组内有「已安装音源」入口(点击进二级页)
+    expect(find.text('已安装音源'), findsOneWidget);
+    expect(find.text('默认音源'), findsOneWidget);
+
+    // 主设置页不再直接列出插件卡片(demo 在二级页)
+    expect(find.text('v0.1.0'), findsNothing);
   });
 
-  testWidgets('PluginPage edit dialog prefills name and srcUrl', (
-    tester,
-  ) async {
+  testWidgets('PluginPage appearance section toggles theme', (tester) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(
         ProviderScope(
@@ -65,20 +65,8 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    // 打开编辑弹窗
-    await tester.tap(find.byTooltip('编辑'));
-    await tester.pumpAndSettle();
-    expect(find.text('编辑音源'), findsOneWidget);
-    expect(find.text('音源名称'), findsOneWidget);
-    expect(find.text('音源地址 (srcUrl)'), findsOneWidget);
-
-    // 名称输入框预填当前音源名
-    final nameField = tester.widget<TextField>(find.byType(TextField).first);
-    expect(nameField.controller?.text, 'demo');
-
-    // 取消关闭弹窗
-    await tester.tap(find.text('取消'));
-    await tester.pumpAndSettle();
-    expect(find.text('编辑音源'), findsNothing);
+    // 外观分区有浅色/深色切换
+    expect(find.text('浅色'), findsOneWidget);
+    expect(find.text('深色'), findsOneWidget);
   });
 }

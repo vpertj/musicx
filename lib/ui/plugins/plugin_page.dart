@@ -382,6 +382,24 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     ref.invalidate(pluginListProvider);
   }
 
+  /// 进入音源管理二级页(插件卡片列表 + 安装/编辑/卸载/测试)。
+  void _openSourceManager(List<PluginInfo> plugins) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _SourceManagerPage(
+          plugins: plugins,
+          current: ref.read(searchSourceProvider),
+          onEdit: _editPlugin,
+          onDelete: _uninstall,
+          onTest: _testPlugin,
+          onInstallUrl: _installFromUrl,
+          onInstallPath: _installFromPath,
+          onInstallSource: _importFromSource,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final manager = ref.watch(pluginManagerProvider);
@@ -455,55 +473,42 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     onInstall: _installFromUrl,
                   ),
                   const SizedBox(height: 22),
-                  Row(
+                  // 分组一:音乐源
+                  _SettingsGroup(
+                    title: '音乐源',
                     children: [
-                      const _SectionTitle2('已安装音源'),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _installFromUrl,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('安装'),
+                      _DefaultSourceRow(
+                        current: source,
+                        onTap: () => _pickDefaultSource(plugins, source),
+                      ),
+                      const SizedBox(height: 8),
+                      _MenuItemRow(
+                        icon: Icons.library_music_rounded,
+                        title: '已安装音源',
+                        trailing: '${plugins.length}',
+                        onTap: () => _openSourceManager(plugins),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  for (final p in plugins)
-                    _PluginCard(
-                      plugin: p,
-                      selected: source == p.platform,
-                      onTap: () => ref
-                          .read(searchSourceProvider.notifier)
-                          .select(p.platform),
-                      onEdit: () => _editPlugin(p),
-                      onDelete: () => _uninstall(p),
-                      onTest: () => _testPlugin(p),
-                    ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '点击音源可设为默认,发现页搜索将优先使用',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                  const SizedBox(height: 22),
+                  // 分组二:外观(内联切换)
+                  _SettingsGroup(
+                    title: '外观',
+                    children: [
+                      _AppearanceSection(),
+                    ],
                   ),
                   const SizedBox(height: 22),
-                  const _SectionTitle2('外观'),
-                  const SizedBox(height: 8),
-                  _AppearanceSection(),
-                  const SizedBox(height: 22),
-                  const _SectionTitle2('通用'),
-                  const SizedBox(height: 8),
-                  _DefaultSourceRow(
-                    current: source,
-                    onTap: () => _pickDefaultSource(plugins, source),
+                  // 分组三:通用
+                  _SettingsGroup(
+                    title: '通用',
+                    children: [
+                      const UpdateRow(),
+                      const SizedBox(height: 8),
+                      const _AboutCard(),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  const UpdateRow(),
                   const SizedBox(height: 20),
-                  const _AboutCard(),
                 ],
               ),
             ),
@@ -1158,6 +1163,243 @@ class _SourceSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 设置分组容器:标题 + 卡片式分组。
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: _SectionTitle2(title),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+}
+
+/// 通用菜单行:图标 + 标题 + 尾部值 + chevron。
+class _MenuItemRow extends StatelessWidget {
+  const _MenuItemRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null)
+                Text(
+                  trailing!,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: scheme.outline,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 音源管理二级页:插件卡片列表 + 安装/编辑/卸载/测试。
+/// 主设置页点击「已安装音源」进入。
+class _SourceManagerPage extends ConsumerStatefulWidget {
+  const _SourceManagerPage({
+    required this.plugins,
+    required this.current,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTest,
+    required this.onInstallUrl,
+    required this.onInstallPath,
+    required this.onInstallSource,
+  });
+
+  final List<PluginInfo> plugins;
+  final String? current;
+  final void Function(PluginInfo) onEdit;
+  final void Function(PluginInfo) onDelete;
+  final void Function(PluginInfo) onTest;
+  final VoidCallback onInstallUrl;
+  final VoidCallback onInstallPath;
+  final VoidCallback onInstallSource;
+
+  @override
+  ConsumerState<_SourceManagerPage> createState() => _SourceManagerPageState();
+}
+
+class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
+  late final Future<List<PluginInfo>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ref.read(pluginManagerProvider).listPlugins();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('音源管理'),
+        actions: [
+          PopupMenuButton<_InstallAction>(
+            tooltip: '安装插件',
+            icon: const Icon(Icons.add_rounded),
+            onSelected: (action) => switch (action) {
+              _InstallAction.url => widget.onInstallUrl(),
+              _InstallAction.source => widget.onInstallSource(),
+              _InstallAction.file => widget.onInstallPath(),
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _InstallAction.url,
+                child: ListTile(
+                  leading: Icon(Icons.link_rounded),
+                  title: Text('在线安装'),
+                  subtitle: Text('输入插件 JS 的 URL'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _InstallAction.source,
+                child: ListTile(
+                  leading: Icon(Icons.rss_feed_rounded),
+                  title: Text('导入订阅源'),
+                  subtitle: Text('浏览 plugins.json 中的插件'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _InstallAction.file,
+                child: ListTile(
+                  leading: Icon(Icons.insert_drive_file_outlined),
+                  title: Text('本地文件'),
+                  subtitle: Text('从磁盘路径安装'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<PluginInfo>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final plugins = snapshot.data ?? const [];
+          if (plugins.isEmpty) {
+            return _EmptyPlugins(onInstall: widget.onInstallUrl);
+          }
+          final source = ref.watch(searchSourceProvider);
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  Row(
+                    children: [
+                      const _SectionTitle2('已安装音源'),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: widget.onInstallUrl,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('安装'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  for (final p in plugins)
+                    _PluginCard(
+                      plugin: p,
+                      selected: source == p.platform,
+                      onTap: () => ref
+                          .read(searchSourceProvider.notifier)
+                          .select(p.platform),
+                      onEdit: () => widget.onEdit(p),
+                      onDelete: () => widget.onDelete(p),
+                      onTest: () => widget.onTest(p),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '点击音源可设为默认,发现页搜索将优先使用',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
