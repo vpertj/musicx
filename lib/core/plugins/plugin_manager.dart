@@ -173,37 +173,52 @@ class PluginManager {
 
   /// 替换 [tail] 中 [field] 字段的字符串字面量;字段不存在时若 [insertIfMissing]
   /// 为 true 则在 platform 行之后补插。
+  ///
+  /// 安全:仅匹配 `field:` 出现在对象顶层键位置(排除注释/嵌套),且
+  /// value 用 [encodeJsString] 转义,防止引号/反斜杠破坏 JS 语法。
   String _replaceField(
     String tail,
     String field,
     String value, {
     bool insertIfMissing = false,
   }) {
-    final re = RegExp('($field\\s*:\\s*["\'])[^"\']*(["\'])');
-    final m = re.firstMatch(tail);
+    // 匹配 `field: "val"` 或 `field: 'val'`,要求 field 前是行首/空白/逗号/花括号
+    // (排除注释里的同名键,注释多出现在行首 `//` 后,不在键位置)。
+    final fieldRe = RegExp(
+      '(?:^|[\\s,{])$field(\\s*:\\s*)(["\'])([^"\']*)\\2',
+      multiLine: true,
+    );
+    final m = fieldRe.firstMatch(tail);
     if (m != null) {
-      return tail.replaceRange(
-        m.start,
-        m.end,
-        '${m.group(1)}$value${m.group(2)}',
-      );
+      // 整段替换为规范化的 `field: "encoded"`(引号风格统一为双引号,JS 语义不变)。
+      final head = tail.substring(0, m.start);
+      // 保留 field 前的一个分隔字符(空白/逗号/花括号)以维持格式。
+      final suffix = tail.substring(m.end);
+      return '$head$field: ${encodeJsString(value)}$suffix';
     }
     if (!insertIfMissing) {
       throw ArgumentError('插件文件中未找到 $field 字段');
     }
-    // 在 platform 字段所在行之后补插新字段。
+    // 在 platform 字段所在行之后补插新字段(值已转义)。
     final pm = RegExp('platform\\s*:\\s*["\'][^"\']*["\']').firstMatch(tail);
     if (pm == null) {
       throw ArgumentError('插件文件中未找到 platform 字段');
     }
     final lineEnd = tail.indexOf('\n', pm.end);
+    final insertText = '$field: ${encodeJsString(value)}';
     if (lineEnd < 0) {
       // platform 行无换行(单行导出):紧跟其后补逗号与字段
-      return tail.replaceRange(pm.end, pm.end, ', $field: "$value"');
+      return tail.replaceRange(pm.end, pm.end, ', $insertText');
     }
     // 在 platform 行的换行之后另起一行插入
-    return tail.replaceRange(lineEnd + 1, lineEnd + 1, '  $field: "$value",\n');
+    return tail.replaceRange(lineEnd + 1, lineEnd + 1, '  $insertText,\n');
   }
+
+  /// 生成合法的 JS 字符串字面量(带双引号),转义引号/反斜杠/控制字符。
+  ///
+  /// 用 [jsonEncode] 实现:JSON 字符串字面量与 JS 字符串字面量在引号、
+  /// 反斜杠、控制字符的转义规则上兼容,可安全插入 JS 源码而不破坏语法。
+  static String encodeJsString(String value) => jsonEncode(value);
 
   /// 搜索歌曲。[platform] 指定音源插件(不传则按顺序尝试全部,
   /// 第一个成功返回);若指定插件失败则抛错。[page] 从 1 开始。
