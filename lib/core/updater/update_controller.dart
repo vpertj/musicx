@@ -87,6 +87,7 @@ class UpdateController extends Notifier<UpdateState> {
       final dmg = await service.download(
         info.dmgUrl,
         onProgress: (p) => state = state.copyWith(progress: p),
+        expectedSha256: info.dmgSha256,
       );
       state = state.copyWith(phase: UpdatePhase.installing);
       await service.installAndRestart(dmg);

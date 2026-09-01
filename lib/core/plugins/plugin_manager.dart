@@ -12,9 +12,11 @@ class PluginManager {
   final Directory rootDir;
   final PluginStore _store;
   final PluginSandbox _sandbox;
-  PluginManager(this.rootDir)
+  final http.Client _client;
+  PluginManager(this.rootDir, {http.Client? client})
     : _store = PluginStore(rootDir),
-      _sandbox = PluginSandbox();
+      _sandbox = PluginSandbox(),
+      _client = client ?? http.Client();
 
   Future<List<PluginInfo>> listPlugins() async {
     final files = _store.scanPluginFiles();
@@ -40,10 +42,12 @@ class PluginManager {
   /// 在线安装:从 [url] 下载插件 JS 并保存到插件目录。
   /// 下载后仅做元数据轻量校验(platform/version 存在),完整加载校验
   /// 由 listPlugins/搜索时执行。
+  ///
+  /// 安全:仅接受 https 下载,拒绝明文 http(避免 DNS 劫持注入脚本)。
   Future<PluginInfo> installFromUrl(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      throw ArgumentError('无效的插件地址:$url');
+    if (uri == null || uri.scheme != 'https') {
+      throw ArgumentError('无效的插件地址:仅支持 https,拒绝明文 http:$url');
     }
     final body = await _downloadText(uri);
     final meta = _store.parseMeta(body);
@@ -65,10 +69,11 @@ class PluginManager {
 
   /// 拉取订阅源(plugins.json),返回插件条目列表。
   /// 兼容 { "plugins": [...] } 与顶层直接为数组两种格式。
+  /// 仅接受 https 订阅源。
   Future<List<PluginSource>> fetchPluginSources(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      throw ArgumentError('无效的订阅源地址:$url');
+    if (uri == null || uri.scheme != 'https') {
+      throw ArgumentError('无效的订阅源地址:仅支持 https:$url');
     }
     final body = await _downloadText(uri);
     final dynamic decoded;
@@ -107,18 +112,13 @@ class PluginManager {
   }
 
   Future<String> _downloadText(Uri uri) async {
-    final client = http.Client();
-    try {
-      final resp = await client
-          .get(uri, headers: const {'user-agent': 'MusicX/1.0'})
-          .timeout(const Duration(seconds: 15));
-      if (resp.statusCode != 200) {
-        throw HttpException('下载失败:HTTP ${resp.statusCode}');
-      }
-      return utf8.decode(resp.bodyBytes);
-    } finally {
-      client.close();
+    final resp = await _client
+        .get(uri, headers: const {'user-agent': 'MusicX/1.0'})
+        .timeout(const Duration(seconds: 15));
+    if (resp.statusCode != 200) {
+      throw HttpException('下载失败:HTTP ${resp.statusCode}');
     }
+    return utf8.decode(resp.bodyBytes);
   }
 
   Future<String> _writePlugin(String body, {required String source}) async {

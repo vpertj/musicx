@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 /// GitHub 仓库信息:更新检查与下载均基于此仓库的 Releases。
@@ -14,12 +15,18 @@ class UpdateInfo {
   final String releaseUrl;
   final String? releaseNotes;
 
+  /// DMG 的 SHA256 摘要(十六进制,不含 "sha256:" 前缀)。
+  /// 来自 GitHub Release asset 的 digest 字段;用于下载后完整性校验。
+  /// 若来源未提供(如降级解析网页),为 null 时跳过校验。
+  final String? dmgSha256;
+
   const UpdateInfo({
     required this.latestVersion,
     required this.currentVersion,
     required this.dmgUrl,
     required this.releaseUrl,
     this.releaseNotes,
+    this.dmgSha256,
   });
 
   bool get hasUpdate => compareVersions(latestVersion, currentVersion) > 0;
@@ -96,10 +103,16 @@ class UpdateService {
     final latest = tag.startsWith('v') ? tag.substring(1) : tag;
     final assets = (json['assets'] as List?) ?? const [];
     String dmgUrl = '';
+    String? dmgSha256;
     for (final a in assets) {
       final name = a['name'] as String? ?? '';
       if (name.endsWith('.dmg')) {
         dmgUrl = a['browser_download_url'] as String? ?? '';
+        // GitHub asset digest 形如 "sha256:<64位hex>";提取 hex 部分。
+        final digest = a['digest'] as String? ?? '';
+        dmgSha256 = digest.startsWith('sha256:')
+            ? digest.substring('sha256:'.length).trim()
+            : null;
         break;
       }
     }
@@ -112,6 +125,7 @@ class UpdateService {
       dmgUrl: dmgUrl,
       releaseUrl: json['html_url'] as String? ?? '',
       releaseNotes: json['body'] as String?,
+      dmgSha256: dmgSha256,
     );
   }
 
@@ -154,7 +168,12 @@ class UpdateService {
 
   /// 下载 DMG 到临时文件,返回本地路径。
   /// [onProgress] 回调下载进度(0.0 ~ 1.0)。
-  Future<File> download(String url, {void Function(double)? onProgress}) async {
+  /// [expectedSha256] 若提供,下载后校验文件 SHA256;不匹配则删除文件并抛异常。
+  Future<File> download(
+    String url, {
+    void Function(double)? onProgress,
+    String? expectedSha256,
+  }) async {
     final tmp = Directory.systemTemp;
     final file = File('${tmp.path}/musicx_update.dmg');
     if (file.existsSync()) file.deleteSync();
@@ -182,7 +201,27 @@ class UpdateService {
       await sink.flush();
       await sink.close();
     }
+
+    // SHA256 完整性校验:不匹配说明下载被篡改/损坏,拒绝安装并清理。
+    if (expectedSha256 != null && expectedSha256.isNotEmpty) {
+      final actual = await _sha256Of(file);
+      if (actual.toLowerCase() != expectedSha256.toLowerCase()) {
+        try {
+          file.deleteSync();
+        } catch (_) {}
+        throw HttpException(
+          '更新包完整性校验失败(SHA256 不匹配),已拒绝安装。\n'
+          '请检查网络后重试,或手动从 GitHub Release 下载。',
+        );
+      }
+    }
     return file;
+  }
+
+  /// 计算文件 SHA256(十六进制小写)。
+  Future<String> _sha256Of(File file) async {
+    final bytes = await file.readAsBytes();
+    return sha256.convert(bytes).toString();
   }
 
   /// 用 DMG 替换当前应用并重启。
