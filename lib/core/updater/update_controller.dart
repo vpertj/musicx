@@ -51,12 +51,17 @@ class UpdateController extends Notifier<UpdateState> {
     try {
       final info = await ref.read(updateServiceProvider).checkForUpdate();
       if (!info.hasUpdate) {
-        state = state.copyWith(
-          phase: UpdatePhase.idle,
-          clearInfo: true,
-          error: silent ? null : '当前已是最新版本 v${info.currentVersion}',
-        );
-        if (!silent) state = state.copyWith(phase: UpdatePhase.error);
+        if (silent) {
+          // 静默检查:无更新不打扰用户,回到 idle。
+          state = state.copyWith(phase: UpdatePhase.idle, clearInfo: true);
+        } else {
+          // 手动检查:无更新时直接置 error 相位并显示提示。
+          state = state.copyWith(
+            phase: UpdatePhase.error,
+            clearInfo: true,
+            error: '当前已是最新版本 v${info.currentVersion}',
+          );
+        }
       } else {
         state = state.copyWith(phase: UpdatePhase.ready, info: info);
       }
