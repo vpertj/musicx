@@ -4,7 +4,6 @@ import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/utils/format.dart';
 import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
-import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
 import 'package:musicx/ui/widgets/seek_bar.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
@@ -25,15 +24,7 @@ class PlayerPage extends ConsumerWidget {
     return Scaffold(
       extendBody: true,
       body: Container(
-        decoration: const BoxDecoration(
-          // 顶部品牌紫光晕 + 底部深黑,营造沉浸氛围
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF2E2356), Color(0xFF1A1330), Color(0xFF0D0A16)],
-            stops: [0, .45, 1],
-          ),
-        ),
+        color: Theme.of(context).colorScheme.surface,
         child: SafeArea(
           child: song == null
               ? _EmptyPlayer(overlay: overlay)
@@ -198,7 +189,7 @@ class _ViewToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: selected ? AppTheme.violet : Colors.transparent,
+      color: selected ? scheme.primary : Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -568,6 +559,7 @@ class _ArtworkState extends State<_Artwork>
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final box = widget.compact ? 240.0 : 300.0;
     final halo = widget.compact ? 280.0 : 360.0;
     return FittedBox(
@@ -578,7 +570,7 @@ class _ArtworkState extends State<_Artwork>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 背景光晕
+            // 背景光晕(品牌红,低饱和)
             Container(
               width: halo,
               height: halo,
@@ -586,8 +578,8 @@ class _ArtworkState extends State<_Artwork>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppTheme.violet.withValues(alpha: .40),
-                    AppTheme.pink.withValues(alpha: .14),
+                    scheme.primary.withValues(alpha: .40),
+                    scheme.primary.withValues(alpha: .14),
                     Colors.transparent,
                   ],
                   stops: const [0, .55, 1],
@@ -660,7 +652,7 @@ class _Disc extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.surfaceDarkHi,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: .5),
@@ -781,7 +773,7 @@ class _RoundToggle extends StatelessWidget {
       icon: Icon(
         icon,
         size: 22,
-        color: active ? AppTheme.pink : scheme.onSurfaceVariant,
+        color: active ? scheme.primary : scheme.onSurfaceVariant,
       ),
       onPressed: onPressed,
     );
@@ -804,12 +796,13 @@ class _PlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppTheme.violet.withValues(alpha: .55),
+            color: scheme.primary.withValues(alpha: .55),
             blurRadius: 28,
             offset: const Offset(0, 10),
           ),
@@ -821,9 +814,9 @@ class _PlayButton extends StatelessWidget {
         child: Ink(
           width: compact ? 62 : 74,
           height: compact ? 62 : 74,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: AppTheme.accentGradient,
+            color: scheme.primary,
           ),
           child: InkWell(
             customBorder: const CircleBorder(),
@@ -970,7 +963,7 @@ class _EmptyPlayer extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppTheme.violet.withValues(alpha: .45),
+                        scheme.primary.withValues(alpha: .45),
                         Colors.transparent,
                       ],
                     ),
