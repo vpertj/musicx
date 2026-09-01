@@ -259,13 +259,16 @@ class PlayerController extends Notifier<PlayerState> {
     try {
       final manager = ref.read(pluginManagerProvider);
       final media = await manager.resolveMediaSource(current.toJson());
+      // 播放令牌:请求期间若已被更新请求取代(快速连点 next/切歌),放弃本次播放,
+      // 避免旧歌在解析完成后覆盖/打断当前曲目。
+      if (token != _playToken) return;
       final url = media['url'] as String;
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
-      // 获取歌词(不阻塞播放)
+      // 歌词解析较慢且非阻塞;完成后再校验 token,避免旧请求写入新请求的歌词。
       final lyricText = await manager.resolveLyric(current.toJson());
-      final lyric = parseLrc(lyricText);
       if (token != _playToken) return;
+      final lyric = parseLrc(lyricText);
       state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
     } catch (e) {
       if (token != _playToken) return;
