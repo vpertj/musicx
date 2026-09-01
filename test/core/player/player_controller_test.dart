@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/player/player_service.dart';
 import 'package:musicx/core/plugins/plugin_manager.dart';
+import 'package:musicx/core/providers.dart';
 import 'package:musicx/models/music_item.dart';
 
 void main() {

@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:musicx/core/search/search_controller.dart'
-    show pluginManagerProvider;
+import 'package:musicx/core/providers.dart' show pluginManagerProvider;
 import 'package:musicx/models/downloaded_song.dart';
 import 'package:musicx/models/music_item.dart';
 

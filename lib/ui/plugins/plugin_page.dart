@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
-import 'package:musicx/core/search/search_controller.dart'
+import 'package:musicx/core/providers.dart'
     show pluginManagerProvider, pluginListProvider;
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';

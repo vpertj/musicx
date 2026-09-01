@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/providers.dart';
 import 'package:musicx/models/music_item.dart';
 
-export 'package:musicx/core/player/player_controller.dart'
+export 'package:musicx/core/providers.dart'
     show pluginManagerProvider, pluginListProvider;
 export 'package:musicx/core/plugins/plugin_manager.dart' show PluginManager;
 

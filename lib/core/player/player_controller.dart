@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:musicx/core/plugins/plugin_info.dart';
-import 'package:musicx/core/plugins/plugin_manager.dart';
+import 'package:musicx/core/providers.dart';
 import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
 import 'player_service.dart';
@@ -70,17 +69,6 @@ final playerServiceProvider = Provider<PlayerService>((ref) {
   final service = PlayerService();
   ref.onDispose(service.dispose);
   return service;
-});
-
-final pluginManagerProvider = Provider<PluginManager>((ref) {
-  final dir = PluginManager.pluginsDir();
-  return PluginManager(dir);
-});
-
-/// 已安装插件列表(缓存):插件安装/卸载/更新后调用
-/// `ref.invalidate(pluginListProvider)` 刷新,避免每次 build 都重新扫描磁盘。
-final pluginListProvider = FutureProvider<List<PluginInfo>>((ref) {
-  return ref.watch(pluginManagerProvider).listPlugins();
 });
 
 final playerControllerProvider =
