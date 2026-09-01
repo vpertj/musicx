@@ -93,7 +93,22 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
       }
       final dir = downloadDir();
       final base = '${song.artist ?? '未知歌手'} - ${song.title}';
-      final safe = base.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+      var safe = base.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+      // 文件名安全加固:防保留名、路径穿越(../)、以点开头的隐藏名、空串。
+      safe = safe.replaceAll(RegExp(r'\.{1,2}(?=[./]|$)'), '_');
+      safe = safe.replaceAll(RegExp(r'\s+'), ' ');
+      if (safe.isEmpty || safe == '.' || safe == '..') safe = 'untitled';
+      if (safe.startsWith('.')) safe = '_$safe';
+      // Windows 保留名(如 CON/AUX)限制在 255 字符内
+      if (safe.length > 200) safe = safe.substring(0, 200);
+      final reserved = <String>{
+        'con', 'prn', 'aux', 'nul',
+        'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+        'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
+      };
+      if (reserved.contains(safe.toLowerCase().split('.').first)) {
+        safe = '_$safe';
+      }
       final file = File('${dir.path}/$safe.mp3');
       await file.writeAsBytes(resp.bodyBytes, flush: true);
 

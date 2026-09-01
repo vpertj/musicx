@@ -229,29 +229,25 @@ class UpdateService {
   /// 步骤:挂载 DMG → 复制新版 .app 覆盖当前 .app → 卸载 DMG →
   /// 生成重启脚本(延迟 2s,等本进程退出后 `open` 新应用) → 退出当前进程。
   Future<void> installAndRestart(File dmg) async {
-    // 1. 挂载 DMG
+    // 1. 挂载 DMG 到显式的临时挂载点,避免解析 stdout 的路径(脆弱)。
+    final mountPoint = Directory(
+      '${Directory.systemTemp.path}/musicx_update_mount',
+    );
+    if (mountPoint.existsSync()) mountPoint.deleteSync(recursive: true);
+    mountPoint.createSync(recursive: true);
     final mount = await Process.run('hdiutil', [
       'attach',
       dmg.path,
       '-nobrowse',
       '-readonly',
+      '-mountpoint',
+      mountPoint.path,
     ]);
     if (mount.exitCode != 0) {
       throw HttpException('挂载更新包失败: ${mount.stderr}');
     }
-    // 2. 找挂载点中的 .app
-    String? mountPoint;
-    final lines = (mount.stdout as String).split('\n');
-    for (final line in lines) {
-      final idx = line.indexOf('/Volumes/');
-      if (idx >= 0) {
-        mountPoint = line.substring(idx).trim();
-        break;
-      }
-    }
-    if (mountPoint == null) throw HttpException('无法定位 DMG 挂载点');
 
-    final newAppDir = Directory(mountPoint);
+    final newAppDir = Directory(mountPoint.path);
     Directory? newApp;
     await for (final e in newAppDir.list()) {
       if (e is Directory && e.path.endsWith('.app')) {
@@ -286,7 +282,11 @@ class UpdateService {
     if (backup.existsSync()) backup.deleteSync(recursive: true);
 
     // 4. 卸载 DMG
-    await Process.run('hdiutil', ['detach', mountPoint, '-force']);
+    await Process.run('hdiutil', ['detach', mountPoint.path, '-force']);
+    // 清理临时挂载点目录
+    try {
+      if (mountPoint.existsSync()) mountPoint.deleteSync(recursive: true);
+    } catch (_) {}
 
     // 5. 生成重启脚本(延迟 2s,等本进程退出后启动新版本)
     //    用 nohup + 独立进程组,确保父进程 exit 后脚本仍执行
