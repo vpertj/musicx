@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:musicx/core/plugins/plugin_bridge_async.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
-import 'package:musicx/core/plugins/plugin_loader.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
 import 'package:musicx/models/plugin_source.dart';
@@ -227,14 +225,12 @@ class PluginManager {
       if (platform != null && plugin.platform != platform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(() async {
-          final runtime = JsRuntimeFactory.createIsolateSafe();
-          final loader = PluginLoader(runtime);
-          loader.loadPlugin(source);
-          final bridge = PluginBridgeAsync(runtime);
-          // MusicFree 协议:search(keyword, page, type) 位置参数
-          return bridge.callAsync('search', [keyword, page, 'music']);
-        }, timeout: timeout);
+        final result = await _sandbox.callPlugin(
+          source,
+          'search',
+          [keyword, page, 'music'],
+          timeout: timeout,
+        );
         // 宿主补全:MusicFree 协议中 platform/songId 由宿主填充,
         // 插件结果往往缺省(如 bilibili 只返回 id)。
         _normalizeResults(result, platform: plugin.platform);
@@ -461,14 +457,12 @@ class PluginManager {
     Duration timeout,
   ) async {
     final source = await File(plugin.path).readAsString();
-    final result = await _sandbox.isolate(() async {
-      final runtime = JsRuntimeFactory.createIsolateSafe();
-      final loader = PluginLoader(runtime);
-      loader.loadPlugin(source);
-      final bridge = PluginBridgeAsync(runtime);
-      // MusicFree 协议:getMediaSource(musicItem, quality) 位置参数
-      return bridge.callAsync('getMediaSource', [musicItem, quality]);
-    }, timeout: timeout);
+    final result = await _sandbox.callPlugin(
+      source,
+      'getMediaSource',
+      [musicItem, quality],
+      timeout: timeout,
+    );
     final raw = result['url'] as String?;
     if (raw == null || raw.isEmpty) {
       throw Exception('plugin returned empty url');
@@ -489,14 +483,12 @@ class PluginManager {
       if (wantPlatform != null && plugin.platform != wantPlatform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.isolate(() async {
-          final runtime = JsRuntimeFactory.createIsolateSafe();
-          final loader = PluginLoader(runtime);
-          loader.loadPlugin(source);
-          final bridge = PluginBridgeAsync(runtime);
-          // MusicFree 协议:getLyric(musicItem) 位置参数
-          return bridge.callAsync('getLyric', [musicItem]);
-        }, timeout: timeout);
+        final result = await _sandbox.callPlugin(
+          source,
+          'getLyric',
+          [musicItem],
+          timeout: timeout,
+        );
         // MusicFree 协议:插件可返回 `rawLrc`(歌词纯文本)或 `url`(歌词源地址)
         final rawLrc = result['rawLrc'];
         if (rawLrc is String && rawLrc.isNotEmpty) {

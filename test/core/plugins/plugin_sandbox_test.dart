@@ -31,4 +31,61 @@ void main() {
       throwsA(isA<PluginIsolateTimeoutException>()),
     );
   });
+
+  group('callPlugin (Isolate.spawn + kill)', () {
+    const demoPlugin = '''
+module.exports = {
+  platform: "demo", version: "0.1.0",
+  search: function (q) {
+    return new Promise(function (resolve) {
+      setTimeout(function () { resolve({ data: [{ id: "d1", title: "示例歌曲", songId: "d1" }] }); }, 10);
+    });
+  },
+  getMediaSource: function (m) { return { url: "http://ok/" + m.songId }; }
+};
+''';
+
+    test('callPlugin loads plugin and returns method result', () async {
+      final sandbox = PluginSandbox();
+      final result = await sandbox.callPlugin(
+        demoPlugin,
+        'search',
+        ['周杰伦', 1, 'music'],
+      );
+      expect(result['data'], isA<List>());
+      expect((result['data'] as List).first['title'], '示例歌曲');
+    });
+
+    test('callPlugin getMediaSource returns url', () async {
+      final sandbox = PluginSandbox();
+      final result = await sandbox.callPlugin(
+        demoPlugin,
+        'getMediaSource',
+        [{'songId': 'd1'}],
+      );
+      expect(result['url'], 'http://ok/d1');
+    });
+
+    test('callPlugin times out and throws (kills isolate)', () async {
+      final sandbox = PluginSandbox();
+      // 用永不 resolve 的 Promise 模拟死循环/长任务,验证超时后真杀的路径。
+      const hangingPlugin = '''
+module.exports = {
+  platform: "demo", version: "0.1.0",
+  search: function () {
+    return new Promise(function () { /* 永不 resolve */ });
+  }
+};
+''';
+      await expectLater(
+        sandbox.callPlugin(
+          hangingPlugin,
+          'search',
+          ['x', 1, 'music'],
+          timeout: const Duration(milliseconds: 200),
+        ),
+        throwsA(isA<PluginIsolateTimeoutException>()),
+      );
+    });
+  });
 }
