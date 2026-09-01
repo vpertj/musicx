@@ -1,103 +1,100 @@
 import 'package:flutter/material.dart';
 
-/// MusicX 主题:深色沉浸优先,紫→粉渐变强调色。
+/// MusicX 主题:「月光极简」——黑白灰骨架 + 品牌红点缀。
+///
+/// 浅色为默认,深色可手动切换。所有颜色经语义常量引用,不散落硬编码。
+/// 旧紫粉渐变常量(accentGradient/softGradient/violet/pink/orange)为
+/// 过渡占位,待全项目替换为品牌红后删除(见实现计划 Task 6)。
 class AppTheme {
   AppTheme._();
 
-  /// 品牌紫罗兰
+  // ---- 品牌红(唯一彩色点缀)----
+  static const Color accent = Color(0xFFFA3B4D); // 浅色品牌红
+  static const Color accentDark = Color(0xFFFF4559); // 深色品牌红
+  static const Color accentSoft = Color(0xFFFFEDEE); // 浅色红底
+  static const Color accentSoftDark = Color(0xFF3A2225); // 深色红底
+
+  // ---- 过渡占位:旧紫粉渐变/品牌色(待 Task 6 删除)----
   static const Color violet = Color(0xFF8B5CF6);
-
-  /// 强调粉
   static const Color pink = Color(0xFFEC4899);
-
-  /// 辅助橙
   static const Color orange = Color(0xFFF59E0B);
-
   static const Color bgDark = Color(0xFF0D0A16);
   static const Color surfaceDark = Color(0xFF171226);
   static const Color surfaceDarkHi = Color(0xFF1F1930);
-
   static const Color bgLight = Color(0xFFF7F5FC);
   static const Color surfaceLight = Color(0xFFFFFFFF);
   static const Color surfaceLightHi = Color(0xFFF0ECF9);
-
-  /// 主题渐变(播放键、进度条、徽标等)
   static const LinearGradient accentGradient = LinearGradient(
     colors: [violet, pink],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-
-  /// 柔和品牌渐变(封面占位、插件图标等)
   static const LinearGradient softGradient = LinearGradient(
     colors: [Color(0xFF5B3FB8), Color(0xFF8B5CF6)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static ThemeData get dark => _build(
-    brightness: Brightness.dark,
-    background: bgDark,
-    surface: surfaceDark,
-    surfaceHi: surfaceDarkHi,
-    onSurface: const Color(0xFFEDE9F6),
-    muted: const Color(0xFF8B84A3),
-    outline: const Color(0xFF3E3557),
-  );
+  // ---- 语义色 Token(按亮度取色)----
+  static Color _bg(Brightness b) =>
+      b == Brightness.dark ? const Color(0xFF121212) : const Color(0xFFFAFBFC);
+  static Color _surface(Brightness b) =>
+      b == Brightness.dark ? const Color(0xFF1E1E1E) : const Color(0xFFFFFFFF);
+  static Color _surfaceHi(Brightness b) =>
+      b == Brightness.dark ? const Color(0xFF242629) : const Color(0xFFF2F3F5);
+  static Color _text(Brightness b) =>
+      b == Brightness.dark ? const Color(0xFFF3F4F6) : const Color(0xFF1A1C1E);
+  static Color _muted(Brightness b) =>
+      b == Brightness.dark ? const Color(0xFF9AA1AB) : const Color(0xFF8A8F98);
+  static Color _divider(Brightness b) => b == Brightness.dark
+      ? const Color(0xFF2C2F33)
+      : const Color(0xFFE7E9EC);
+  static Color _accent(Brightness b) => b == Brightness.dark ? accentDark : accent;
+  static Color _accentSoft(Brightness b) =>
+      b == Brightness.dark ? accentSoftDark : accentSoft;
 
-  static ThemeData get light => _build(
-    brightness: Brightness.light,
-    background: bgLight,
-    surface: surfaceLight,
-    surfaceHi: surfaceLightHi,
-    onSurface: const Color(0xFF1C1630),
-    muted: const Color(0xFF6B6591),
-    outline: const Color(0xFFD5CFE8),
-  );
+  /// 页面背景色(供需要直接引用的地方)。
+  static Color bgOf(Brightness b) => _bg(b);
 
-  static ThemeData _build({
-    required Brightness brightness,
-    required Color background,
-    required Color surface,
-    required Color surfaceHi,
-    required Color onSurface,
-    required Color muted,
-    required Color outline,
-  }) {
-    final isDark = brightness == Brightness.dark;
-    final scheme =
-        ColorScheme.fromSeed(
-          seedColor: violet,
-          brightness: brightness,
-        ).copyWith(
-          primary: isDark ? const Color(0xFFB39DFF) : const Color(0xFF6D28D9),
-          onPrimary: isDark ? const Color(0xFF1E0B46) : Colors.white,
-          secondary: pink,
-          onSurface: onSurface,
-          surface: surface,
-          surfaceContainer: surfaceHi,
-          surfaceContainerHigh: isDark
-              ? const Color(0xFF241D38)
-              : const Color(0xFFEAE5F5),
-          surfaceContainerHighest: isDark
-              ? const Color(0xFF2A2242)
-              : const Color(0xFFE2DCF1),
-          outline: outline,
-          error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
-        );
+  /// 封面占位渐变(柔和,基于品牌红而非紫粉)。
+  static LinearGradient albumPlaceholder(Brightness b) => LinearGradient(
+        colors: [
+          _accent(b).withValues(alpha: .28),
+          _accent(b).withValues(alpha: .10),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
+  static ThemeData get light => _build(Brightness.light);
+  static ThemeData get dark => _build(Brightness.dark);
+
+  static ThemeData _build(Brightness b) {
+    final isDark = b == Brightness.dark;
+    final scheme = ColorScheme(
+      brightness: b,
+      primary: _accent(b),
+      onPrimary: Colors.white,
+      secondary: _accent(b),
+      onSecondary: Colors.white,
+      surface: _surface(b),
+      onSurface: _text(b),
+      error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
+      onError: Colors.white,
+    );
 
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      brightness: brightness,
-      scaffoldBackgroundColor: background,
+      brightness: b,
+      scaffoldBackgroundColor: _bg(b),
       splashFactory: InkSparkle.splashFactory,
     );
 
     return base.copyWith(
       textTheme: base.textTheme.apply(
-        bodyColor: onSurface,
-        displayColor: onSurface,
+        bodyColor: _text(b),
+        displayColor: _text(b),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -105,18 +102,16 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: onSurface,
+          color: _text(b),
           fontSize: 20,
           fontWeight: FontWeight.w700,
           letterSpacing: .2,
         ),
-        iconTheme: IconThemeData(color: onSurface),
+        iconTheme: IconThemeData(color: _text(b)),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: isDark
-            ? surface.withValues(alpha: .92)
-            : surface.withValues(alpha: .95),
-        indicatorColor: violet.withValues(alpha: .26),
+        backgroundColor: _surface(b).withValues(alpha: .95),
+        indicatorColor: _accentSoft(b),
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -127,35 +122,27 @@ class AppTheme {
           return TextStyle(
             fontSize: 11,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? onSurface : muted,
+            color: selected ? _text(b) : _muted(b),
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
-          return IconThemeData(color: selected ? onSurface : muted, size: 23);
+          return IconThemeData(color: selected ? _accent(b) : _muted(b), size: 23);
         }),
       ),
       cardTheme: CardThemeData(
-        color: surface,
+        color: _surface(b),
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: Colors.white.withValues(alpha: isDark ? .06 : .5),
-          ),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceHi,
-        hintStyle: TextStyle(color: muted),
-        prefixIconColor: muted,
-        suffixIconColor: muted,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 13,
-        ),
+        fillColor: _surfaceHi(b),
+        hintStyle: TextStyle(color: _muted(b)),
+        prefixIconColor: _muted(b),
+        suffixIconColor: _muted(b),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -166,69 +153,43 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: violet, width: 1.4),
+          borderSide: BorderSide(color: _accent(b), width: 1.4),
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: isDark
-            ? const Color(0xFF241D38)
-            : const Color(0xFFEAE5F5),
+        backgroundColor: _surfaceHi(b),
         side: BorderSide.none,
-        labelStyle: TextStyle(
-          color: onSurface,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
+        labelStyle: TextStyle(color: _text(b), fontSize: 13, fontWeight: FontWeight.w500),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(foregroundColor: onSurface),
+        style: IconButton.styleFrom(foregroundColor: _text(b)),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: surfaceHi,
-        contentTextStyle: TextStyle(color: onSurface),
+        backgroundColor: _surfaceHi(b),
+        contentTextStyle: TextStyle(color: _text(b)),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: surface,
-        modalBackgroundColor: surface,
+        backgroundColor: _surface(b),
+        modalBackgroundColor: _surface(b),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         showDragHandle: true,
-        dragHandleColor: muted.withValues(alpha: .5),
+        dragHandleColor: _muted(b).withValues(alpha: .5),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: surfaceHi,
+        backgroundColor: _surfaceHi(b),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        titleTextStyle: TextStyle(
-          color: onSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-        ),
-        contentTextStyle: TextStyle(
-          color: onSurface.withValues(alpha: .8),
-          fontSize: 14,
-          height: 1.5,
-        ),
+        titleTextStyle: TextStyle(color: _text(b), fontSize: 20, fontWeight: FontWeight.w700),
+        contentTextStyle: TextStyle(color: _text(b).withValues(alpha: .8), fontSize: 14, height: 1.5),
       ),
-      dividerTheme: DividerThemeData(
-        color: Colors.white.withValues(alpha: isDark ? .07 : .12),
-        thickness: 1,
-        space: 1,
-      ),
-      listTileTheme: ListTileThemeData(iconColor: muted, textColor: onSurface),
-      tooltipTheme: TooltipThemeData(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2A2242) : const Color(0xFF35305C),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        textStyle: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
+      dividerTheme: DividerThemeData(color: _divider(b), thickness: 1, space: 1),
+      listTileTheme: ListTileThemeData(iconColor: _muted(b), textColor: _text(b)),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: violet,
-        linearTrackColor: surfaceHi,
+        color: _accent(b),
+        linearTrackColor: _surfaceHi(b),
       ),
     );
   }
