@@ -304,7 +304,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                   ),
                 ),
                 trailing: current == null
-                    ? Icon(Icons.check_circle_rounded, color: AppTheme.violet)
+                    ? Icon(Icons.check_circle_rounded, color: scheme.primary)
                     : null,
                 onTap: () => Navigator.pop(ctx, autoMark),
               ),
@@ -331,7 +331,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                   ),
                   trailing: current == p.platform
-                      ? Icon(Icons.check_circle_rounded, color: AppTheme.violet)
+                      ? Icon(Icons.check_circle_rounded, color: scheme.primary)
                       : null,
                   onTap: () => Navigator.pop(ctx, p.platform),
                 ),
@@ -462,7 +462,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                       TextButton.icon(
                         onPressed: _installFromUrl,
                         style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.pink,
+                          foregroundColor: Theme.of(context).colorScheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
                         icon: const Icon(Icons.add_rounded, size: 18),
@@ -645,7 +645,7 @@ class _AboutCard extends StatelessWidget {
               Icon(
                 Icons.info_outline_rounded,
                 size: 18,
-                color: AppTheme.violet,
+                color: scheme.primary,
               ),
               const SizedBox(width: 6),
               Text(
@@ -696,7 +696,7 @@ class _DefaultSourceRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(Icons.tune_rounded, size: 20, color: AppTheme.violet),
+              Icon(Icons.tune_rounded, size: 20, color: scheme.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -830,7 +830,7 @@ class _PluginCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: selected
-              ? AppTheme.violet.withValues(alpha: .6)
+              ? scheme.primary.withValues(alpha: .6)
               : Colors.white.withValues(alpha: .06),
           width: selected ? 1.4 : 1,
         ),

@@ -14,23 +14,15 @@ class AppTheme {
   static const Color accentSoft = Color(0xFFFFEDEE); // 浅色红底
   static const Color accentSoftDark = Color(0xFF3A2225); // 深色红底
 
-  // ---- 过渡占位:旧紫粉渐变/品牌色(待 Task 6 删除)----
-  static const Color violet = Color(0xFF8B5CF6);
-  static const Color pink = Color(0xFFEC4899);
-  static const Color orange = Color(0xFFF59E0B);
-  static const Color bgDark = Color(0xFF0D0A16);
-  static const Color surfaceDark = Color(0xFF171226);
-  static const Color surfaceDarkHi = Color(0xFF1F1930);
-  static const Color bgLight = Color(0xFFF7F5FC);
-  static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color surfaceLightHi = Color(0xFFF0ECF9);
+  // ---- 渐变(现为品牌红单色系,移除紫粉;用于装饰背景)----
+  // 深→浅品牌红,视觉统一为品牌红点缀。
   static const LinearGradient accentGradient = LinearGradient(
-    colors: [violet, pink],
+    colors: [Color(0xFFC4343F), Color(0xFFFA3B4D)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
   static const LinearGradient softGradient = LinearGradient(
-    colors: [Color(0xFF5B3FB8), Color(0xFF8B5CF6)],
+    colors: [Color(0xFFFA3B4D), Color(0xFFC4343F)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

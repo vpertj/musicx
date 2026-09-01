@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/models/music_item.dart';
-import 'package:musicx/theme/app_theme.dart';
 
 /// 弹出「加入歌单」选择器:我喜欢的音乐 + 各歌单 + 新建歌单。
 Future<void> showPlaylistPicker(
@@ -49,7 +48,7 @@ Future<void> showPlaylistPicker(
             ListTile(
               leading: Icon(
                 isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: AppTheme.pink,
+                color: scheme.primary,
               ),
               title: const Text('我喜欢的音乐'),
               trailing: isFav

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/models/music_item.dart';
-import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
 
@@ -179,9 +178,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                             trailing: isFav
                                 ? IconButton(
                                     tooltip: '取消喜欢',
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.favorite_rounded,
-                                      color: AppTheme.pink,
+                                      color: scheme.primary,
                                       size: 20,
                                     ),
                                     onPressed: () => ref
@@ -233,7 +232,7 @@ class _CatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: selected ? AppTheme.violet : scheme.surfaceContainer,
+      color: selected ? scheme.primary : scheme.surfaceContainer,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,

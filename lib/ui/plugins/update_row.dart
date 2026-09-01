@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/core/updater/update_service.dart';
-import 'package:musicx/theme/app_theme.dart';
 
 /// 弹出"发现新版本"对话框(启动自动提示与设置页共用)。
 /// 用户可选择「立即更新」(下载→安装→重启)或「稍后」。
@@ -96,7 +95,7 @@ class UpdateRow extends ConsumerWidget {
                     ? Icons.system_update_alt_rounded
                     : Icons.update_rounded,
                 size: 20,
-                color: hasUpdate ? AppTheme.pink : AppTheme.violet,
+                color: hasUpdate ? scheme.primary : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -109,7 +108,7 @@ class UpdateRow extends ConsumerWidget {
                           : '检查更新',
                       style: textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: hasUpdate ? AppTheme.pink : null,
+                        color: hasUpdate ? scheme.primary : null,
                       ),
                     ),
                     const SizedBox(height: 2),

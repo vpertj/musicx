@@ -424,7 +424,7 @@ class _NavItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: selected
-            ? AppTheme.violet.withValues(alpha: .14)
+            ? scheme.primary.withValues(alpha: .14)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -437,7 +437,7 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   selected ? selectedIcon : icon,
                   size: 22,
-                  color: selected ? AppTheme.violet : scheme.onSurfaceVariant,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
                 Text(

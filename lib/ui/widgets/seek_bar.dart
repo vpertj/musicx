@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:musicx/theme/app_theme.dart';
 
 /// 渐变进度条,支持点击 / 拖动 seek。
 class SeekBar extends StatefulWidget {
@@ -43,6 +42,7 @@ class _SeekBarState extends State<SeekBar> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -67,6 +67,8 @@ class _SeekBarState extends State<SeekBar> {
               painter: _SeekBarPainter(
                 fraction: _fraction,
                 dragging: _dragFraction != null,
+                accent: scheme.primary,
+                track: scheme.surfaceContainerHighest,
               ),
             ),
           ),
@@ -77,10 +79,17 @@ class _SeekBarState extends State<SeekBar> {
 }
 
 class _SeekBarPainter extends CustomPainter {
-  _SeekBarPainter({required this.fraction, required this.dragging});
+  _SeekBarPainter({
+    required this.fraction,
+    required this.dragging,
+    required this.accent,
+    required this.track,
+  });
 
   final double fraction;
   final bool dragging;
+  final Color accent;
+  final Color track;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -96,10 +105,10 @@ class _SeekBarPainter extends CustomPainter {
     // 底轨
     canvas.drawRRect(
       RRect.fromRectAndRadius(trackRect, radius),
-      Paint()..color = const Color(0xFF2E2747),
+      Paint()..color = track,
     );
 
-    // 已播放:渐变
+    // 已播放:品牌红
     if (fraction > 0) {
       final activeRect = Rect.fromLTWH(
         0,
@@ -107,9 +116,10 @@ class _SeekBarPainter extends CustomPainter {
         size.width * fraction,
         trackH,
       );
-      final paint = Paint()
-        ..shader = AppTheme.accentGradient.createShader(activeRect);
-      canvas.drawRRect(RRect.fromRectAndRadius(activeRect, radius), paint);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(activeRect, radius),
+        Paint()..color = accent,
+      );
     }
 
     // 拖拽时轨道上加亮
@@ -134,7 +144,7 @@ class _SeekBarPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(cx, cy),
         thumbR + 7,
-        Paint()..color = AppTheme.pink.withValues(alpha: .35),
+        Paint()..color = accent.withValues(alpha: .35),
       );
     }
     canvas.drawCircle(Offset(cx, cy), thumbR, Paint()..color = Colors.white);
@@ -142,5 +152,8 @@ class _SeekBarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SeekBarPainter oldDelegate) =>
-      oldDelegate.fraction != fraction || oldDelegate.dragging != dragging;
+      oldDelegate.fraction != fraction ||
+      oldDelegate.dragging != dragging ||
+      oldDelegate.accent != accent ||
+      oldDelegate.track != track;
 }

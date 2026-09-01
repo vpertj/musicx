@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
-import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
 
 /// 底部常驻迷你播放条:封面 + 歌名/歌手 + 播放暂停 + 播放进度条。
@@ -62,8 +61,8 @@ class MiniPlayerBar extends ConsumerWidget {
                       alignment: Alignment.centerLeft,
                       widthFactor: progress,
                       child: Container(
-                        decoration: const BoxDecoration(
-                          gradient: AppTheme.accentGradient,
+                        decoration: BoxDecoration(
+                          color: scheme.primary,
                         ),
                       ),
                     ),

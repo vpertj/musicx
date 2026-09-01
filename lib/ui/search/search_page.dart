@@ -376,7 +376,7 @@ class _SourceChip extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: selected ? AppTheme.violet : scheme.surfaceContainer,
+      color: selected ? scheme.primary : scheme.surfaceContainer,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -629,7 +629,7 @@ class _SectionTitle extends StatelessWidget {
     return Row(
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 18, color: AppTheme.violet),
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 6),
         ],
         Text(text, style: style),
@@ -723,7 +723,7 @@ class _ResultViewState extends State<_ResultView> {
               TextButton.icon(
                 onPressed: widget.onPlayAll,
                 style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.pink,
+                  foregroundColor: scheme.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
                 icon: const Icon(Icons.playlist_play_rounded, size: 18),
