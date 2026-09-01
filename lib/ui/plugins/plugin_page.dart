@@ -490,6 +490,10 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                   ),
                   const SizedBox(height: 22),
+                  const _SectionTitle2('外观'),
+                  const SizedBox(height: 8),
+                  _AppearanceSection(),
+                  const SizedBox(height: 22),
                   const _SectionTitle2('通用'),
                   const SizedBox(height: 8),
                   _DefaultSourceRow(
@@ -504,6 +508,48 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ),
             ),
           );
+        },
+      ),
+    );
+  }
+}
+
+/// 外观切换:浅色 / 深色(持久化到设置文件)。
+class _AppearanceSection extends ConsumerWidget {
+  const _AppearanceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themePreferenceProvider);
+    final notifier = ref.read(themePreferenceProvider.notifier);
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: SegmentedButton<ThemeMode>(
+        emptySelectionAllowed: false,
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(
+            value: ThemeMode.light,
+            label: Text('浅色'),
+            icon: Icon(Icons.light_mode_outlined),
+          ),
+          ButtonSegment(
+            value: ThemeMode.dark,
+            label: Text('深色'),
+            icon: Icon(Icons.dark_mode_outlined),
+          ),
+        ],
+        selected: {mode},
+        onSelectionChanged: (s) {
+          if (s.contains(ThemeMode.dark)) {
+            notifier.setDark();
+          } else {
+            notifier.setLight();
+          }
         },
       ),
     );
