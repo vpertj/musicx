@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:musicx/core/search/search_controller.dart'
@@ -67,7 +68,10 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
       _dataFile().writeAsStringSync(
         jsonEncode(state.map((d) => d.toJson()).toList()),
       );
-    } catch (_) {}
+    } catch (e) {
+      // 持久化失败不阻断下载/删除,但记录日志便于诊断。
+      debugPrint('MusicX: 下载记录持久化失败: $e');
+    }
   }
 
   /// 下载歌曲,加入列表并返回保存路径。

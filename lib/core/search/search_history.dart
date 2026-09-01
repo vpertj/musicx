@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 搜索历史(持久化):最近搜索的关键词,最新在前,上限 12 条。
@@ -62,8 +63,9 @@ class SearchHistoryController extends Notifier<List<String>> {
   void _save() {
     try {
       dataFile().writeAsStringSync(jsonEncode(state), flush: true);
-    } catch (_) {
-      // 持久化失败不阻断使用
+    } catch (e) {
+      // 持久化失败不阻断使用,但记录日志便于诊断。
+      debugPrint('MusicX: 搜索历史持久化失败: $e');
     }
   }
 }
