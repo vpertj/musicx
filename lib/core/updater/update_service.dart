@@ -56,6 +56,9 @@ class UpdateService {
   final http.Client _client;
 
   /// 当前应用版本:读取运行时 bundle 的 CFBundleShortVersionString。
+  ///
+  /// 不依赖外部 PlistBuddy(跨平台):直接解析 Info.plist 中的
+  /// `CFBundleShortVersionString` 字符串值;失败时返回 '0.0.0'。
   static String currentVersion() {
     try {
       final exe = Platform.resolvedExecutable;
@@ -63,12 +66,11 @@ class UpdateService {
       final contentsDir = File(exe).parent.parent; // .../musicx.app/Contents
       final plist = File('${contentsDir.path}/Info.plist');
       if (plist.existsSync()) {
-        final out = Process.runSync('/usr/libexec/PlistBuddy', [
-          '-c',
-          'Print :CFBundleShortVersionString',
-          plist.path,
-        ]);
-        if (out.exitCode == 0) return (out.stdout as String).trim();
+        final text = plist.readAsStringSync();
+        final m = RegExp(
+          '<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>',
+        ).firstMatch(text);
+        if (m != null) return m.group(1)!.trim();
       }
     } catch (_) {}
     return '0.0.0';
