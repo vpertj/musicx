@@ -44,11 +44,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     });
     _pages = [
       SearchPage(onOpenPlugins: () => _openSettings()),
-      const PlayerPage(),
       LibraryPage(
         key: ValueKey<String?>(_libraryPlaylistId),
         initialPlaylistId: _libraryPlaylistId,
       ),
+      const PluginPage(),
     ];
   }
 
@@ -56,11 +56,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   void _openPlaylist(String id) {
     setState(() {
       _libraryPlaylistId = id;
-      _pages[2] = LibraryPage(
+      _pages[1] = LibraryPage(
         key: ValueKey<String?>(_libraryPlaylistId),
         initialPlaylistId: _libraryPlaylistId,
       );
-      _index = 2;
+      _index = 1;
     });
   }
 
@@ -98,7 +98,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   Widget _content() {
     final hasSong = ref.watch(playerControllerProvider).current != null;
-    final showMiniPlayer = hasSong && _index != 1;
+    // 迷你播放条在所有 tab 下常驻(有歌时);全屏播放器经记录从迷你条或歌曲进入,
+    // 不再占用一个顶级 tab。
+    final showMiniPlayer = hasSong;
     return Column(
       children: [
         Expanded(
@@ -156,14 +158,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             label: '发现',
           ),
           NavigationDestination(
-            icon: Icon(Icons.music_note_outlined),
-            selectedIcon: Icon(Icons.music_note_rounded),
-            label: '播放',
+            icon: Icon(Icons.library_music_outlined),
+            selectedIcon: Icon(Icons.library_music_rounded),
+            label: '我的',
           ),
           NavigationDestination(
-            icon: Icon(Icons.favorite_outline_rounded),
-            selectedIcon: Icon(Icons.favorite_rounded),
-            label: '我的',
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings_rounded),
+            label: '设置',
           ),
         ],
       ),
@@ -187,8 +189,8 @@ class _Sidebar extends ConsumerWidget {
 
   static const _items = [
     (Icons.explore_outlined, Icons.explore_rounded, '发现'),
-    (Icons.music_note_outlined, Icons.music_note_rounded, '播放'),
-    (Icons.favorite_outline_rounded, Icons.favorite_rounded, '我的'),
+    (Icons.library_music_outlined, Icons.library_music_rounded, '我的'),
+    (Icons.settings_outlined, Icons.settings_rounded, '设置'),
   ];
 
   @override
@@ -303,14 +305,6 @@ class _Sidebar extends ConsumerWidget {
                     ),
             ),
             const Divider(height: 1),
-            // 底部:设置
-            _NavItem(
-              icon: Icons.settings_outlined,
-              selectedIcon: Icons.settings_rounded,
-              label: '设置',
-              selected: false,
-              onTap: onOpenSettings,
-            ),
             const SizedBox(height: 8),
           ],
         ),
