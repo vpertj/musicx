@@ -137,14 +137,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           onDownload: (song) =>
                               showDownloadPicker(context, ref, song),
                         )
-                      : _IdleView(
-                          history: ref.watch(searchHistoryProvider),
-                          suggestions: _suggestions,
-                          onPick: _pickSuggestion,
-                          onClearHistory: () =>
-                              ref.read(searchHistoryProvider.notifier).clear(),
-                          onOpenPlugins: widget.onOpenPlugins,
-                        ),
+                      // 聚焦且未搜索时,历史下拉已展示历史;隐藏 IdleView,
+                      // 避免其历史区与下拉重复、造成"历史项无法选中"的混淆。
+                      : (_dropdownOpen
+                            ? const SizedBox.shrink()
+                            : _IdleView(
+                                history: ref.watch(searchHistoryProvider),
+                                suggestions: _suggestions,
+                                onPick: _pickSuggestion,
+                                onClearHistory: () => ref
+                                    .read(searchHistoryProvider.notifier)
+                                    .clear(),
+                                onOpenPlugins: widget.onOpenPlugins,
+                              )),
                 ),
               ],
             ),
