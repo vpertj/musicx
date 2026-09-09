@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
@@ -501,8 +502,17 @@ class PluginManager {
   }) async {
     final plugins = await listPlugins();
     final wantPlatform = musicItem['platform'] as String?;
+    // 同平台降级:歌曲 platform 可能是『酷我』,而插件名为『酷我(独家音源)』
+    // 等变体,精确串匹配会漏掉;参照 resolveMediaSource 用 base 关键词匹配。
+    final base = wantPlatform?.split('(').first.trim();
     for (final plugin in plugins) {
-      if (wantPlatform != null && plugin.platform != wantPlatform) continue;
+      final matches =
+          wantPlatform == null ||
+          plugin.platform == wantPlatform ||
+          (base != null &&
+              base.isNotEmpty &&
+              (plugin.platform == base || plugin.platform.startsWith(base)));
+      if (!matches) continue;
       try {
         final source = await File(plugin.path).readAsString();
         final result = await _sandbox.callPlugin(
@@ -547,10 +557,15 @@ class PluginManager {
             client.close();
           }
         }
-      } catch (_) {
-        // 该插件无歌词或失败,继续下一个
+      } catch (e) {
+        // 该插件无歌词或失败,继续下一个;记录日志便于诊断。
+        debugPrint('MusicX 歌词: [${plugin.platform}] getLyric 失败: $e');
       }
     }
+    debugPrint(
+      'MusicX 歌词: 未获取到 "${musicItem['title']}" '
+      '(platform=$wantPlatform) 的歌词',
+    );
     return '';
   }
 
