@@ -478,8 +478,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final manager = ref.watch(pluginManagerProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
