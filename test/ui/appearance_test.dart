@@ -48,6 +48,10 @@ void main() {
     );
     expect(container.read(themePreferenceProvider), ThemeMode.light);
 
+    // 点击左侧「外观」菜单,显示浅色/深色切换
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
+
     // 点击"深色"
     await tester.tap(find.text('深色'));
     await tester.pumpAndSettle();
@@ -78,6 +82,10 @@ void main() {
     container.read(themePreferenceProvider.notifier).setDark();
     await tester.pumpAndSettle();
     expect(container.read(themePreferenceProvider), ThemeMode.dark);
+
+    // 点击左侧「外观」菜单,显示浅色/深色切换
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('浅色'));
     await tester.pumpAndSettle();

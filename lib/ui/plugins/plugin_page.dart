@@ -11,6 +11,9 @@ import 'package:musicx/ui/plugins/update_row.dart';
 /// 安装入口类型。
 enum _InstallAction { url, source, file }
 
+/// 设置页左右栏的区块:左侧菜单项,右侧对应内容。
+enum _SettingsSection { sources, appearance, general }
+
 /// 插件管理页:卡片式列表 + 安装/卸载。
 class PluginPage extends ConsumerStatefulWidget {
   const PluginPage({super.key});
@@ -22,6 +25,7 @@ class PluginPage extends ConsumerStatefulWidget {
 class _PluginPageState extends ConsumerState<PluginPage> {
   final TextEditingController _pathCtrl = TextEditingController();
   int _reload = 0;
+  _SettingsSection _section = _SettingsSection.sources;
 
   @override
   void dispose() {
@@ -273,70 +277,86 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     const autoMark = '__auto__';
     final picked = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) {
         final scheme = Theme.of(ctx).colorScheme;
         final textTheme = Theme.of(ctx).textTheme;
+        final maxH = MediaQuery.of(ctx).size.height * 0.7;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                child: Text(
-                  '默认音源',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                  child: Text(
+                    '默认音源',
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.auto_awesome_rounded,
-                  color: scheme.onSurfaceVariant,
-                ),
-                title: const Text('自动'),
-                subtitle: Text(
-                  '按顺序尝试所有已装音源',
-                  style: textTheme.bodySmall?.copyWith(
+                ListTile(
+                  leading: Icon(
+                    Icons.auto_awesome_rounded,
                     color: scheme.onSurfaceVariant,
                   ),
-                ),
-                trailing: current == null
-                    ? Icon(Icons.check_circle_rounded, color: scheme.primary)
-                    : null,
-                onTap: () => Navigator.pop(ctx, autoMark),
-              ),
-              for (final p in plugins)
-                ListTile(
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.softGradient,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: const Icon(
-                      Icons.extension_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  title: Text(p.platform),
+                  title: const Text('自动'),
                   subtitle: Text(
-                    'v${p.version}',
+                    '按顺序尝试所有已装音源',
                     style: textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  trailing: current == p.platform
+                  trailing: current == null
                       ? Icon(Icons.check_circle_rounded, color: scheme.primary)
                       : null,
-                  onTap: () => Navigator.pop(ctx, p.platform),
+                  onTap: () => Navigator.pop(ctx, autoMark),
                 ),
-              const SizedBox(height: 8),
-            ],
+                // 插件列表可滚动,避免音源多时弹窗底部溢出
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final p in plugins)
+                        ListTile(
+                          leading: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.softGradient,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: const Icon(
+                              Icons.extension_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                          title: Text(p.platform),
+                          subtitle: Text(
+                            'v${p.version}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          trailing: current == p.platform
+                              ? Icon(
+                                  Icons.check_circle_rounded,
+                                  color: scheme.primary,
+                                )
+                              : null,
+                          onTap: () => Navigator.pop(ctx, p.platform),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -400,6 +420,55 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     );
   }
 
+  /// 当前选中区块的内容(宽屏右侧)。
+  List<Widget> _sectionContent(
+    _SettingsSection section,
+    List<PluginInfo> plugins,
+    String? source,
+  ) {
+    switch (section) {
+      case _SettingsSection.sources:
+        return [
+          _SettingsGroup(
+            title: '音乐源',
+            children: [
+              _DefaultSourceRow(
+                current: source,
+                onTap: () => _pickDefaultSource(plugins, source),
+              ),
+              const SizedBox(height: 8),
+              _MenuItemRow(
+                icon: Icons.library_music_rounded,
+                title: '已安装音源',
+                trailing: '${plugins.length}',
+                onTap: () => _openSourceManager(plugins),
+              ),
+            ],
+          ),
+        ];
+      case _SettingsSection.appearance:
+        return [
+          _SettingsGroup(
+            title: '外观',
+            children: [
+              _AppearanceSection(),
+            ],
+          ),
+        ];
+      case _SettingsSection.general:
+        return [
+          _SettingsGroup(
+            title: '通用',
+            children: [
+              const UpdateRow(),
+              const SizedBox(height: 8),
+              const _AboutCard(),
+            ],
+          ),
+        ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final manager = ref.watch(pluginManagerProvider);
@@ -460,58 +529,42 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             return _EmptyPlugins(onInstall: _installFromUrl);
           }
           final source = ref.watch(searchSourceProvider);
-          // 桌面窗口内容限宽居中(PC 质感)
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          // 自适应:宽屏左右栏(左侧菜单 + 右侧内容),窄屏单列
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 760;
+              final content = Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: wide ? 760 : 640),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      _ProfileCard(
+                        pluginCount: plugins.length,
+                        onInstall: _installFromUrl,
+                      ),
+                      const SizedBox(height: 22),
+                      // 宽屏只显示选中区块;窄屏显示全部分组
+                      ..._sectionContent(_section, plugins, source),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              );
+              if (!wide) return content;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ProfileCard(
-                    pluginCount: plugins.length,
-                    onInstall: _installFromUrl,
+                  _SettingsSidebar(
+                    selected: _section,
+                    onSelect: (s) => setState(() => _section = s),
                   ),
-                  const SizedBox(height: 22),
-                  // 分组一:音乐源
-                  _SettingsGroup(
-                    title: '音乐源',
-                    children: [
-                      _DefaultSourceRow(
-                        current: source,
-                        onTap: () => _pickDefaultSource(plugins, source),
-                      ),
-                      const SizedBox(height: 8),
-                      _MenuItemRow(
-                        icon: Icons.library_music_rounded,
-                        title: '已安装音源',
-                        trailing: '${plugins.length}',
-                        onTap: () => _openSourceManager(plugins),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  // 分组二:外观(内联切换)
-                  _SettingsGroup(
-                    title: '外观',
-                    children: [
-                      _AppearanceSection(),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  // 分组三:通用
-                  _SettingsGroup(
-                    title: '通用',
-                    children: [
-                      const UpdateRow(),
-                      const SizedBox(height: 8),
-                      const _AboutCard(),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: content),
                 ],
-              ),
-            ),
+              );
+            },
           );
         },
       ),
@@ -1163,6 +1216,93 @@ class _SourceSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 设置页左侧菜单栏(宽屏左右栏):音乐源 / 外观 / 通用。
+class _SettingsSidebar extends StatelessWidget {
+  const _SettingsSidebar({required this.selected, required this.onSelect});
+
+  final _SettingsSection selected;
+  final ValueChanged<_SettingsSection> onSelect;
+
+  static const _tabs = [
+    (_SettingsSection.sources, Icons.library_music_rounded, '音乐源'),
+    (_SettingsSection.appearance, Icons.palette_outlined, '外观'),
+    (_SettingsSection.general, Icons.settings_rounded, '通用'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 180,
+      color: scheme.surfaceContainerLow,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          children: [
+            for (final (s, icon, label) in _tabs)
+              _SidebarItem(
+                icon: icon,
+                label: label,
+                selected: s == selected,
+                onTap: () => onSelect(s),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 设置页左侧菜单项。
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? scheme.primary.withValues(alpha: .12)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

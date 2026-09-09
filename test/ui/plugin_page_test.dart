@@ -38,10 +38,11 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    // 主设置页采用分组菜单,不再平铺插件卡片
-    expect(find.text('音乐源'), findsOneWidget);
-    expect(find.text('外观'), findsOneWidget);
-    expect(find.text('通用'), findsOneWidget);
+    // 主设置页采用左右栏分组:左侧菜单 + 右侧内容区
+    // 宽屏默认显示「音乐源」区块内容;"音乐源"在菜单与内容标题各出现一次
+    expect(find.text('音乐源'), findsWidgets);
+    expect(find.text('外观'), findsOneWidget); // 左侧菜单项
+    expect(find.text('通用'), findsOneWidget); // 左侧菜单项
 
     // 音乐源分组内有「已安装音源」入口(点击进二级页)
     expect(find.text('已安装音源'), findsOneWidget);
@@ -65,7 +66,9 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    // 外观分区有浅色/深色切换
+    // 点击左侧「外观」菜单,右侧显示浅色/深色切换
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
     expect(find.text('浅色'), findsOneWidget);
     expect(find.text('深色'), findsOneWidget);
   });
