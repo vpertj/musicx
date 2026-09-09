@@ -287,7 +287,11 @@ class _HistoryDropdown extends ConsumerWidget {
           for (final kw in history.take(8))
             InkWell(
               key: ValueKey('history-item-$kw'),
-              onTap: () => onPick(kw),
+              // 用 onTapDown 提前触发:点击历史项时 TextField 会先失焦,导致
+              // _dropdownOpen 立即置 false、下拉框在 onTap(抬手)前被移除,
+              // 使 onTap 无法命中(真实设备有 down/up 时间间隔)。onTapDown 在
+              // 按下瞬间即选中,不受失焦重建影响。
+              onTapDown: (_) => onPick(kw),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,

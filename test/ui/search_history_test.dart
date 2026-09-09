@@ -18,7 +18,7 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  Widget _app() => ProviderScope(
+  Widget buildApp() => ProviderScope(
         overrides: [
           pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
           searchHistoryProvider.overrideWith(() => _PrefilledHistory()),
@@ -29,7 +29,7 @@ void main() {
   testWidgets('tapping a history item fills text field and closes dropdown', (
     tester,
   ) async {
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(buildApp());
     await tester.pump();
 
     // 聚焦搜索框,展开历史下拉
@@ -52,6 +52,32 @@ void main() {
       find.byKey(const ValueKey('history-item-网易云')),
       findsNothing,
     );
+  });
+
+  testWidgets('history item stays selectable even after focus loss (onTapDown)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pump();
+
+    // 聚焦搜索框,展开历史下拉
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+
+    expect(find.text('网易云'), findsOneWidget);
+
+    // 模拟真实设备:down 在历史项上,让 TextField 失焦触发下拉重建,再 up。
+    // 旧实现(onTap)会因下拉框被移除而丢失点击;onTapDown 在 down 瞬间已选中。
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('网易云')),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    // 下拉框已因失焦重建(此时历史项可能已消失)
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final tf = tester.widget<TextField>(find.byType(TextField));
+    expect(tf.controller?.text, '网易云');
   });
 }
 
