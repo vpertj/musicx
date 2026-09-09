@@ -26,6 +26,12 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   final TextEditingController _pathCtrl = TextEditingController();
   int _reload = 0;
   _SettingsSection _section = _SettingsSection.sources;
+  Future<List<PluginInfo>>? _pluginsFuture;
+
+  /// 缓存插件列表 future:setState(切换左右栏区块)不重建,避免出现
+  /// 无限旋转的 CircularProgressIndicator 导致 pumpAndSettle 超时。
+  Future<List<PluginInfo>> _loadPlugins() =>
+      _pluginsFuture ??= ref.read(pluginManagerProvider).listPlugins();
 
   @override
   void dispose() {
@@ -399,6 +405,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
 
   /// 插件列表已变更:使缓存的插件列表失效,下次读取时重新扫描。
   void _bumpPluginList() {
+    _pluginsFuture = null;
     ref.invalidate(pluginListProvider);
   }
 
@@ -519,7 +526,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       ),
       body: FutureBuilder<List<PluginInfo>>(
         key: ValueKey<int>(_reload),
-        future: manager.listPlugins(),
+        future: _loadPlugins(),
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
