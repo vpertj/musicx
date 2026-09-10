@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/models/music_item.dart';
 import 'package:musicx/models/playlist.dart';
 
@@ -27,18 +28,8 @@ final libraryControllerProvider =
     NotifierProvider<LibraryController, LibraryState>(LibraryController.new);
 
 class LibraryController extends Notifier<LibraryState> {
-  /// 数据文件位置:用户数据目录(稳定)。
-  static File dataFile() {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      final dir = Directory('$home/.musicx');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      return File('${dir.path}/library.json');
-    }
-    final dir = Directory('${Directory.systemTemp.path}/musicx_data');
-    if (!dir.existsSync()) dir.createSync(recursive: true);
-    return File('${dir.path}/library.json');
-  }
+  /// 数据文件位置:应用数据目录(跨平台)。
+  static File dataFile() => AppPaths.file('library.json');
 
   @override
   LibraryState build() {

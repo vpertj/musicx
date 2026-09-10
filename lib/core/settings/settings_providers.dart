@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/utils/app_paths.dart';
 
 /// 当前搜索音源插件名;null 表示「自动」——按顺序尝试全部已装插件。
 /// 由发现页音源切换条与「我的」页设置共同读写。
@@ -17,19 +18,11 @@ final searchSourceProvider = NotifierProvider<SearchSourceNotifier, String?>(
   SearchSourceNotifier.new,
 );
 
-/// 应用设置持久化文件(默认 `~/.musicx/settings.json`)。
+/// 应用设置持久化文件(数据目录下 settings.json;macOS 为 ~/.musicx)。
 /// 测试可 override 到临时文件,避免污染真实配置。
-final settingsFileProvider = Provider<File>((ref) {
-  final home = Platform.environment['HOME'];
-  if (home != null && home.isNotEmpty) {
-    final dir = Directory('$home/.musicx');
-    if (!dir.existsSync()) dir.createSync(recursive: true);
-    return File('${dir.path}/settings.json');
-  }
-  final dir = Directory('${Directory.systemTemp.path}/musicx_data');
-  if (!dir.existsSync()) dir.createSync(recursive: true);
-  return File('${dir.path}/settings.json');
-});
+final settingsFileProvider = Provider<File>(
+  (ref) => AppPaths.file('settings.json'),
+);
 
 /// 主题偏好:浅色(默认)/深色,持久化到设置文件。
 class ThemePreferenceController extends Notifier<ThemeMode> {

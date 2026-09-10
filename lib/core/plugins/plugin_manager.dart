@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
+import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/models/plugin_source.dart';
 
 class PluginManager {
@@ -605,16 +606,6 @@ class PluginManager {
     }
   }
 
-  /// 插件目录:用户数据目录(稳定,不随沙箱/临时目录变化)。
-  static Directory pluginsDir() {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      final dir = Directory('$home/.musicx/plugins');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      return dir;
-    }
-    final dir = Directory('${Directory.systemTemp.path}/musicx_plugins');
-    if (!dir.existsSync()) dir.createSync(recursive: true);
-    return dir;
-  }
+  /// 插件目录:应用数据目录下的 plugins(macOS 为 ~/.musicx/plugins)。
+  static Directory pluginsDir() => AppPaths.plugins;
 }

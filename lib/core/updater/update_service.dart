@@ -76,6 +76,18 @@ class UpdateService {
     return '0.0.0';
   }
 
+  /// 当前平台是否支持"自动下载并安装"更新。
+  /// 仅 macOS 实现了 DMG 挂载替换;Windows/Android/Linux 走"打开 Release 页"。
+  static bool get canAutoInstall => Platform.isMacOS;
+
+  /// 当前平台期望的安装包后缀(用于在 Release 资产中挑选)。
+  static String get _assetSuffix {
+    if (Platform.isMacOS) return '.dmg';
+    if (Platform.isWindows) return '.exe';
+    if (Platform.isAndroid) return '.apk';
+    return '.tar.gz';
+  }
+
   /// 检查最新版本。失败时抛出异常。
   ///
   /// 优先走 GitHub API;若触发未认证限流(403),降级为直接访问 releases/latest
@@ -104,30 +116,32 @@ class UpdateService {
     final tag = (json['tag_name'] as String?) ?? '';
     final latest = tag.startsWith('v') ? tag.substring(1) : tag;
     final assets = (json['assets'] as List?) ?? const [];
-    String dmgUrl = '';
-    String? dmgSha256;
+    String assetUrl = '';
+    String? assetSha256;
+    final suffix = _assetSuffix;
     for (final a in assets) {
       final name = a['name'] as String? ?? '';
-      if (name.endsWith('.dmg')) {
-        dmgUrl = a['browser_download_url'] as String? ?? '';
+      if (name.endsWith(suffix)) {
+        assetUrl = a['browser_download_url'] as String? ?? '';
         // GitHub asset digest 形如 "sha256:<64位hex>";提取 hex 部分。
         final digest = a['digest'] as String? ?? '';
-        dmgSha256 = digest.startsWith('sha256:')
+        assetSha256 = digest.startsWith('sha256:')
             ? digest.substring('sha256:'.length).trim()
             : null;
         break;
       }
     }
-    if (dmgUrl.isEmpty) {
+    // macOS 必须找到 DMG 才能自动安装;其他平台仅需 Release 页链接(手动下载)。
+    if (assetUrl.isEmpty && canAutoInstall) {
       throw HttpException('最新 Release 中没有找到 DMG 安装包');
     }
     return UpdateInfo(
       latestVersion: latest,
       currentVersion: currentVersion(),
-      dmgUrl: dmgUrl,
+      dmgUrl: assetUrl,
       releaseUrl: json['html_url'] as String? ?? '',
       releaseNotes: json['body'] as String?,
-      dmgSha256: dmgSha256,
+      dmgSha256: assetSha256,
     );
   }
 
@@ -152,18 +166,18 @@ class UpdateService {
     if (assetsResp.statusCode != 200) {
       throw HttpException('无法获取更新包列表 (HTTP ${assetsResp.statusCode})');
     }
-    final dmgRe = RegExp('href="([^"]*\\.dmg)"');
-    final dmgMatch = dmgRe.firstMatch(assetsResp.body);
-    final dmgUrl = dmgMatch == null
-        ? ''
-        : 'https://github.com${dmgMatch.group(1)}';
-    if (dmgUrl.isEmpty) {
+    // 按当前平台后缀在资产页面中挑选安装包(macOS 为 .dmg)。
+    final suffix = _assetSuffix;
+    final re = RegExp('href="([^"]*\\${suffix.replaceAll('.', r'\.')})"');
+    final m = re.firstMatch(assetsResp.body);
+    final assetUrl = m == null ? '' : 'https://github.com${m.group(1)}';
+    if (assetUrl.isEmpty && canAutoInstall) {
       throw HttpException('最新 Release 中没有找到 DMG 安装包');
     }
     return UpdateInfo(
       latestVersion: latest,
       currentVersion: currentVersion(),
-      dmgUrl: dmgUrl,
+      dmgUrl: assetUrl,
       releaseUrl: url,
     );
   }
@@ -231,6 +245,10 @@ class UpdateService {
   /// 步骤:挂载 DMG → 复制新版 .app 覆盖当前 .app → 卸载 DMG →
   /// 生成重启脚本(延迟 2s,等本进程退出后 `open` 新应用) → 退出当前进程。
   Future<void> installAndRestart(File dmg) async {
+    // 仅 macOS 支持 DMG 挂载替换;其他平台应走"打开 Release 页"(_openExternalUrl)。
+    if (!Platform.isMacOS) {
+      throw HttpException('当前平台不支持自动安装,请从 GitHub Release 手动下载');
+    }
     // 1. 挂载 DMG 到显式的临时挂载点,避免解析 stdout 的路径(脆弱)。
     final mountPoint = Directory(
       '${Directory.systemTemp.path}/musicx_update_mount',

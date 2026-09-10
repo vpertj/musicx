@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/utils/app_paths.dart';
 
 /// 搜索历史(持久化):最近搜索的关键词,最新在前,上限 12 条。
 final searchHistoryProvider =
@@ -13,18 +14,8 @@ final searchHistoryProvider =
 class SearchHistoryController extends Notifier<List<String>> {
   static const int _maxEntries = 12;
 
-  /// 历史文件位置:用户数据目录(与歌单/插件同目录)。
-  static File dataFile() {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      final dir = Directory('$home/.musicx');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      return File('${dir.path}/search_history.json');
-    }
-    final dir = Directory('${Directory.systemTemp.path}/musicx_data');
-    if (!dir.existsSync()) dir.createSync(recursive: true);
-    return File('${dir.path}/search_history.json');
-  }
+  /// 历史文件位置:应用数据目录(跨平台,与歌单/插件同目录)。
+  static File dataFile() => AppPaths.file('search_history.json');
 
   @override
   List<String> build() {

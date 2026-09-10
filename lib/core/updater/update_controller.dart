@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_service.dart';
+import 'package:musicx/core/utils/open_external.dart';
 
 /// 更新流程状态。
 enum UpdatePhase { idle, checking, ready, downloading, installing, error }
@@ -73,18 +74,28 @@ class UpdateController extends Notifier<UpdateState> {
     }
   }
 
-  /// 下载并安装更新,完成后自动重启。
+  /// 执行更新:macOS 自动下载安装;Windows/Android/Linux 打开 Release 页手动下载。
   Future<void> update() async {
-    final info = state.info;
+    var info = state.info;
     if (info == null) {
       // info 缺失(如直接调用),重新检查一次
       await check();
-      if (state.info == null || !state.info!.hasUpdate) {
+      info = state.info;
+      if (info == null || !info.hasUpdate) {
         state = state.copyWith(phase: UpdatePhase.error, error: '没有可用的更新版本');
         return;
       }
-      state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
-      return update();
+    }
+    // 非 macOS:打开 GitHub Release 页,由用户手动下载安装。
+    if (!UpdateService.canAutoInstall) {
+      final ok = await openExternalUrl(info.releaseUrl);
+      state = ok
+          ? state.copyWith(phase: UpdatePhase.idle, clearError: true)
+          : state.copyWith(
+              phase: UpdatePhase.error,
+              error: '无法打开下载页面,请手动访问 GitHub Release',
+            );
+      return;
     }
     state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
     try {

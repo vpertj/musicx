@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
+import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'ui/home_shell.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 初始化跨平台数据目录(path_provider)后再启动 UI,
+  // 确保各 Controller 读取到正确的数据/插件路径。
+  await AppPaths.init();
   runApp(const ProviderScope(child: MusicxApp()));
 }
 

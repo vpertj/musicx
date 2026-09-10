@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:musicx/core/providers.dart' show pluginManagerProvider;
+import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/models/downloaded_song.dart';
 import 'package:musicx/models/music_item.dart';
 
@@ -15,11 +16,11 @@ final downloadControllerProvider =
     );
 
 class DownloadController extends Notifier<List<DownloadedSong>> {
-  /// 下载目录:优先 ~/Downloads/MusicX(沙箱已关闭),退回临时目录。
+  /// 下载目录:优先系统下载目录下的 MusicX(跨平台),退回临时目录。
   static Directory downloadDir() {
-    final home = Platform.environment['HOME'];
+    final downloadsBase = AppPaths.downloadsBase;
     final candidates = <Directory>[
-      if (home != null) Directory('$home/Downloads/MusicX'),
+      if (downloadsBase != null) Directory('${downloadsBase.path}/MusicX'),
       Directory('${Directory.systemTemp.path}/musicx_downloads'),
     ];
     for (final d in candidates) {
@@ -36,15 +37,7 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
     return Directory.systemTemp;
   }
 
-  static File _dataFile() {
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      final dir = Directory('$home/.musicx');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      return File('${dir.path}/downloads.json');
-    }
-    return File('${Directory.systemTemp.path}/musicx_data/downloads.json');
-  }
+  static File _dataFile() => AppPaths.file('downloads.json');
 
   @override
   List<DownloadedSong> build() {

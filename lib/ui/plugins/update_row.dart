@@ -44,10 +44,22 @@ Future<void> showUpdatePrompt(BuildContext context, UpdateInfo info) async {
         FilledButton.icon(
           onPressed: () {
             Navigator.pop(ctx);
-            showUpdateProgress(context);
+            if (UpdateService.canAutoInstall) {
+              showUpdateProgress(context);
+            } else {
+              // 非 macOS:打开 GitHub Release 页由用户手动下载
+              ProviderScope.containerOf(
+                context,
+              ).read(updateControllerProvider.notifier).update();
+            }
           },
-          icon: const Icon(Icons.download_rounded, size: 18),
-          label: const Text('立即更新'),
+          icon: Icon(
+            UpdateService.canAutoInstall
+                ? Icons.download_rounded
+                : Icons.open_in_new_rounded,
+            size: 18,
+          ),
+          label: Text(UpdateService.canAutoInstall ? '立即更新' : '前往下载'),
         ),
       ],
     ),
@@ -113,7 +125,9 @@ class UpdateRow extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      hasUpdate ? '当前 v$current · 点击立即更新' : '当前版本 v$current',
+                      hasUpdate
+                          ? '当前 v$current · 点击${UpdateService.canAutoInstall ? '立即更新' : '前往下载'}'
+                          : '当前版本 v$current',
                       style: textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),

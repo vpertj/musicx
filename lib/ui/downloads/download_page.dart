@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/utils/open_external.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
 
 /// 下载音乐列表页:显示已下载歌曲,点击播放本地文件。
@@ -26,8 +25,8 @@ class DownloadPage extends ConsumerWidget {
               icon: const Icon(Icons.folder_open_rounded),
               onPressed: () async {
                 final dir = DownloadController.downloadDir();
-                // 在 Finder 中显示
-                await Process.run('open', [dir.path]);
+                // 在系统文件管理器中打开(跨平台)
+                await openPath(dir.path);
               },
             ),
         ],
