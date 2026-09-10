@@ -1,4 +1,4 @@
-name: Release macOS DMG
+name: Release
 
 on:
   push:
@@ -131,4 +131,48 @@ jobs:
         with:
           name: "${{ env.APK_NAME }}"
           path: "${{ env.APK_PATH }}"
+          if-no-files-found: error
+
+  build-windows:
+    name: Build & Package Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $name = "MusicX-$version-windows.zip"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "dist/$name" -Force
+          "ZIP_PATH=dist/$name" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ZIP_NAME=$name" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Upload ZIP to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "${{ env.ZIP_PATH }}"
+          fail_on_unmatched_files: true
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ env.ZIP_NAME }}"
+          path: "${{ env.ZIP_PATH }}"
           if-no-files-found: error
