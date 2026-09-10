@@ -1434,16 +1434,10 @@ class _SourceManagerPage extends ConsumerStatefulWidget {
 }
 
 class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
-  late final Future<List<PluginInfo>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = ref.read(pluginManagerProvider).listPlugins();
-  }
-
   @override
   Widget build(BuildContext context) {
+    // 响应式:主设置页删除/安装后 invalidate pluginListProvider,此处自动刷新列表。
+    final asyncPlugins = ref.watch(pluginListProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('音源管理'),
@@ -1488,13 +1482,10 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
           ),
         ],
       ),
-      body: FutureBuilder<List<PluginInfo>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final plugins = snapshot.data ?? const [];
+      body: asyncPlugins.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('加载失败:$e')),
+        data: (plugins) {
           if (plugins.isEmpty) {
             return _EmptyPlugins(onInstall: widget.onInstallUrl);
           }

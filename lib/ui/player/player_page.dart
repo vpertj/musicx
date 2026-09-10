@@ -113,17 +113,28 @@ class _PlayerBodyState extends State<_PlayerBody> {
                           const VerticalDivider(width: 1),
                           Expanded(
                             flex: 4,
-                            child: Center(
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 36,
-                                  vertical: 16,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    36,
+                                    16,
+                                    36,
+                                    8,
+                                  ),
+                                  child: _SongInfo(
+                                    song: song,
+                                    error: widget.state.error,
+                                  ),
                                 ),
-                                child: _SongInfo(
-                                  song: song,
-                                  error: widget.state.error,
+                                // 宽屏唱片视图右侧同时显示滚动歌词
+                                Expanded(
+                                  child: _LyricView(
+                                    lyric: widget.state.lyric,
+                                    position: widget.state.position,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ],
