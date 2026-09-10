@@ -68,7 +68,7 @@ class _SeekBarState extends State<SeekBar> {
                 fraction: _fraction,
                 dragging: _dragFraction != null,
                 accent: scheme.primary,
-                track: scheme.surfaceContainerHighest,
+                track: scheme.onSurface.withValues(alpha: .12),
               ),
             ),
           ),
@@ -136,18 +136,28 @@ class _SeekBarPainter extends CustomPainter {
       );
     }
 
-    // 拇指
-    final thumbR = dragging ? 10.0 : 7.5;
+    // 拇指:品牌红实心圆 + 细白边(浅色白底上也清晰、不突兀)
+    final thumbR = dragging ? 8.0 : 6.0;
     final cx = size.width * fraction;
     final cy = size.height / 2;
-    if (fraction > 0) {
+    final center = Offset(cx, cy);
+    if (dragging) {
+      // 拖拽时加一层柔光,强调可拖动
       canvas.drawCircle(
-        Offset(cx, cy),
-        thumbR + 7,
-        Paint()..color = accent.withValues(alpha: .35),
+        center,
+        thumbR + 6,
+        Paint()..color = accent.withValues(alpha: .22),
       );
     }
-    canvas.drawCircle(Offset(cx, cy), thumbR, Paint()..color = Colors.white);
+    canvas.drawCircle(center, thumbR, Paint()..color = accent);
+    canvas.drawCircle(
+      center,
+      thumbR,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   @override

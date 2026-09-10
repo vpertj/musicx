@@ -247,13 +247,18 @@ class _BottomConsole extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
+        // 底部与内容分层的柔和渐隐:浅色用表面色(避免黑蒙层显脏),深色用黑。
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.black.withValues(alpha: .28)],
+          colors: [
+            Colors.transparent,
+            (isDark ? Colors.black : scheme.surface).withValues(alpha: .35),
+          ],
         ),
       ),
       child: SafeArea(
