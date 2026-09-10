@@ -94,20 +94,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
-  Widget _content() {
-    final hasSong = ref.watch(playerControllerProvider).current != null;
-    // 迷你播放条在所有 tab 下常驻(有歌时);全屏播放器经记录从迷你条或歌曲进入,
-    // 不再占用一个顶级 tab。
-    final showMiniPlayer = hasSong;
-    return Column(
-      children: [
-        Expanded(
-          child: IndexedStack(index: _index, children: _pages),
-        ),
-        if (showMiniPlayer) MiniPlayerBar(onOpen: _openPlayer),
-      ],
-    );
-  }
+  /// 主内容区(不含迷你播放条;迷你条由 build 统一放到最外层以通栏)。
+  Widget _content() => IndexedStack(index: _index, children: _pages);
 
   @override
   Widget build(BuildContext context) {
@@ -125,27 +113,41 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     });
 
     final isDesktop = MediaQuery.of(context).size.width >= 760;
+    final hasSong = ref.watch(playerControllerProvider).current != null;
 
     if (isDesktop) {
       return Scaffold(
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        body: Column(
           children: [
-            _Sidebar(
-              index: _index,
-              onSelect: (i) => setState(() => _index = i),
-              onOpenSettings: _openSettings,
-              onOpenPlaylist: _openPlaylist,
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Sidebar(
+                    index: _index,
+                    onSelect: (i) => setState(() => _index = i),
+                    onOpenSettings: _openSettings,
+                    onOpenPlaylist: _openPlaylist,
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _content()),
+                ],
+              ),
             ),
-            const VerticalDivider(width: 1),
-            Expanded(child: _content()),
+            // 迷你播放条通栏:横跨左侧边栏 + 右侧内容区(有歌时)
+            if (hasSong) MiniPlayerBar(onOpen: _openPlayer),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: _content(),
+      body: Column(
+        children: [
+          Expanded(child: _content()),
+          if (hasSong) MiniPlayerBar(onOpen: _openPlayer),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

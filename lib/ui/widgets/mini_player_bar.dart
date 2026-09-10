@@ -128,6 +128,26 @@ class MiniPlayerBar extends ConsumerWidget {
                         .read(playerControllerProvider.notifier)
                         .togglePlay(),
                   ),
+                  // 循环模式切换:顺序 / 列表循环 / 单曲循环
+                  IconButton(
+                    tooltip: switch (state.repeatMode) {
+                      LoopMode.off => '顺序播放',
+                      LoopMode.all => '列表循环',
+                      LoopMode.one => '单曲循环',
+                    },
+                    iconSize: 22,
+                    icon: Icon(
+                      state.repeatMode == LoopMode.one
+                          ? Icons.repeat_one_rounded
+                          : Icons.repeat_rounded,
+                      color: state.repeatMode == LoopMode.off
+                          ? scheme.onSurfaceVariant
+                          : scheme.primary,
+                    ),
+                    onPressed: () => ref
+                        .read(playerControllerProvider.notifier)
+                        .toggleRepeat(),
+                  ),
                 ],
               ),
             ),
