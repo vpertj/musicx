@@ -81,10 +81,13 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
 
     final client = http.Client();
     try {
+      final req = http.Request('GET', Uri.parse(url));
+      req.headers['user-agent'] = 'MusicX/1.0';
       final resp = await client
-          .get(Uri.parse(url), headers: const {'user-agent': 'MusicX/1.0'})
+          .send(req)
           .timeout(const Duration(seconds: 120));
       if (resp.statusCode != 200) {
+        await resp.stream.drain<void>();
         throw HttpException('下载失败:HTTP ${resp.statusCode}');
       }
       final dir = downloadDir();
@@ -106,7 +109,15 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
         safe = '_$safe';
       }
       final file = File('${dir.path}/$safe.mp3');
-      await file.writeAsBytes(resp.bodyBytes, flush: true);
+      // 流式写入磁盘:避免把整首音频读入内存(大文件会 OOM)。
+      final sink = file.openWrite();
+      try {
+        await for (final chunk in resp.stream) {
+          sink.add(chunk);
+        }
+      } finally {
+        await sink.close();
+      }
 
       state = [
         DownloadedSong(

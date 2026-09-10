@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 class PlayerService {
@@ -35,7 +37,12 @@ class PlayerService {
     await _player.setUrl(url);
     // 注意:just_audio 的 play() 要等暂停/播完才返回,不能 await,
     // 否则后续状态更新永远执行不到。播放状态经 playerStateStream 回调。
-    unawaited(_player.play());
+    // 捕获其 Future 异常,避免播放失败时被静默吞掉(至少记录日志)。
+    unawaited(
+      _player.play().catchError((Object e) {
+        debugPrint('MusicX: 播放失败: $e');
+      }),
+    );
   }
 
   Future<void> pause() async {
