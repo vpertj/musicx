@@ -41,9 +41,9 @@ void main() {
     expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
     expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
     expect(find.byIcon(Icons.repeat_rounded), findsOneWidget);
-    // 底部固定控制台:进度条 + 队列入口始终可见
+    // 底部固定控制台:进度条始终可见;队列入口在顶部右上角
     expect(find.byType(SeekBar), findsOneWidget);
-    expect(find.textContaining('播放队列'), findsOneWidget);
+    expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
   });
 
   testWidgets('歌词视图下进度条与控制台仍可见', (tester) async {
@@ -87,7 +87,8 @@ void main() {
     expect(find.byType(SeekBar), findsOneWidget);
     expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
     expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-    expect(find.textContaining('播放队列'), findsOneWidget);
+    // 队列入口在顶部右上角(歌词模式下同样可见)
+    expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
   });
 }
 
