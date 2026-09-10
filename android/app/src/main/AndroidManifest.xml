@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 音乐播放器核心依赖网络(搜索/播放/歌词/下载),release 构建必须声明 INTERNET。
+         注意:flutter 默认只在 debug/profile manifest 声明,release 需在此显式声明。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="musicx"
         android:name="${applicationName}"
