@@ -59,7 +59,11 @@ class _PlayerBodyState extends State<_PlayerBody> {
 
     return Column(
       children: [
-        _TopBar(overlay: widget.overlay),
+        _TopBar(
+          overlay: widget.overlay,
+          queueCount: widget.state.queue.length,
+          onShowQueue: () => _showQueue(context),
+        ),
         // 唱片 / 歌词 切换
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -163,12 +167,8 @@ class _PlayerBodyState extends State<_PlayerBody> {
                   },
                 ),
         ),
-        // 底部固定控制台:进度条 + 时间 + 控制按钮 + 播放队列,两种视图共用
-        _BottomConsole(
-          state: widget.state,
-          ctrl: widget.ctrl,
-          onShowQueue: () => _showQueue(context),
-        ),
+        // 底部固定控制台:进度条 + 时间 + 控制按钮,两种视图共用
+        _BottomConsole(state: widget.state, ctrl: widget.ctrl),
       ],
     );
   }
@@ -231,18 +231,14 @@ class _ViewToggle extends StatelessWidget {
   }
 }
 
-/// 底部固定控制台:进度条 + 时间 + 控制按钮 + 播放队列。
+/// 底部固定控制台:进度条 + 时间 + 控制按钮。
 /// 唱片 / 歌词视图共用,始终可见,避免歌词模式下无法控制播放。
+/// 播放队列入口已移至顶部栏右上角(_TopBar)。
 class _BottomConsole extends StatelessWidget {
-  const _BottomConsole({
-    required this.state,
-    required this.ctrl,
-    required this.onShowQueue,
-  });
+  const _BottomConsole({required this.state, required this.ctrl});
 
   final PlayerState state;
   final PlayerController ctrl;
-  final VoidCallback onShowQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -286,20 +282,6 @@ class _BottomConsole extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               _Controls(state: state, ctrl: ctrl),
-              const SizedBox(height: 2),
-              // 播放队列入口
-              TextButton.icon(
-                onPressed: onShowQueue,
-                style: TextButton.styleFrom(
-                  foregroundColor: scheme.onSurfaceVariant,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 4,
-                  ),
-                ),
-                icon: const Icon(Icons.queue_music_rounded, size: 18),
-                label: Text('播放队列 (${state.queue.length})'),
-              ),
             ],
           ),
         ),
@@ -413,11 +395,17 @@ class _LyricViewState extends State<_LyricView> {
   }
 }
 
-/// 顶部栏:overlay 模式显示收起按钮,标题“正在播放”居中/居左。
+/// 顶部栏:overlay 模式显示收起按钮,标题“正在播放”居中;右上角为播放队列入口。
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.overlay});
+  const _TopBar({
+    required this.overlay,
+    required this.queueCount,
+    required this.onShowQueue,
+  });
 
   final bool overlay;
+  final int queueCount;
+  final VoidCallback onShowQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -427,37 +415,47 @@ class _TopBar extends StatelessWidget {
       style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
 
+    // 右上角:播放队列入口(带数量徽标)
+    final queueButton = IconButton(
+      tooltip: '播放队列 ($queueCount)',
+      iconSize: 26,
+      icon: Badge(
+        isLabelVisible: queueCount > 0,
+        label: Text('$queueCount'),
+        child: const Icon(Icons.queue_music_rounded),
+      ),
+      onPressed: onShowQueue,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: SizedBox(
         height: 48,
-        child: overlay
-            ? Stack(
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      tooltip: '收起',
-                      iconSize: 30,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ),
-                  Center(child: title),
-                  // 右侧占位,保持标题视觉居中
-                  const Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(width: 48),
-                  ),
-                ],
+        child: Stack(
+          children: [
+            if (overlay)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  tooltip: '收起',
+                  iconSize: 30,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
               )
-            : Align(
+            else
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: title,
                 ),
               ),
+            // overlay 模式标题居中;非 overlay 标题已在左侧,此处不重复
+            if (overlay) Center(child: title),
+            Align(alignment: Alignment.centerRight, child: queueButton),
+          ],
+        ),
       ),
     );
   }
