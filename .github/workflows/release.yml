@@ -76,3 +76,59 @@ jobs:
 
       - name: Show checksum
         run: shasum -a 256 "${{ env.DMG_PATH }}"
+
+  build-android:
+    name: Build & Package Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore Android signing keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/musicx-release.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=musicx-release.jks\n' \
+            "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            "${{ secrets.ANDROID_KEY_ALIAS }}" > android/key.properties
+
+      - name: Build signed APK
+        shell: bash
+        run: |
+          set -e
+          flutter build apk --release
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/MusicX-${VERSION}.apk"
+          echo "APK_PATH=dist/MusicX-${VERSION}.apk" >> "$GITHUB_ENV"
+          echo "APK_NAME=MusicX-${VERSION}.apk" >> "$GITHUB_ENV"
+
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "${{ env.APK_PATH }}"
+          fail_on_unmatched_files: true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ env.APK_NAME }}"
+          path: "${{ env.APK_PATH }}"
+          if-no-files-found: error

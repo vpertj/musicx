@@ -78,8 +78,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK (release)
-        # release 用 debug 签名(见 android/app/build.gradle.kts),产出可安装 APK
+      - name: Restore Android signing keystore
+        # 从仓库 Secrets 还原正式签名密钥(仅 Android job 需要)
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/musicx-release.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=musicx-release.jks\n' \
+            "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            "${{ secrets.ANDROID_KEY_ALIAS }}" > android/key.properties
+
+      - name: Build APK (release, signed)
         run: flutter build apk --release
 
       - name: Upload APK
