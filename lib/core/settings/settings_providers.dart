@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/settings/settings_store.dart';
 import 'package:musicx/core/utils/app_paths.dart';
 
 /// 当前搜索音源插件名;null 表示「自动」——按顺序尝试全部已装插件。
@@ -24,17 +24,17 @@ final settingsFileProvider = Provider<File>(
   (ref) => AppPaths.file('settings.json'),
 );
 
+/// 设置存储(合并写),所有设置项的落盘都经由它。
+final settingsStoreProvider = Provider<SettingsStore>(
+  (ref) => SettingsStore(ref.watch(settingsFileProvider)),
+);
+
 /// 主题偏好:浅色(默认)/深色,持久化到设置文件。
 class ThemePreferenceController extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
-    try {
-      final f = ref.read(settingsFileProvider);
-      if (f.existsSync()) {
-        final map = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
-        if (map['themeMode'] == 'dark') return ThemeMode.dark;
-      }
-    } catch (_) {}
+    final map = ref.watch(settingsStoreProvider).readAll();
+    if (map['themeMode'] == 'dark') return ThemeMode.dark;
     return ThemeMode.light;
   }
 
@@ -49,13 +49,9 @@ class ThemePreferenceController extends Notifier<ThemeMode> {
   }
 
   void _persist() {
-    try {
-      final f = ref.read(settingsFileProvider);
-      f.parent.createSync(recursive: true);
-      f.writeAsStringSync(
-        jsonEncode({'themeMode': state == ThemeMode.dark ? 'dark' : 'light'}),
-      );
-    } catch (_) {}
+    ref
+        .read(settingsStoreProvider)
+        .merge({'themeMode': state == ThemeMode.dark ? 'dark' : 'light'});
   }
 }
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,8 +8,12 @@ import 'package:musicx/core/settings/settings_providers.dart';
 
 void main() {
   late Directory tmp;
+  late File file;
 
-  setUp(() => tmp = Directory.systemTemp.createTempSync('mx_theme'));
+  setUp(() {
+    tmp = Directory.systemTemp.createTempSync('mx_theme');
+    file = File('${tmp.path}/settings.json');
+  });
   tearDown(() => tmp.deleteSync(recursive: true));
 
   /// 用独立临时设置文件构造容器,避免测试间共享持久化状态、不污染真实配置。
@@ -48,5 +53,19 @@ void main() {
     final c2 = makeContainer();
     addTearDown(c2.dispose);
     expect(c2.read(themePreferenceProvider), ThemeMode.light);
+  });
+
+  test('切主题不冲掉其它设置项(desktopLyrics 保留)', () {
+    file.writeAsStringSync(
+      jsonEncode({'desktopLyrics': {'fontSize': 44}}),
+    );
+    final c = makeContainer();
+    addTearDown(c.dispose);
+    c.read(themePreferenceProvider.notifier).setDark();
+
+    final map =
+        jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+    expect(map['themeMode'], 'dark');
+    expect((map['desktopLyrics'] as Map)['fontSize'], 44);
   });
 }
