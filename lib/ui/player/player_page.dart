@@ -4,6 +4,7 @@ import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/utils/format.dart';
 import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
+import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
 import 'package:musicx/ui/widgets/seek_bar.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
@@ -63,6 +64,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
           overlay: widget.overlay,
           queueCount: widget.state.queue.length,
           onShowQueue: () => _showQueue(context),
+          onToggleLyrics: () => DesktopLyricsService.toggle(),
         ),
         // 唱片 / 歌词 切换
         Padding(
@@ -401,11 +403,13 @@ class _TopBar extends StatelessWidget {
     required this.overlay,
     required this.queueCount,
     required this.onShowQueue,
+    required this.onToggleLyrics,
   });
 
   final bool overlay;
   final int queueCount;
   final VoidCallback onShowQueue;
+  final VoidCallback onToggleLyrics;
 
   @override
   Widget build(BuildContext context) {
@@ -453,7 +457,23 @@ class _TopBar extends StatelessWidget {
               ),
             // overlay 模式标题居中;非 overlay 标题已在左侧,此处不重复
             if (overlay) Center(child: title),
-            Align(alignment: Alignment.centerRight, child: queueButton),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 桌面歌词:仅桌面平台显示
+                  if (DesktopLyricsService.supported)
+                    IconButton(
+                      tooltip: '桌面歌词',
+                      iconSize: 24,
+                      icon: const Icon(Icons.subtitles_rounded),
+                      onPressed: onToggleLyrics,
+                    ),
+                  queueButton,
+                ],
+              ),
+            ),
           ],
         ),
       ),

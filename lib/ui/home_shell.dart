@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
@@ -5,6 +7,7 @@ import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/downloads/download_page.dart';
 import 'package:musicx/ui/library/library_page.dart';
 import 'package:musicx/ui/player/player_page.dart';
@@ -50,6 +53,47 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ),
       const PluginPage(),
     ];
+    // 桌面歌词浮窗:定期把当前歌词行推送到独立浮窗(浮窗未开时为空操作)。
+    if (DesktopLyricsService.supported) {
+      _lyricsTimer = Timer.periodic(
+        const Duration(milliseconds: 250),
+        (_) => _pushLyrics(),
+      );
+    }
+  }
+
+  Timer? _lyricsTimer;
+
+  /// 推送当前歌词行到桌面歌词浮窗。
+  Future<void> _pushLyrics() async {
+    try {
+      if (!await DesktopLyricsService.isOpen()) return;
+      final state = ref.read(playerControllerProvider);
+      final lines = state.lyric;
+      final pos = state.position;
+      var idx = -1;
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].time <= pos) {
+          idx = i;
+        } else {
+          break;
+        }
+      }
+      final current = (idx >= 0 && idx < lines.length) ? lines[idx].text : '';
+      final next = (idx + 1 < lines.length) ? lines[idx + 1].text : '';
+      await DesktopLyricsService.push(
+        current: current,
+        next: next,
+        playing: state.isPlaying,
+        hasSong: state.current != null,
+      );
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _lyricsTimer?.cancel();
+    super.dispose();
   }
 
   /// 打开指定歌单(切到我的页并显示该歌单)。
