@@ -20,9 +20,16 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
-    // 桌面歌词浮窗:为每个新建子窗口注册插件(子窗口有独立引擎)。
+    // 桌面歌词浮窗:为每个新建子窗口注册插件(子窗口有独立引擎),
+    // 并把子窗口设为透明(毛玻璃圆角需要窗口非不透明,否则显示黑底)。
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
       RegisterGeneratedPlugins(registry: controller)
+      DispatchQueue.main.async {
+        guard let window = controller.view.window else { return }
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+      }
     }
 
     super.awakeFromNib()
