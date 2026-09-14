@@ -7,6 +7,7 @@ import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/auto_source_order.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
 import 'package:musicx/core/plugins/result_normalizer.dart';
+import 'package:musicx/core/plugins/search_failure.dart';
 import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/models/plugin_source.dart';
 
@@ -271,6 +272,7 @@ class PluginManager {
     final ordered = platform != null
         ? plugins
         : _prioritizeAutoPlugins(plugins);
+    final failures = <SearchFailure>[];
     for (final plugin in ordered) {
       if (platform != null && plugin.platform != platform) continue;
       try {
@@ -285,11 +287,12 @@ class PluginManager {
         // 插件结果往往缺省(如 bilibili 只返回 id)。
         _normalizeResults(result, platform: plugin.platform);
         return result;
-      } catch (_) {
-        // 单插件失败不阻断整体;循环继续
+      } catch (e) {
+        // 单插件失败不阻断整体;循环继续,但记下原因供报错使用
+        failures.add(SearchFailure(platform: plugin.platform, error: e));
       }
     }
-    throw Exception('no plugin returned search results');
+    throw Exception(describeSearchFailures(failures));
   }
 
   /// 自动模式插件排序与过滤:

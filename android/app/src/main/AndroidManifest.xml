@@ -2,12 +2,15 @@
     <!-- 音乐播放器核心依赖网络(搜索/播放/歌词/下载),release 构建必须声明 INTERNET。
          注意:flutter 默认只在 debug/profile manifest 声明,release 需在此显式声明。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 音源接口大量使用明文 http(酷我/QQ/网易等第三方端点),Android 9+ 默认
+         禁止明文会导致「搜不到歌」;这里显式放开(应用仅从 GitHub 分发)。 -->
     <!-- 应用内更新:下载 APK 后调起系统安装器(Android 8+ 需用户授权未知来源) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="musicx"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

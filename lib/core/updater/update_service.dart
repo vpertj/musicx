@@ -34,6 +34,29 @@ String updateAssetSuffixFor({
 String updateDownloadFileNameFor({required bool isAndroid}) =>
     isAndroid ? 'musicx_update.apk' : 'musicx_update.dmg';
 
+/// 从 GitHub `releases/expanded_assets/<tag>` 页面解析资产直链。
+///
+/// 注意:后缀必须用 [RegExp.escape],早期实现手写 `replaceAll('.', r'\.')`
+/// 又叠加了字符串转义,最终正则要求 href 里含字面反斜杠,永远匹配不到 ——
+/// 这正是「检查更新失败:没有找到 DMG 安装包」的根因(GitHub API 403 限流时
+/// 必然走这条降级路径)。
+String? parseAssetUrlFromExpandedAssets(String html, String suffix) {
+  if (html.isEmpty) return null;
+  final re = RegExp('href="([^"]*${RegExp.escape(suffix)})"');
+  final m = re.firstMatch(html);
+  if (m == null) return null;
+  return 'https://github.com${m.group(1)}';
+}
+
+/// 按 CI 的资产命名约定直接拼下载直链(不依赖抓页面)。
+/// 约定:`MusicX-<version><suffix>`,例如 MusicX-1.7.3.dmg / MusicX-1.7.3.apk。
+String conventionalAssetUrl({
+  required String repo,
+  required String tag,
+  required String version,
+  required String suffix,
+}) => 'https://github.com/$repo/releases/download/$tag/MusicX-$version$suffix';
+
 /// 从 macOS Info.plist 文本中取 CFBundleShortVersionString;取不到返回空串。
 String parseMacVersionFromPlist(String plistText) {
   final m = RegExp(
@@ -225,11 +248,19 @@ class UpdateService {
     if (assetsResp.statusCode != 200) {
       throw HttpException('无法获取更新包列表 (HTTP ${assetsResp.statusCode})');
     }
-    // 按当前平台后缀在资产页面中挑选安装包(macOS 为 .dmg)。
+    // 按当前平台后缀在资产页面中挑选安装包。
     final suffix = _assetSuffix;
-    final re = RegExp('href="([^"]*\\${suffix.replaceAll('.', r'\.')})"');
-    final m = re.firstMatch(assetsResp.body);
-    final assetUrl = m == null ? '' : 'https://github.com${m.group(1)}';
+    var assetUrl =
+        parseAssetUrlFromExpandedAssets(assetsResp.body, suffix) ?? '';
+    // 抓页面失败时按 CI 命名约定直接拼直链(不依赖 GitHub HTML 结构)。
+    if (assetUrl.isEmpty) {
+      assetUrl = conventionalAssetUrl(
+        repo: kGitHubRepo,
+        tag: tag,
+        version: latest,
+        suffix: suffix,
+      );
+    }
     if (assetUrl.isEmpty && canAutoInstall) {
       throw HttpException('最新 Release 中没有找到可自动安装的更新包');
     }
