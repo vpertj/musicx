@@ -19,7 +19,9 @@ Future<void> main(List<String> args) async {
     // 非桌面平台或插件不可用:按主窗口处理。
   }
   if (isLyricsWindowArguments(windowArguments)) {
-    runApp(const LyricsWindow());
+    // 浮窗也要能读 settings.json(首帧样式),先初始化数据目录。
+    await AppPaths.init();
+    runApp(const ProviderScope(child: LyricsWindow()));
     return;
   }
 
