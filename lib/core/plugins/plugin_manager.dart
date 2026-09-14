@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
+import 'package:musicx/core/plugins/auto_source_order.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
 import 'package:musicx/core/plugins/result_normalizer.dart';
 import 'package:musicx/core/utils/app_paths.dart';
@@ -322,47 +323,22 @@ class PluginManager {
   }
 
   List<PluginInfo> _prioritizeAutoPlugins(List<PluginInfo> plugins) {
-    // 已知完全失效的音源(无法搜索或解析)
-    const dead = {'酷狗(独家音源)', '喜马拉雅(公开API)'};
-    final seen = <String>{};
-    final result = <PluginInfo>[];
-    // 排序:健康优先、主流源优先
-    final sorted = [...plugins]
-      ..sort((a, b) {
-        int prio(String p) {
-          if (dead.contains(p)) return 100;
-          if (p.contains('独家') || p.contains('独家音源')) return 30;
-          return switch (p) {
-            'netease' || '网易音乐' => 0,
-            'kuwo' || '酷我' => 1,
-            _ => 10,
-          };
-        }
-
-        return prio(a.platform).compareTo(prio(b.platform));
-      });
-    for (final p in sorted) {
-      if (dead.contains(p.platform)) continue; // 跳过僵尸音源
-      // 同平台去重:提取主名(括号前),同一主名只保留代理优先的一个
-      final base = p.platform.split('(').first.trim();
-      if (base.isEmpty) {
-        result.add(p);
-        continue;
-      }
-      final idx = seen.contains(base)
-          ? result.indexWhere((e) => e.platform.split('(').first.trim() == base)
-          : -1;
-      if (idx >= 0) {
-        // 保留评分更高者(代理源优先)
-        if (_proxyScore(p.platform) > _proxyScore(result[idx].platform)) {
-          result[idx] = p;
-        }
-        continue;
-      }
-      seen.add(base);
-      result.add(p);
-    }
-    return result;
+    // 归类与排序收敛在纯函数里(auto_source_order),按上游地址/文件名归类,
+    // 用户改名(如「网易云音乐」→「网yi」)后依然能排到正确优先级。
+    final identities = [
+      for (final p in plugins)
+        SourceIdentity(
+          platform: p.platform,
+          srcUrl: p.srcUrl ?? '',
+          fileName: p.path.split('/').last,
+        ),
+    ];
+    final ordered = orderAutoSourceIdentities(identities);
+    final byPlatform = {for (final p in plugins) p.platform: p};
+    return [
+      for (final id in ordered)
+        if (byPlatform[id.platform] != null) byPlatform[id.platform]!,
+    ];
   }
 
   /// 补全搜索结果:platform 一律写入当前插件名(保证改名后播放路由一致,
