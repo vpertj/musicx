@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
@@ -55,6 +56,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     ];
     // 桌面歌词浮窗:定期把当前歌词行推送到独立浮窗(浮窗未开时为空操作)。
     if (DesktopLyricsService.supported) {
+      // 浮窗工具条改动回传:写回 provider 持久化(主窗口是唯一写者)。
+      DesktopLyricsService.setUpStyleHandler((settings) async {
+        ref.read(desktopLyricsSettingsProvider.notifier).update(settings);
+      });
+      // 先缓存当前样式,浮窗打开时由 service 补推,避免默认样式闪现。
+      DesktopLyricsService.pushStyle(ref.read(desktopLyricsSettingsProvider));
       _lyricsTimer = Timer.periodic(
         const Duration(milliseconds: 250),
         (_) => _pushLyrics(),
@@ -86,6 +93,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         next: next,
         playing: state.isPlaying,
         hasSong: state.current != null,
+        artwork: state.current?.artwork,
       );
     } catch (_) {}
   }
@@ -143,6 +151,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 设置改动实时推送到已打开的浮窗。
+    ref.listen<DesktopLyricsSettings>(
+        desktopLyricsSettingsProvider, (_, next) {
+      DesktopLyricsService.pushStyle(next);
+    });
     // 监听更新状态:检测到新版本时自动弹窗提示
     ref.listen(updateControllerProvider, (prev, next) {
       if (next.phase == UpdatePhase.ready &&
