@@ -73,6 +73,31 @@ class PluginManager {
     );
   }
 
+  /// 安装随 App 打包的内置音源:内容已由调用方从 asset 读出。
+  ///
+  /// 与 [installFromUrl] 同样做元数据轻量校验(platform/version 必须存在),
+  /// 校验不过不落盘。
+  Future<PluginInfo> installBundledJs(
+    String body, {
+    required String source,
+  }) async {
+    final meta = _store.parseMeta(body);
+    final platform = meta['platform'];
+    final version = meta['version'];
+    if (platform is! String ||
+        platform.isEmpty ||
+        version is! String ||
+        version.isEmpty) {
+      throw ArgumentError('内置音源内容无效(缺少 platform/version):$source');
+    }
+    final path = await _writePlugin(body, source: source);
+    return PluginInfo.fromJsMeta(
+      meta,
+      hash: await _store.sha256Of(File(path)),
+      path: path,
+    );
+  }
+
   /// 拉取订阅源(plugins.json),返回插件条目列表。
   /// 兼容 { "plugins": [...] } 与顶层直接为数组两种格式。
   /// 仅接受 https 订阅源。

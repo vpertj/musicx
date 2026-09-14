@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
@@ -6,12 +8,14 @@ import 'package:musicx/core/providers.dart'
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_settings_section.dart';
+import 'package:musicx/ui/plugins/bundled_sources_sheet.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 
 /// 安装入口类型。
-enum _InstallAction { url, source, file }
+enum _InstallAction { bundled, url, source, file }
 
 /// 设置页左右栏的区块:左侧菜单项,右侧对应内容。
 enum _SettingsSection { sources, appearance, general }
@@ -32,8 +36,38 @@ class _PluginPageState extends ConsumerState<PluginPage> {
 
   /// 缓存插件列表 future:setState(切换左右栏区块)不重建,避免出现
   /// 无限旋转的 CircularProgressIndicator 导致 pumpAndSettle 超时。
+  /// 注意必须**同步返回同一个 future**,不能是 async 函数(每次调用都会
+  /// 产生新 future,FutureBuilder 会一直处于 loading)。
   Future<List<PluginInfo>> _loadPlugins() =>
       _pluginsFuture ??= ref.read(pluginManagerProvider).listPlugins();
+
+  /// 后台算一次内置音源待处理数(未安装 + 版本不同),用于分组行角标。
+  Future<void> _refreshBundledPending(List<PluginInfo> installed) async {
+    final bundled = await BundledPluginCatalog().list();
+    if (bundled.isEmpty) return;
+    final versions = {for (final p in installed) p.platform: p.version};
+    final pending = bundled
+        .where((p) =>
+            bundledInstallState(
+              bundledVersion: p.version,
+              installedVersion: versions[p.platform],
+            ) !=
+            BundledInstallState.installed)
+        .length;
+    if (mounted && pending != _bundledPending) {
+      setState(() => _bundledPending = pending);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 首帧后算一次「内置音源待处理数」(角标),不阻塞页面加载。
+    Future.microtask(() async {
+      final plugins = await _loadPlugins();
+      await _refreshBundledPending(plugins);
+    });
+  }
 
   @override
   void dispose() {
@@ -139,6 +173,99 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       if (mounted) setState(() => _reload++);
       messenger.showSnackBar(SnackBar(content: Text('安装失败:$e')));
     }
+  }
+
+  /// 内置音源待处理数(未安装 + 版本不同),用于音乐源分组行的角标。
+  int _bundledPending = 0;
+
+  /// 内置音源面板:随 App 打包的默认音源,用户手动安装。
+  Future<void> _installBundledSources() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final manager = ref.read(pluginManagerProvider);
+    final catalog = BundledPluginCatalog();
+
+    final bundled = await catalog.list();
+    if (!mounted) return;
+    if (bundled.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('内置音源清单为空')));
+      return;
+    }
+
+    Future<Map<String, String>> installedMap() async => {
+          for (final p in await manager.listPlugins()) p.platform: p.version,
+        };
+
+    var installed = await installedMap();
+    _bundledPending = bundled
+        .where((p) =>
+            bundledInstallState(
+              bundledVersion: p.version,
+              installedVersion: installed[p.platform],
+            ) !=
+            BundledInstallState.installed)
+        .length;
+    if (!mounted) return;
+
+    await showBundledSourcesSheet(
+      context,
+      plugins: bundled,
+      installedVersions: installed,
+      installedCount: installed.length,
+      onInstall: (plugin) async {
+        final existing = await manager.listPlugins();
+        if (!mounted) return;
+        final same = existing.where((p) => p.platform == plugin.platform);
+        if (same.isNotEmpty) {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text('覆盖安装「${plugin.name}」?'),
+              content: const Text('已存在同平台音源,覆盖安装会先移除旧版本。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('覆盖安装'),
+                ),
+              ],
+            ),
+          );
+          if (ok != true) return;
+          for (final old in same) {
+            await manager.uninstall(old);
+          }
+        }
+        try {
+          final info = await manager.installBundledJs(
+            await catalog.readJs(plugin),
+            source: 'bundled:${plugin.assetPath}',
+          );
+          if (!mounted) return;
+          setState(() => _reload++);
+          _bumpPluginList();
+          messenger.showSnackBar(
+            SnackBar(content: Text('已安装「${plugin.name}」v${info.version}')),
+          );
+        } catch (e) {
+          messenger.showSnackBar(SnackBar(content: Text('安装失败:$e')));
+        }
+      },
+    );
+
+    // 面板关闭后刷新角标与列表。
+    installed = await installedMap();
+    _bundledPending = bundled
+        .where((p) =>
+            bundledInstallState(
+              bundledVersion: p.version,
+              installedVersion: installed[p.platform],
+            ) !=
+            BundledInstallState.installed)
+        .length;
+    if (mounted) setState(() => _reload++);
   }
 
   /// 订阅源导入:输入 plugins.json 地址,列出可选插件。
@@ -424,6 +551,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           onInstallUrl: _installFromUrl,
           onInstallPath: _installFromPath,
           onInstallSource: _importFromSource,
+          onInstallBundled: _installBundledSources,
         ),
       ),
     );
@@ -444,6 +572,13 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               _DefaultSourceRow(
                 current: source,
                 onTap: () => _pickDefaultSource(plugins, source),
+              ),
+              const SizedBox(height: 8),
+              _MenuItemRow(
+                icon: Icons.widgets_rounded,
+                title: '内置默认音源',
+                trailing: '$_bundledPending',
+                onTap: () => _installBundledSources(),
               ),
               const SizedBox(height: 8),
               _MenuItemRow(
@@ -497,11 +632,21 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             tooltip: '安装插件',
             icon: const Icon(Icons.add_rounded),
             onSelected: (action) => switch (action) {
+              _InstallAction.bundled => _installBundledSources(),
               _InstallAction.url => _installFromUrl(),
               _InstallAction.source => _importFromSource(),
               _InstallAction.file => _installFromPath(),
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _InstallAction.bundled,
+                child: ListTile(
+                  leading: Icon(Icons.widgets_rounded),
+                  title: Text('安装默认音源'),
+                  subtitle: Text('酷我 / 网易云,随 App 内置'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(
@@ -1429,6 +1574,7 @@ class _SourceManagerPage extends ConsumerStatefulWidget {
     required this.onInstallUrl,
     required this.onInstallPath,
     required this.onInstallSource,
+    required this.onInstallBundled,
   });
 
   final List<PluginInfo> plugins;
@@ -1439,6 +1585,7 @@ class _SourceManagerPage extends ConsumerStatefulWidget {
   final VoidCallback onInstallUrl;
   final VoidCallback onInstallPath;
   final VoidCallback onInstallSource;
+  final VoidCallback onInstallBundled;
 
   @override
   ConsumerState<_SourceManagerPage> createState() => _SourceManagerPageState();
@@ -1457,11 +1604,21 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
             tooltip: '安装插件',
             icon: const Icon(Icons.add_rounded),
             onSelected: (action) => switch (action) {
+              _InstallAction.bundled => widget.onInstallBundled(),
               _InstallAction.url => widget.onInstallUrl(),
               _InstallAction.source => widget.onInstallSource(),
               _InstallAction.file => widget.onInstallPath(),
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _InstallAction.bundled,
+                child: ListTile(
+                  leading: Icon(Icons.widgets_rounded),
+                  title: Text('安装默认音源'),
+                  subtitle: Text('酷我 / 网易云,随 App 内置'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(

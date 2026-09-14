@@ -76,6 +76,8 @@ flutter:
   assets:
     - assets/tray_icon.png
     - assets/tray_icon.ico
+    # 内置默认音源(第三方插件,随 App 打包,用户手动安装)
+    - assets/plugins/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

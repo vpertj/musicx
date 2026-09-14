@@ -1,0 +1,19 @@
+{
+  "_comment": "随 App 打包的默认音源清单。第三方作品:保留作者与上游地址,不改动插件内原有署名。",
+  "plugins": [
+    {
+      "name": "网易云音乐",
+      "platform": "netease",
+      "version": "2025.09.14",
+      "asset": "assets/plugins/netease.js",
+      "author": "Thomas喲",
+      "sourceUrl": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/wy.js"
+    },
+    {
+      "name": "酷我音乐",
+      "platform": "kuwo",
+      "version": "0.1.0",
+      "asset": "assets/plugins/kuwo.js"
+    }
+  ]
+}
