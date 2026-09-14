@@ -86,6 +86,36 @@ class DesktopLyricsSettings {
     );
   }
 
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is DesktopLyricsSettings &&
+        other.textColor == textColor &&
+        other.nextColor == nextColor &&
+        other.fontSize == fontSize &&
+        other.autoScale == autoScale &&
+        other.showNext == showNext &&
+        other.showArtwork == showArtwork &&
+        other.glassTint == glassTint &&
+        other.blurSigma == blurSigma &&
+        other.cornerRadius == cornerRadius &&
+        other.bounds == bounds;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        textColor,
+        nextColor,
+        fontSize,
+        autoScale,
+        showNext,
+        showArtwork,
+        glassTint,
+        blurSigma,
+        cornerRadius,
+        bounds,
+      );
+
   /// 把所有数值收敛到合法区间,防止手改配置导致界面异常。
   DesktopLyricsSettings clamp() {
     return DesktopLyricsSettings(
@@ -154,6 +184,15 @@ class DesktopLyricsSettings {
     return v ?? fallback;
   }
 
+  /// 容错读取 double:接受 num 或可解析的字符串;NaN/Infinity 与垃圾值都返回 null。
+  static double? _doubleOrNull(Object? raw) {
+    if (raw is num) {
+      final v = raw.toDouble();
+      return v.isFinite ? v : null;
+    }
+    return double.tryParse('$raw');
+  }
+
   static int _int(Object? raw, int fallback) {
     if (raw is num) return raw.round();
     return int.tryParse('$raw') ?? fallback;
@@ -164,10 +203,10 @@ class DesktopLyricsSettings {
 
   static Rect? _rect(Object? raw) {
     if (raw is! Map) return null;
-    final x = (raw['x'] as num?)?.toDouble();
-    final y = (raw['y'] as num?)?.toDouble();
-    final w = (raw['w'] as num?)?.toDouble();
-    final h = (raw['h'] as num?)?.toDouble();
+    final x = _doubleOrNull(raw['x']);
+    final y = _doubleOrNull(raw['y']);
+    final w = _doubleOrNull(raw['w']);
+    final h = _doubleOrNull(raw['h']);
     if (x == null || y == null || w == null || h == null) return null;
     if (w <= 0 || h <= 0) return null;
     return Rect.fromLTWH(x, y, w, h);
@@ -178,11 +217,15 @@ class DesktopLyricsSettings {
 class DesktopLyricsSettingsController extends Notifier<DesktopLyricsSettings> {
   @override
   DesktopLyricsSettings build() {
-    final map = ref.watch(settingsStoreProvider).readAll();
-    final raw = map['desktopLyrics'];
-    return DesktopLyricsSettings.fromJson(
-      raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{},
-    );
+    try {
+      final map = ref.watch(settingsStoreProvider).readAll();
+      final raw = map['desktopLyrics'];
+      return DesktopLyricsSettings.fromJson(
+        raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{},
+      );
+    } catch (_) {
+      return const DesktopLyricsSettings();
+    }
   }
 
   /// 更新并持久化(经合并写,不影响其它设置)。

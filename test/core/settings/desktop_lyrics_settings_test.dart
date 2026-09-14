@@ -97,4 +97,27 @@ void main() {
       50,
     );
   });
+
+  test('bounds 子字段为数字字符串时容错解析', () {
+    final s = DesktopLyricsSettings.fromJson(const {
+      'bounds': {'x': '10', 'y': '20', 'w': '800', 'h': '180'},
+    });
+    expect(s.bounds, const Rect.fromLTWH(10, 20, 800, 180));
+  });
+
+  test('bounds 子字段为垃圾值时回落 null 而不抛异常', () {
+    final s = DesktopLyricsSettings.fromJson(const {
+      'bounds': {'x': true, 'y': [], 'w': {}, 'h': 'abc'},
+    });
+    expect(s.bounds, isNull);
+  });
+
+  test('settings.json 手改坏配置时 provider 回落默认值不抛异常', () {
+    file.writeAsStringSync(
+      '{"desktopLyrics":{"bounds":{"x":"10","w":800},"fontSize":"abc"}}',
+    );
+    final c = makeContainer();
+    addTearDown(c.dispose);
+    expect(c.read(desktopLyricsSettingsProvider), const DesktopLyricsSettings());
+  });
 }
