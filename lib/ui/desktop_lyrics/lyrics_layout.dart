@@ -37,6 +37,19 @@ class LyricsLayout {
   final EdgeInsets padding;
   final double accentBarWidth;
   final double cardRadius;
+
+  /// 仅用于预览等场景微调字号,不改变其它布局决策。
+  LyricsLayout copyWith({double? fontSize, double? nextFontSize}) {
+    return LyricsLayout(
+      fontSize: fontSize ?? this.fontSize,
+      nextFontSize: nextFontSize ?? this.nextFontSize,
+      showNext: showNext,
+      direction: direction,
+      padding: padding,
+      accentBarWidth: accentBarWidth,
+      cardRadius: cardRadius,
+    );
+  }
 }
 
 /// 由窗口尺寸 + 设置解析出实际布局(纯函数,无 Widget 依赖)。

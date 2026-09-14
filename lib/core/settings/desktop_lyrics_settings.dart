@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicx/core/settings/settings_providers.dart';
 
+/// 歌词卡外观:极简纯文字(默认,无任何卡片背景)或毛玻璃卡。
+enum LyricsCardStyle { plain, glass }
+
 /// 桌面歌词浮窗外观设置。持久化到 settings.json 的 `desktopLyrics` 键。
 class DesktopLyricsSettings {
   const DesktopLyricsSettings({
@@ -12,6 +15,7 @@ class DesktopLyricsSettings {
     this.fontSize = 34,
     this.autoScale = true,
     this.showNext = true,
+    this.cardStyle = LyricsCardStyle.plain,
     this.showArtwork = true,
     this.glassTint = 45,
     this.blurSigma = 38,
@@ -44,7 +48,10 @@ class DesktopLyricsSettings {
   /// 是否显示下一句(窗口高度不足时布局会强制隐藏)。
   final bool showNext;
 
-  /// 是否用专辑封面做模糊背景(关掉退化为纯彩色玻璃)。
+  /// 卡片外观;默认 [LyricsCardStyle.plain](纯文字,不加任何背景与边框)。
+  final LyricsCardStyle cardStyle;
+
+  /// 是否用专辑封面做模糊背景(仅毛玻璃样式生效)。
   final bool showArtwork;
 
   /// 暗色遮罩浓度 0–100。
@@ -65,6 +72,7 @@ class DesktopLyricsSettings {
     double? fontSize,
     bool? autoScale,
     bool? showNext,
+    LyricsCardStyle? cardStyle,
     bool? showArtwork,
     int? glassTint,
     double? blurSigma,
@@ -78,6 +86,7 @@ class DesktopLyricsSettings {
       fontSize: fontSize ?? this.fontSize,
       autoScale: autoScale ?? this.autoScale,
       showNext: showNext ?? this.showNext,
+      cardStyle: cardStyle ?? this.cardStyle,
       showArtwork: showArtwork ?? this.showArtwork,
       glassTint: glassTint ?? this.glassTint,
       blurSigma: blurSigma ?? this.blurSigma,
@@ -95,6 +104,7 @@ class DesktopLyricsSettings {
         other.fontSize == fontSize &&
         other.autoScale == autoScale &&
         other.showNext == showNext &&
+        other.cardStyle == cardStyle &&
         other.showArtwork == showArtwork &&
         other.glassTint == glassTint &&
         other.blurSigma == blurSigma &&
@@ -109,6 +119,7 @@ class DesktopLyricsSettings {
         fontSize,
         autoScale,
         showNext,
+        cardStyle,
         showArtwork,
         glassTint,
         blurSigma,
@@ -124,6 +135,7 @@ class DesktopLyricsSettings {
       fontSize: fontSize.clamp(minFontSize, maxFontSize),
       autoScale: autoScale,
       showNext: showNext,
+      cardStyle: cardStyle,
       showArtwork: showArtwork,
       glassTint: glassTint.clamp(minGlassTint, maxGlassTint),
       blurSigma: blurSigma.clamp(minBlurSigma, maxBlurSigma),
@@ -140,6 +152,7 @@ class DesktopLyricsSettings {
       'fontSize': fontSize,
       'autoScale': autoScale,
       'showNext': showNext,
+      'cardStyle': cardStyle.name,
       'showArtwork': showArtwork,
       'glassTint': glassTint,
       'blurSigma': blurSigma,
@@ -161,6 +174,7 @@ class DesktopLyricsSettings {
       fontSize: _double(json['fontSize'], 34),
       autoScale: _bool(json['autoScale'], true),
       showNext: _bool(json['showNext'], true),
+      cardStyle: _cardStyle(json['cardStyle']),
       showArtwork: _bool(json['showArtwork'], true),
       glassTint: _int(json['glassTint'], 45),
       blurSigma: _double(json['blurSigma'], 38),
@@ -201,6 +215,14 @@ class DesktopLyricsSettings {
 
   static bool _bool(Object? raw, bool fallback) =>
       raw is bool ? raw : fallback;
+
+  /// 未知/损坏的样式值一律回落纯文字,保证界面永远可用。
+  static LyricsCardStyle _cardStyle(Object? raw) {
+    return LyricsCardStyle.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => LyricsCardStyle.plain,
+    );
+  }
 
   static Rect? _rect(Object? raw) {
     if (raw is! Map) return null;

@@ -135,4 +135,27 @@ void main() {
       isNull,
     );
   });
+
+  test('默认卡片样式为极简纯文字', () {
+    expect(const DesktopLyricsSettings().cardStyle, LyricsCardStyle.plain);
+  });
+
+  test('卡片样式可往返持久化', () {
+    const s = DesktopLyricsSettings(cardStyle: LyricsCardStyle.glass);
+    expect(
+      DesktopLyricsSettings.fromJson(s.toJson()).cardStyle,
+      LyricsCardStyle.glass,
+    );
+  });
+
+  test('卡片样式为未知值时回落纯文字', () {
+    expect(
+      DesktopLyricsSettings.fromJson(const {'cardStyle': 'neon'}).cardStyle,
+      LyricsCardStyle.plain,
+    );
+    expect(
+      DesktopLyricsSettings.fromJson(const {'cardStyle': 42}).cardStyle,
+      LyricsCardStyle.plain,
+    );
+  });
 }

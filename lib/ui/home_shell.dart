@@ -59,10 +59,22 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     ];
     // 桌面歌词浮窗:定期把当前歌词行推送到独立浮窗(浮窗未开时为空操作)。
     if (DesktopLyricsService.supported) {
-      // 浮窗工具条改动回传:写回 provider 持久化(主窗口是唯一写者)。
-      DesktopLyricsService.setUpStyleHandler((settings) async {
-        ref.read(desktopLyricsSettingsProvider.notifier).update(settings);
-      });
+      // 浮窗回传:样式改动写回 provider 持久化(主窗口是唯一写者);
+      // 「唤出主程序」把主窗口显示并置前。
+      DesktopLyricsService.setUpCommandHandler(
+        onStyle: (settings) async {
+          ref.read(desktopLyricsSettingsProvider.notifier).update(settings);
+        },
+        onShowMain: () async {
+          if (!_wmReady) return;
+          try {
+            await windowManager.show();
+            await windowManager.focus();
+            _windowVisible = true;
+            await TrayService.instance.refresh();
+          } catch (_) {}
+        },
+      );
       // 先缓存当前样式,浮窗打开时由 service 补推,避免默认样式闪现。
       DesktopLyricsService.pushStyle(ref.read(desktopLyricsSettingsProvider));
       _lyricsTimer = Timer.periodic(

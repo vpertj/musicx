@@ -34,22 +34,27 @@ class DesktopLyricsService {
   /// 最近一次推送的外观,浮窗打开成功后补推,避免默认样式闪现。
   static DesktopLyricsSettings? _lastStyle;
 
-  /// 注册上行 handler:浮窗工具条改动回传主窗口。主窗口启动时调用一次。
-  static Future<void> setUpStyleHandler(
-    Future<void> Function(DesktopLyricsSettings settings) onStyle,
-  ) async {
+  /// 注册上行 handler:浮窗回传的样式改动与「唤出主程序」请求。
+  /// 主窗口启动时调用一次。
+  static Future<void> setUpCommandHandler({
+    required Future<void> Function(DesktopLyricsSettings settings) onStyle,
+    Future<void> Function()? onShowMain,
+  }) async {
     if (!supported) return;
     try {
       await _upChannel.setMethodCallHandler((call) async {
-        if (call.method == kLyricsStyleUpMethod) {
-          final arg = call.arguments;
-          if (arg is Map && arg['style'] is Map) {
-            await onStyle(
-              DesktopLyricsSettings.fromJson(
-                Map<String, dynamic>.from(arg['style'] as Map),
-              ),
-            );
-          }
+        switch (call.method) {
+          case kLyricsStyleUpMethod:
+            final arg = call.arguments;
+            if (arg is Map && arg['style'] is Map) {
+              await onStyle(
+                DesktopLyricsSettings.fromJson(
+                  Map<String, dynamic>.from(arg['style'] as Map),
+                ),
+              );
+            }
+          case kLyricsShowMainUpMethod:
+            await onShowMain?.call();
         }
         return null;
       });

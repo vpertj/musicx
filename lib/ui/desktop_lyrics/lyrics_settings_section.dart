@@ -7,6 +7,7 @@ import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_glass.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_layout.dart';
+import 'package:musicx/ui/desktop_lyrics/lyrics_text_view.dart';
 
 /// 设置页「桌面歌词」配置区:实时预览 + 颜色/字号/玻璃参数。
 /// 改动即写 provider(持久化)并经 [DesktopLyricsService] 推送到浮窗。
@@ -29,6 +30,10 @@ class LyricsSettingsSection extends ConsumerWidget {
       children: [
         _PreviewCard(settings: settings),
         const SizedBox(height: 12),
+        _StyleRow(
+          value: settings.cardStyle,
+          onChanged: (v) => change(settings.copyWith(cardStyle: v)),
+        ),
         _ColorRow(
           selected: settings.textColor,
           onColor: (c) => change(settings.copyWith(textColor: c)),
@@ -41,30 +46,32 @@ class LyricsSettingsSection extends ConsumerWidget {
           format: (v) => '${v.round()} px',
           onChanged: (v) => change(settings.copyWith(fontSize: v)),
         ),
-        _SliderRow(
-          label: '玻璃浓度',
-          value: settings.glassTint.toDouble(),
-          min: DesktopLyricsSettings.minGlassTint.toDouble(),
-          max: DesktopLyricsSettings.maxGlassTint.toDouble(),
-          format: (v) => '${v.round()}',
-          onChanged: (v) => change(settings.copyWith(glassTint: v.round())),
-        ),
-        _SliderRow(
-          label: '模糊强度',
-          value: settings.blurSigma,
-          min: DesktopLyricsSettings.minBlurSigma,
-          max: DesktopLyricsSettings.maxBlurSigma,
-          format: (v) => v.toStringAsFixed(0),
-          onChanged: (v) => change(settings.copyWith(blurSigma: v)),
-        ),
-        _SliderRow(
-          label: '圆角',
-          value: settings.cornerRadius,
-          min: DesktopLyricsSettings.minCornerRadius,
-          max: DesktopLyricsSettings.maxCornerRadius,
-          format: (v) => v.toStringAsFixed(0),
-          onChanged: (v) => change(settings.copyWith(cornerRadius: v)),
-        ),
+        if (settings.cardStyle == LyricsCardStyle.glass) ...[
+          _SliderRow(
+            label: '玻璃浓度',
+            value: settings.glassTint.toDouble(),
+            min: DesktopLyricsSettings.minGlassTint.toDouble(),
+            max: DesktopLyricsSettings.maxGlassTint.toDouble(),
+            format: (v) => '${v.round()}',
+            onChanged: (v) => change(settings.copyWith(glassTint: v.round())),
+          ),
+          _SliderRow(
+            label: '模糊强度',
+            value: settings.blurSigma,
+            min: DesktopLyricsSettings.minBlurSigma,
+            max: DesktopLyricsSettings.maxBlurSigma,
+            format: (v) => v.toStringAsFixed(0),
+            onChanged: (v) => change(settings.copyWith(blurSigma: v)),
+          ),
+          _SliderRow(
+            label: '圆角',
+            value: settings.cornerRadius,
+            min: DesktopLyricsSettings.minCornerRadius,
+            max: DesktopLyricsSettings.maxCornerRadius,
+            format: (v) => v.toStringAsFixed(0),
+            onChanged: (v) => change(settings.copyWith(cornerRadius: v)),
+          ),
+        ],
         _SwitchRow(
           label: '字号随窗口缩放',
           value: settings.autoScale,
@@ -75,11 +82,12 @@ class LyricsSettingsSection extends ConsumerWidget {
           value: settings.showNext,
           onChanged: (v) => change(settings.copyWith(showNext: v)),
         ),
-        _SwitchRow(
-          label: '用专辑封面做玻璃背景',
-          value: settings.showArtwork,
-          onChanged: (v) => change(settings.copyWith(showArtwork: v)),
-        ),
+        if (settings.cardStyle == LyricsCardStyle.glass)
+          _SwitchRow(
+            label: '用专辑封面做玻璃背景',
+            value: settings.showArtwork,
+            onChanged: (v) => change(settings.copyWith(showArtwork: v)),
+          ),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
@@ -93,7 +101,7 @@ class LyricsSettingsSection extends ConsumerWidget {
   }
 }
 
-/// 实时预览:与浮窗同一套玻璃渲染,按 190 高度的基准比例取圆角。
+/// 实时预览:按当前样式渲染浮窗内容(纯文字 / 毛玻璃)。
 class _PreviewCard extends ConsumerWidget {
   const _PreviewCard({required this.settings});
 
@@ -107,45 +115,83 @@ class _PreviewCard extends ConsumerWidget {
       current: '等到树叶都泛了黄',
       next: '等到眼里全是伤',
     );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
+    final previewLayout = layout.copyWith(
+      fontSize: math.min(layout.fontSize, 40),
+      nextFontSize: math.min(layout.nextFontSize, 22),
+    );
+    final content = LyricsTextView(
+      layout: previewLayout,
+      settings: settings,
+      current: '等到树叶都泛了黄',
+      next: '等到眼里全是伤',
+    );
+
+    // 预览背景只是「窗户」,让纯文字在设置页里也看得见;
+    // 浮窗本身在纯文字样式下没有任何背景。
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF20242B),
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: SizedBox(
         height: 130,
         width: double.infinity,
-        child: LyricsGlassCard(
-          settings: settings,
-          artworkUrl: null, // 预览不发起网络请求,统一走兜底渐变
-          radius: layout.cardRadius,
-          child: Padding(
-            padding: layout.padding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '等到树叶都泛了黄',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: settings.textColor,
-                    fontSize: math.min(layout.fontSize, 40),
-                    fontWeight: FontWeight.w800,
+        child: settings.cardStyle == LyricsCardStyle.glass
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: LyricsGlassCard(
+                  settings: settings,
+                  artworkUrl: null, // 预览不发起网络请求,统一走兜底渐变
+                  radius: layout.cardRadius,
+                  child: Padding(
+                    padding: layout.padding,
+                    child: Center(child: content),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '等到眼里全是伤',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: settings.nextColor,
-                    fontSize: math.min(layout.nextFontSize, 22),
-                  ),
-                ),
-              ],
-            ),
+              )
+            : Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Center(child: content),
+              ),
+      ),
+    );
+  }
+}
+
+/// 样式选择行。
+class _StyleRow extends StatelessWidget {
+  const _StyleRow({required this.value, required this.onChanged});
+
+  final LyricsCardStyle value;
+  final ValueChanged<LyricsCardStyle> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text('样式', style: Theme.of(context).textTheme.bodyMedium),
           ),
-        ),
+          SegmentedButton<LyricsCardStyle>(
+            segments: const [
+              ButtonSegment(
+                value: LyricsCardStyle.plain,
+                label: Text('纯文字'),
+                icon: Icon(Icons.text_fields_rounded, size: 16),
+              ),
+              ButtonSegment(
+                value: LyricsCardStyle.glass,
+                label: Text('毛玻璃'),
+                icon: Icon(Icons.blur_on_rounded, size: 16),
+              ),
+            ],
+            selected: {value},
+            onSelectionChanged: (s) => onChanged(s.first),
+          ),
+        ],
       ),
     );
   }

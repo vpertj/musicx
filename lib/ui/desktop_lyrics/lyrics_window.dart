@@ -12,6 +12,7 @@ import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
 
 import 'lyrics_glass.dart';
 import 'lyrics_layout.dart';
+import 'lyrics_text_view.dart';
 import 'lyrics_resize.dart';
 
 /// 窗口类型标识(写入 WindowConfiguration.arguments)。
@@ -33,8 +34,17 @@ const kLyricsUpChannelName = 'musicx_desktop_lyrics_up';
 /// 浮窗 → 主窗口:回传工具条改动(主窗口负责持久化)。
 const kLyricsStyleUpMethod = 'styleChanged';
 
+/// 浮窗 → 主窗口:把主程序唤到前台(双击歌词 / 工具条按钮)。
+const kLyricsShowMainUpMethod = 'showMain';
+
 /// 主窗口 → 歌词窗口:关闭浮窗。
 const kLyricsCloseMethod = 'close';
+
+/// 纯文字样式下的窗口内边距:没有卡片/投影,留白只为不裁切字形阴影。
+const EdgeInsets kLyricsPlainPadding = EdgeInsets.symmetric(
+  horizontal: 12,
+  vertical: 8,
+);
 
 /// 浮窗默认尺寸与默认位置(未记录几何时使用)。
 const Size kLyricsWindowSize = Size(880, 190);
@@ -280,6 +290,13 @@ class _LyricsWindowState extends ConsumerState<LyricsWindow> {
     _applyStyleChange(_style.copyWith(clearBounds: true));
   }
 
+  /// 唤出主程序:经上行通道请主窗口 show + focus。
+  void _showMain() {
+    try {
+      _upChannel.invokeMethod(kLyricsShowMainUpMethod);
+    } catch (_) {}
+  }
+
   Future<void> _close() async {
     try {
       await windowManager.close();
@@ -310,30 +327,36 @@ class _LyricsWindowState extends ConsumerState<LyricsWindow> {
                 current: line,
                 next: _next,
               );
+              final content = LyricsTextView(
+                layout: layout,
+                settings: _style,
+                current: line,
+                next: _next,
+              );
+              final plain = _style.cardStyle == LyricsCardStyle.plain;
               return Stack(
                 children: [
-                  // 1) 卡片 + 窗口拖动
+                  // 1) 歌词本体 + 窗口拖动(双击唤出主程序)
                   Positioned.fill(
                     child: Padding(
-                      padding: kLyricsWindowPadding,
+                      // 纯文字没有投影,窗口留白收到最小,视觉上「没有外框」
+                      padding: plain ? kLyricsPlainPadding : kLyricsWindowPadding,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onPanStart: (_) => _startDrag(),
                         onPanEnd: (_) => _scheduleBoundsSave(),
-                        child: LyricsGlassCard(
-                          settings: _style,
-                          artworkUrl: _artwork,
-                          radius: layout.cardRadius,
-                          child: Padding(
-                            padding: layout.padding,
-                            child: _LyricsContent(
-                              layout: layout,
-                              settings: _style,
-                              current: line,
-                              next: _next,
-                            ),
-                          ),
-                        ),
+                        onDoubleTap: _showMain,
+                        child: plain
+                            ? content
+                            : LyricsGlassCard(
+                                settings: _style,
+                                artworkUrl: _artwork,
+                                radius: layout.cardRadius,
+                                child: Padding(
+                                  padding: layout.padding,
+                                  child: content,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -355,6 +378,7 @@ class _LyricsWindowState extends ConsumerState<LyricsWindow> {
                         onToggleNext: () => _applyStyleChange(
                           _style.copyWith(showNext: !_style.showNext),
                         ),
+                        onShowMain: _showMain,
                         onResetSize: _resetSize,
                         onClose: _close,
                       ),
@@ -446,102 +470,6 @@ class _LyricsWindowState extends ConsumerState<LyricsWindow> {
   }
 }
 
-/// 歌词内容:左侧律动竖条 + 当前句(与下一句,纵向或横向)。
-class _LyricsContent extends StatelessWidget {
-  const _LyricsContent({
-    required this.layout,
-    required this.settings,
-    required this.current,
-    required this.next,
-  });
-
-  final LyricsLayout layout;
-  final DesktopLyricsSettings settings;
-  final String current;
-  final String next;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = settings.textColor;
-    final bar = Container(
-      width: layout.accentBarWidth,
-      height: layout.fontSize * 1.6,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(layout.accentBarWidth / 2),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [color, color.withValues(alpha: 0.2)],
-        ),
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.55), blurRadius: 14),
-        ],
-      ),
-    );
-    final gap = 22 * (layout.padding.horizontal / 56);
-
-    final currentText = Text(
-      current,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: color,
-        fontSize: layout.fontSize,
-        fontWeight: FontWeight.w800,
-        height: 1.15,
-        letterSpacing: 0.5,
-        shadows: [
-          Shadow(color: color.withValues(alpha: 0.4), blurRadius: 18),
-        ],
-      ),
-    );
-    final nextText = Text(
-      next,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: settings.nextColor,
-        fontSize: layout.nextFontSize,
-        fontWeight: FontWeight.w500,
-        height: 1.2,
-        letterSpacing: 0.3,
-      ),
-    );
-
-    if (layout.direction == Axis.horizontal) {
-      return Row(
-        children: [
-          bar,
-          SizedBox(width: gap),
-          Flexible(child: currentText),
-          SizedBox(width: gap * 0.8),
-          Flexible(child: nextText),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        bar,
-        SizedBox(width: gap),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              currentText,
-              if (layout.showNext) ...[
-                const SizedBox(height: 8),
-                nextText,
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// 悬停工具条:半透明玻璃样式,字号/颜色/下一句/重置尺寸/关闭。
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
@@ -549,6 +477,7 @@ class _Toolbar extends StatelessWidget {
     required this.onFontSizeDelta,
     required this.onColor,
     required this.onToggleNext,
+    required this.onShowMain,
     required this.onResetSize,
     required this.onClose,
   });
@@ -557,6 +486,7 @@ class _Toolbar extends StatelessWidget {
   final ValueChanged<double> onFontSizeDelta;
   final ValueChanged<Color> onColor;
   final VoidCallback onToggleNext;
+  final VoidCallback onShowMain;
   final VoidCallback onResetSize;
   final VoidCallback onClose;
 
@@ -614,6 +544,11 @@ class _Toolbar extends StatelessWidget {
                   : Icons.view_day_rounded,
               tooltip: settings.showNext ? '隐藏下一句' : '显示下一句',
               onTap: onToggleNext,
+            ),
+            _ToolbarButton(
+              icon: Icons.open_in_new_rounded,
+              tooltip: '回到主程序',
+              onTap: onShowMain,
             ),
             _ToolbarButton(
               icon: Icons.settings_backup_restore_rounded,
