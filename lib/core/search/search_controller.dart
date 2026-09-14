@@ -151,7 +151,12 @@ class SearchController extends Notifier<SearchState> {
       for (final m in items)
         (title: m.title, artist: m.artist ?? '', album: m.album ?? ''),
     ];
-    return [for (final i in originalOnlyOrder(views)) items[i]];
+    // ① 特征词过滤(翻唱/伴奏/Live…)+ ② 歌手一致性过滤
+    //(歌名与正版相同、仅歌手不同的翻唱:只能靠查询里的歌手词识别)。
+    // 用下标映射回原始条目,避免拼 key 丢数据。
+    return [
+      for (final i in filterOriginalIndices(views, query: state.query)) items[i],
+    ];
   }
 
   /// 清空搜索状态,回到空闲页。

@@ -7,6 +7,7 @@ import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/auto_source_order.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
 import 'package:musicx/core/plugins/preview_detector.dart';
+import 'package:musicx/core/search/original_filter.dart';
 import 'package:musicx/core/plugins/result_normalizer.dart';
 import 'package:musicx/core/plugins/search_failure.dart';
 import 'package:musicx/core/utils/app_paths.dart';
@@ -285,6 +286,7 @@ class PluginManager {
         ? plugins
         : _prioritizeAutoPlugins(plugins);
     final failures = <SearchFailure>[];
+    Map<String, dynamic>? fallback; // 首个成功但质量存疑的结果
     for (final plugin in ordered) {
       if (platform != null && plugin.platform != platform) continue;
       try {
@@ -297,13 +299,39 @@ class PluginManager {
         // 宿主补全:MusicFree 协议中 platform/songId 由宿主填充,
         // 插件结果往往缺省(如 bilibili 只返回 id)。
         _normalizeResults(result, platform: plugin.platform);
-        return result;
+
+        // 指定平台:直接用它的结果(用户明确要这个源)。
+        if (platform != null) return result;
+
+        // 自动模式:做一次「结果质量校验」。实测网易云搜「晴天 周杰伦」
+        // 首屏 20 条全是翻唱号(没有一条周杰伦),而腾讯音乐同一查询是干净的
+        // 正版列表 —— 这种结果直接返回给用户,就是「搜出来全是翻唱」。
+        // 因此:查询带歌手词却一条都匹配不上时,继续试下一个源;
+        // 所有源都这样,再退回第一个结果(不能什么都不给)。
+        if (_looksLikeSearchResults(result, keyword)) return result;
+        fallback ??= result;
       } catch (e) {
         // 单插件失败不阻断整体;循环继续,但记下原因供报错使用
         failures.add(SearchFailure(platform: plugin.platform, error: e));
       }
     }
+    if (fallback != null) return fallback;
     throw Exception(describeSearchFailures(failures));
+  }
+
+  /// 结果质量校验:查询含歌手词时,结果里至少要有一条歌手命中。
+  bool _looksLikeSearchResults(Map<String, dynamic> result, String keyword) {
+    final data = (result['data'] as List?) ?? const [];
+    if (data.isEmpty) return false;
+    return isArtistMatchedResults([
+      for (final raw in data)
+        if (raw is Map)
+          (
+            title: '${raw['title'] ?? ''}',
+            artist: '${raw['artist'] ?? ''}',
+            album: '${raw['album'] ?? ''}',
+          ),
+    ], keyword);
   }
 
   /// 自动模式插件排序与过滤:
