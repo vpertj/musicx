@@ -6,6 +6,18 @@ import 'package:tray_manager/tray_manager.dart';
 
 import 'tray_menu.dart';
 
+/// 托盘图标资源路径(纯函数,便于单测)。
+///
+/// Windows 原生用 `LoadImage(..., IMAGE_ICON, LR_LOADFROMFILE)` 加载图标,
+/// **只认 .ico/.bmp,不支持 PNG** —— 传 PNG 会得到 NULL 图标(静默失败、
+/// 通知区什么都不显示),所以 Windows 必须给多尺寸 ICO。
+/// macOS 走 base64 + `isTemplate`,用黑色模板 PNG 由系统适配深浅色菜单栏。
+String trayIconAsset({required bool isMacOS}) =>
+    isMacOS ? 'assets/tray_icon.png' : 'assets/tray_icon.ico';
+
+/// 是否按「模板图」渲染(只有 macOS 支持,Windows 传 true 无意义)。
+bool trayIconIsTemplate({required bool isMacOS}) => isMacOS;
+
 /// 托盘刷新所需的应用状态快照。
 class TrayStateInput {
   const TrayStateInput({
@@ -71,8 +83,8 @@ class TrayService with TrayListener {
     trayManager.addListener(this);
     try {
       await trayManager.setIcon(
-        'assets/tray_icon.png',
-        isTemplate: true, // macOS:黑色 + alpha,菜单栏自动适配深浅色
+        trayIconAsset(isMacOS: Platform.isMacOS),
+        isTemplate: trayIconIsTemplate(isMacOS: Platform.isMacOS),
       );
       await trayManager.setToolTip('MusicX');
       await refresh(force: true);
@@ -136,9 +148,17 @@ class TrayService with TrayListener {
   /// 左键点图标 = 弹出菜单。
   ///
   /// macOS 上 [TrayManager.setContextMenu] 只缓存菜单,不挂到 statusItem;
-  /// 必须主动 [TrayManager.popUpContextMenu] 才能显示(与插件官方示例一致)。
+  /// Windows 上也只是建好 HMENU,插件在点击时仅发事件、不会自己弹。
+  /// 因此两个平台都必须主动 [TrayManager.popUpContextMenu] 才能显示菜单
+  /// (与插件官方示例一致)。
   @override
-  void onTrayIconMouseDown() {
+  void onTrayIconMouseDown() => _popUpMenu();
+
+  /// 右键点图标同样弹菜单:Windows 通知区的惯用交互就是右键出菜单。
+  @override
+  void onTrayIconRightMouseDown() => _popUpMenu();
+
+  void _popUpMenu() {
     try {
       trayManager.popUpContextMenu();
     } catch (_) {}
