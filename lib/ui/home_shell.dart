@@ -82,6 +82,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   /// 系统托盘:菜单动作直接挂到现有 controller / 服务。
   Future<void> _initTray() async {
     if (!TrayService.supported) return;
+    // window_manager 的 macOS 插件是「懒初始化」:未先 ensureInitialized 时,
+    // 插件内 mainWindow 为 nil,之后任何主窗口 API 都会触发 Swift 强制解包
+    // 崩溃(整个进程 Trace/BPT trap 死掉)。主引擎此前从未初始化过它,
+    // 于是首次调用(托盘显示/隐藏)直接把应用打死 —— 必须先初始化。
+    try {
+      await windowManager.ensureInitialized();
+      _wmReady = true;
+    } catch (_) {
+      return; // 初始化失败:完全不碰主窗口 API,避免原生崩溃
+    }
     try {
       await TrayService.instance.init(
         state: () {
@@ -104,8 +114,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               ref.read(playerControllerProvider.notifier).previous(),
           next: () => ref.read(playerControllerProvider.notifier).next(),
           showHide: () async {
+            if (!_wmReady) return; // 未初始化时绝不调用原生 API(会崩溃)
             try {
-              if (await windowManager.isVisible()) {
+              final visible = await windowManager.isVisible();
+              if (visible) {
                 _windowVisible = false;
                 await windowManager.hide();
               } else {
@@ -124,8 +136,26 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           quit: () => exit(0),
         ),
       );
+      // 回归自检:window_manager 未初始化时调用其 API 会原生崩溃,
+      // 该探针断言「初始化后调用是安全的」(MUSICX_TRAY_SELFTEST=1 启用)。
+      if (Platform.environment['MUSICX_TRAY_SELFTEST'] == '1') {
+        Future.delayed(const Duration(seconds: 3), () async {
+          try {
+            final visible = await windowManager.isVisible();
+            debugPrint('[SELFTEST] window_manager 可用,isVisible=$visible');
+          } catch (e) {
+            debugPrint('[SELFTEST] window_manager 调用失败: $e');
+          }
+          Future.delayed(const Duration(seconds: 2), () {
+            debugPrint('[SELFTEST] 进程存活:托盘路径未导致崩溃');
+          });
+        });
+      }
     } catch (_) {}
   }
+
+  /// window_manager 主窗口 API 是否可用(未初始化时调用会原生崩溃)。
+  bool _wmReady = false;
 
   Timer? _lyricsTimer;
 

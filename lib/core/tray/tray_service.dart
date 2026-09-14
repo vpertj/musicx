@@ -133,9 +133,14 @@ class TrayService with TrayListener {
     }
   }
 
-  /// macOS:左键点菜单栏图标 = 唤起主窗口(Windows 同理,双击语义由插件统一)。
+  /// 左键点图标 = 弹出菜单。
+  ///
+  /// macOS 上 [TrayManager.setContextMenu] 只缓存菜单,不挂到 statusItem;
+  /// 必须主动 [TrayManager.popUpContextMenu] 才能显示(与插件官方示例一致)。
   @override
   void onTrayIconMouseDown() {
-    _actions?.showHide();
+    try {
+      trayManager.popUpContextMenu();
+    } catch (_) {}
   }
 }
