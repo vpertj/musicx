@@ -17,6 +17,17 @@ const kLyricsUpdateMethod = 'update';
 /// 主窗口 → 歌词窗口:关闭浮窗。
 const kLyricsCloseMethod = 'close';
 
+/// 主窗口 → 歌词窗口:推送外观设置(字号/颜色/玻璃参数)。
+const kLyricsStyleMethod = 'style';
+
+/// 浮窗 → 主窗口通道(unidirectional,handler = 主窗口)。
+/// desktop_multi_window 的 unidirectional 通道只允许一个引擎注册 handler,
+/// 因此反向通信必须独立建通道,不能复用 [kLyricsChannelName]。
+const kLyricsUpChannelName = 'musicx_desktop_lyrics_up';
+
+/// 浮窗 → 主窗口:回传工具条改动(主窗口负责持久化,保持单一写者)。
+const kLyricsStyleUpMethod = 'styleChanged';
+
 /// 浮窗尺寸(由主窗口/自身按需调整)。
 const Size kLyricsWindowSize = Size(880, 190);
 
