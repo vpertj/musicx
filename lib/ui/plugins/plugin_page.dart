@@ -14,7 +14,6 @@ import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
 import 'package:musicx/ui/plugins/lyrics_settings_page.dart';
-import 'package:musicx/ui/plugins/bundled_sources_sheet.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 
@@ -300,49 +299,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   }
 
   /// 内置音源明细面板(查看版本/单独安装或更新)。
-  Future<void> _showBundledSources() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final manager = ref.read(pluginManagerProvider);
-    final catalog = BundledPluginCatalog();
-
-    final bundled = await catalog.list();
-    if (!mounted) return;
-    if (bundled.isEmpty) {
-      messenger.showSnackBar(const SnackBar(content: Text('内置音源清单为空')));
-      return;
-    }
-
-    final versions = await _installedVersions();
-    if (!mounted) return;
-    await showBundledSourcesSheet(
-      context,
-      plugins: bundled,
-      installedVersions: versions,
-      installedCount: versions.length,
-      onInstall: (plugin) async {
-        if (!await _confirmOverwrite([plugin])) return;
-        try {
-          final info = await manager.installBundledJs(
-            await catalog.readJs(plugin),
-            source: 'bundled:${plugin.assetPath}',
-          );
-          if (!mounted) return;
-          setState(() => _reload++);
-          _bumpPluginList();
-          messenger.showSnackBar(
-            SnackBar(content: Text('已安装「${plugin.name}」v${info.version}')),
-          );
-        } catch (e) {
-          messenger.showSnackBar(SnackBar(content: Text('安装失败:$e')));
-        }
-      },
-    );
-
-    if (!mounted) return;
-    setState(() => _reload++);
-    await _syncBundledPending();
-  }
-
   /// 订阅源导入:输入 plugins.json 地址,列出可选插件。
   Future<void> _importFromSource() async {
     final controller = TextEditingController();
@@ -633,7 +589,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           onInstallUrl: _installFromUrl,
           onInstallPath: _installFromPath,
           onInstallSource: _importFromSource,
-          onInstallBundled: _showBundledSources,
+          onInstallBundled: _downloadBundledSources,
         ),
       ),
     );
@@ -654,8 +610,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           for (final p in plugins)
             if (!_bundledPlatforms.contains(p.platform)) p,
         ];
-        final bundledInstalled =
-            plugins.where((p) => _bundledPlatforms.contains(p.platform)).length;
         return [
           // 没有任何音源(含内置)时,在分组内显示引导卡片而不是整页替换,
           // 否则「通用 → 检查更新 / 关于(版本号)」会一起消失。
@@ -675,24 +629,21 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ),
               const SizedBox(height: 8),
               _FilterCoversRow(),
-              const SizedBox(height: 8),
-              _MenuItemRow(
-                icon: Icons.verified_rounded,
-                title: '内置音源',
-                trailing: _bundledPending > 0
-                    ? '可安装 $_bundledPending'
-                    : (bundledInstalled > 0
-                          ? '已安装 $bundledInstalled'
-                          : '未安装'),
-                onTap: () => _showBundledSources(),
-              ),
-              const SizedBox(height: 8),
-              _MenuItemRow(
-                icon: Icons.library_music_rounded,
-                title: '已安装音源',
-                trailing: '${userPlugins.length}',
-                onTap: () => _openSourceManager(userPlugins),
-              ),
+              // 内置音源(App 自带的腾讯/网易/酷我)完全不在设置页显示:
+              // 既没有「内置音源」行,也不会出现在「已安装音源」列表与
+              // 「默认音源」选择器里 —— 用户明确要求只看到自己装的音源。
+              //
+              // 「已安装音源」行只在用户自己装了音源时出现;一个都没有时
+              // 显示「0」既无意义也容易让人以为内置源是用户装的。
+              if (userPlugins.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _MenuItemRow(
+                  icon: Icons.library_music_rounded,
+                  title: '已安装音源',
+                  trailing: '${userPlugins.length}',
+                  onTap: () => _openSourceManager(userPlugins),
+                ),
+              ],
             ],
           ),
         ];
