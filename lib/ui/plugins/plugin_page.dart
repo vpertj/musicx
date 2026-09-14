@@ -14,6 +14,7 @@ import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_settings_section.dart';
 import 'package:musicx/ui/plugins/bundled_sources_sheet.dart';
+import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 
 /// 安装入口类型。
@@ -634,6 +635,16 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     switch (section) {
       case _SettingsSection.sources:
         return [
+          // 没有音源时:在「音乐源」分组内显示引导卡片,而不是整页替换。
+          // 否则「通用 → 检查更新 / 关于(版本号)」也会一起消失(用户反馈:
+          // 设置里找不到更新检查入口)。
+          if (plugins.isEmpty) ...[
+            _EmptyPlugins(
+              onInstall: _installFromUrl,
+              onDownloadBundled: _downloadBundledSources,
+            ),
+            const SizedBox(height: 16),
+          ],
           _SettingsGroup(
             title: '音乐源',
             children: [
@@ -762,12 +773,8 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             return const Center(child: CircularProgressIndicator());
           }
           final plugins = snapshot.data ?? const [];
-          if (plugins.isEmpty) {
-            return _EmptyPlugins(
-              onInstall: _installFromUrl,
-              onDownloadBundled: _downloadBundledSources,
-            );
-          }
+          // 无插件不再整页替换(见 _sectionContent):保留「通用」分组,
+          // 否则检查更新与版本号入口会一起消失。
           final source = ref.watch(searchSourceProvider);
           // 自适应:宽屏左右栏(左侧菜单 + 右侧内容),窄屏单列
           return LayoutBuilder(
@@ -785,8 +792,31 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                         onInstall: _installFromUrl,
                       ),
                       const SizedBox(height: 22),
-                      // 宽屏只显示选中区块;窄屏显示全部分组
-                      ..._sectionContent(_section, plugins, source),
+                      // 宽屏:左侧菜单切换,只显示选中区块。
+                      // 窄屏(手机):没有侧边栏,必须堆叠显示全部分组 ——
+                      // 此前误用 _section 导致「外观/通用(检查更新·版本号)」
+                      // 在手机上完全进不去(用户反馈设置里找不到更新检查)。
+                      if (wide)
+                        ..._sectionContent(_section, plugins, source)
+                      else ...[
+                        ..._sectionContent(
+                          _SettingsSection.sources,
+                          plugins,
+                          source,
+                        ),
+                        const SizedBox(height: 20),
+                        ..._sectionContent(
+                          _SettingsSection.appearance,
+                          plugins,
+                          source,
+                        ),
+                        const SizedBox(height: 20),
+                        ..._sectionContent(
+                          _SettingsSection.general,
+                          plugins,
+                          source,
+                        ),
+                      ],
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -967,8 +997,24 @@ class _SectionTitle2 extends StatelessWidget {
 }
 
 /// 关于信息卡。
-class _AboutCard extends StatelessWidget {
+class _AboutCard extends ConsumerStatefulWidget {
   const _AboutCard();
+
+  @override
+  ConsumerState<_AboutCard> createState() => _AboutCardState();
+}
+
+class _AboutCardState extends ConsumerState<_AboutCard> {
+  String? _version;
+
+  @override
+  void initState() {
+    super.initState();
+    // 安卓必须异步解析版本号(同步 API 只认 macOS Info.plist)
+    ref.read(updateServiceProvider).resolveCurrentVersion().then((v) {
+      if (mounted && v.isNotEmpty && v != '0.0.0') setState(() => _version = v);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -995,6 +1041,15 @@ class _AboutCard extends StatelessWidget {
               Text(
                 '关于 MusicX',
                 style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              // 版本号:用户此前在应用里找不到
+              Text(
+                _version == null ? '' : 'v$_version',
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1785,6 +1840,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
         error: (e, _) => Center(child: Text('加载失败:$e')),
         data: (plugins) {
           if (plugins.isEmpty) {
+            // 空态下也要能进入「通用」看版本/检查更新
             return _EmptyPlugins(
               onInstall: widget.onInstallUrl,
               onDownloadBundled: widget.onInstallBundled,

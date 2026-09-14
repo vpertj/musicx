@@ -149,6 +149,14 @@ class UpdateService {
         isAndroid: Platform.isAndroid,
       );
 
+  /// 已知的当前版本号(同步):优先返回解析缓存;安卓未解析过时返回 null,
+  /// 避免把 macOS 专用的 0.0.0 当作真实版本显示出来。
+  static String? knownVersion() {
+    if (_cachedVersion != null) return _cachedVersion;
+    final v = currentVersion();
+    return v == '0.0.0' ? null : v;
+  }
+
   /// 当前版本号(异步):安卓走平台通道读 versionName;
   /// 其它平台沿用 Info.plist 解析。读取结果缓存,避免重复过通道。
   static String? _cachedVersion;

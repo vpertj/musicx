@@ -81,18 +81,40 @@ void showUpdateProgress(BuildContext context) {
 }
 
 /// 设置页「检查更新」行:显示当前版本,有新版本时高亮提示。
-class UpdateRow extends ConsumerWidget {
+class UpdateRow extends ConsumerStatefulWidget {
   const UpdateRow({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UpdateRow> createState() => _UpdateRowState();
+}
+
+class _UpdateRowState extends ConsumerState<UpdateRow> {
+  /// 真实版本号:安卓必须走平台通道解析(同步 API 只能读 macOS Info.plist,
+  /// 在安卓恒为 0.0.0,此前导致「应用里看不到版本号」)。
+  String? _version;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final v = await ref.read(updateServiceProvider).resolveCurrentVersion();
+    if (mounted && v.isNotEmpty && v != '0.0.0') setState(() => _version = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(updateControllerProvider);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     final hasUpdate = state.info != null && state.info!.hasUpdate;
-    final current =
-        state.info?.currentVersion ?? UpdateService.currentVersion();
+    final current = state.info?.currentVersion ??
+        _version ??
+        UpdateService.knownVersion() ??
+        UpdateService.currentVersion();
 
     return Material(
       color: scheme.surfaceContainer,

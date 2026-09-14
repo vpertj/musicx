@@ -175,21 +175,27 @@ class _StyleRow extends StatelessWidget {
             width: 72,
             child: Text('样式', style: Theme.of(context).textTheme.bodyMedium),
           ),
-          SegmentedButton<LyricsCardStyle>(
-            segments: const [
-              ButtonSegment(
-                value: LyricsCardStyle.plain,
-                label: Text('纯文字'),
-                icon: Icon(Icons.text_fields_rounded, size: 16),
+          // 同理:窄屏下「样式」分段按钮会略微溢出,允许横向滚动
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SegmentedButton<LyricsCardStyle>(
+                segments: const [
+                  ButtonSegment(
+                    value: LyricsCardStyle.plain,
+                    label: Text('纯文字'),
+                    icon: Icon(Icons.text_fields_rounded, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: LyricsCardStyle.glass,
+                    label: Text('毛玻璃'),
+                    icon: Icon(Icons.blur_on_rounded, size: 16),
+                  ),
+                ],
+                selected: {value},
+                onSelectionChanged: (s) => onChanged(s.first),
               ),
-              ButtonSegment(
-                value: LyricsCardStyle.glass,
-                label: Text('毛玻璃'),
-                icon: Icon(Icons.blur_on_rounded, size: 16),
-              ),
-            ],
-            selected: {value},
-            onSelectionChanged: (s) => onChanged(s.first),
+            ),
           ),
         ],
       ),
@@ -228,31 +234,43 @@ class _ColorRowState extends State<_ColorRow> {
         children: [
           SizedBox(
             width: 72,
-            child: Text('歌词颜色',
-                style: Theme.of(context).textTheme.bodyMedium),
+            child: Text('歌词颜色', style: Theme.of(context).textTheme.bodyMedium),
           ),
-          for (final c in _presets)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: InkWell(
-                onTap: () => widget.onColor(c),
-                customBorder: const CircleBorder(),
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: c,
-                    shape: BoxShape.circle,
-                    border: widget.selected.toARGB32() == c.toARGB32()
-                        ? Border.all(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2.5)
-                        : Border.all(color: Colors.black12),
-                  ),
-                ),
+          // 手机宽度下 8 个色点 + 「自定义」会横向溢出(布局审计在 w=375 抓到),
+          // 故色点区可横向滚动、按钮固定右侧。
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final c in _presets)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InkWell(
+                        onTap: () => widget.onColor(c),
+                        customBorder: const CircleBorder(),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: widget.selected.toARGB32() == c.toARGB32()
+                                ? Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    width: 2.5,
+                                  )
+                                : Border.all(color: Colors.black12),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-          const Spacer(),
+          ),
           TextButton(
             onPressed: () async {
               final c = await showDialog<Color>(
@@ -416,7 +434,9 @@ class _SwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
         Switch(value: value, onChanged: onChanged),
       ],
     );

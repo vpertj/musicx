@@ -99,9 +99,20 @@ class UpdateController extends Notifier<UpdateState> {
             );
       return;
     }
+    // 安装前用真实版本再确认一次:此前安卓上同步版本号恒为 0.0.0,
+    // 会对着已是最新的机器继续下载,最后被系统安装器以「已是新版本」拒绝。
+    final service = ref.read(updateServiceProvider);
+    final installed = await service.resolveCurrentVersion();
+    if (compareVersions(info.latestVersion, installed) <= 0) {
+      state = state.copyWith(
+        phase: UpdatePhase.error,
+        clearInfo: true,
+        error: '当前已是最新版本 v$installed',
+      );
+      return;
+    }
     state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
     try {
-      final service = ref.read(updateServiceProvider);
       final pkg = await service.download(
         info.dmgUrl,
         onProgress: (p) => state = state.copyWith(progress: p),
