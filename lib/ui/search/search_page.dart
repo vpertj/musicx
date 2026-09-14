@@ -9,7 +9,6 @@ import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
-import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/models/music_item.dart';
 
 /// 发现页:渐变品牌头部 + 搜索框 + 热门推荐/历史 + 插件引导。
@@ -69,17 +68,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         .search(keyword, source: _effectiveSource);
   }
 
-  /// 切换音源:更新全局设置;若已有搜索词则用新音源重新搜索。
-  void _selectSource(String? platform) {
-    ref.read(searchSourceProvider.notifier).select(platform);
-    final query = _controller.text.trim();
-    if (query.isNotEmpty) {
-      ref
-          .read(searchControllerProvider.notifier)
-          .search(query, source: platform);
-    }
-  }
-
   void _pickSuggestion(String keyword) {
     _controller.text = keyword;
     _submit(keyword);
@@ -126,18 +114,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           ref.read(searchHistoryProvider.notifier).clear(),
                     ),
                   ),
-                // 音源切换条
-                _SourceBar(
-                  selected: effectiveSearchSource(
-                    selected: ref.watch(searchSourceProvider),
-                    installedPlatforms:
-                        ref.watch(pluginListProvider).value
-                                ?.map((p) => p.platform)
-                                .toSet() ??
-                            const <String>{},
-                  ),
-                  onSelect: _selectSource,
-                ),
+                // 音源切换条已移除:默认「自动」会按健康度挑最快且能拿到完整曲的源;
+                // 需要指定某个源时到「设置 → 音乐源 → 默认音源」。
                 Expanded(
                   child: hasQuery
                       ? _ResultView(
@@ -356,74 +334,6 @@ class _HistoryDropdown extends ConsumerWidget {
   }
 }
 
-/// 音源切换条:自动 + 已装插件,自适应换行展示。
-class _SourceBar extends ConsumerWidget {
-  const _SourceBar({required this.selected, required this.onSelect});
-
-  final String? selected;
-  final ValueChanged<String?> onSelect;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final plugins = ref.watch(pluginListProvider).value ?? const <PluginInfo>[];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _SourceChip(
-            label: '自动',
-            selected: selected == null,
-            onTap: () => onSelect(null),
-          ),
-          for (final p in plugins)
-            _SourceChip(
-              label: p.platform,
-              selected: selected == p.platform,
-              onTap: () => onSelect(p.platform),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceChip extends StatelessWidget {
-  const _SourceChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Material(
-      color: selected ? scheme.primary : scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            label,
-            style: textTheme.labelMedium?.copyWith(
-              color: selected ? Colors.white : scheme.onSurfaceVariant,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// 空闲态:欢迎语 + 最近搜索 + 热门推荐 + 插件引导。
 class _IdleView extends StatelessWidget {

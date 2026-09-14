@@ -162,7 +162,17 @@ class _PlayerBodyState extends State<_PlayerBody> {
                               error: widget.state.error,
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          // 唱片视图下方原本是一大片空白:放 5 行滚动歌词,
+                          // 听歌时不切到「歌词」页也能看到当前句(用户诉求)。
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            height: 150,
+                            child: _LyricWindow(
+                              lyric: widget.state.lyric,
+                              position: widget.state.position,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                         ],
                       ),
                     );
@@ -286,6 +296,92 @@ class _BottomConsole extends StatelessWidget {
               _Controls(state: state, ctrl: ctrl),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 唱片视图下方的紧凑歌词窗口:固定 5 行,当前句居中高亮。
+///
+/// 与 [_LyricView](整页滚动)分开:这里不做滚动,当前句恒定在第 3 行,
+/// 因此不会随进度跳动;行高固定,避免歌词长度不同导致布局抖动。
+class _LyricWindow extends StatelessWidget {
+  const _LyricWindow({
+    required this.lyric,
+    required this.position,
+  });
+
+  final List<LyricLine> lyric;
+  final Duration position;
+
+  /// 固定展示 5 行(当前句居中)。
+  static const int visibleLines = 5;
+
+  /// 当前句下标(最后一条时间 <= 当前进度的行);前奏阶段为 -1。
+  int get _currentIndex {
+    var idx = -1;
+    for (var i = 0; i < lyric.length; i++) {
+      if (lyric[i].time <= position) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    return idx;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    if (lyric.isEmpty) {
+      return Center(
+        child: Text(
+          '暂无歌词',
+          style: textTheme.bodySmall?.copyWith(color: scheme.outline),
+        ),
+      );
+    }
+
+    final idx = _currentIndex;
+    final center = visibleLines ~/ 2;
+    const lineHeight = 30.0;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var slot = 0; slot < visibleLines; slot++)
+          SizedBox(
+            height: lineHeight,
+            child: _slot(context, idx + slot - center, idx),
+          ),
+      ],
+    );
+  }
+
+  Widget _slot(BuildContext context, int lineIndex, int currentIndex) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    // 超出范围:留空占位,保证当前句位置恒定(不跳动)
+    if (lineIndex < 0 || lineIndex >= lyric.length) {
+      return const SizedBox.shrink();
+    }
+    final current = lineIndex == currentIndex;
+    return AnimatedDefaultTextStyle(
+      duration: const Duration(milliseconds: 200),
+      style: textTheme.bodyMedium!.copyWith(
+        fontSize: current ? 16 : 13,
+        fontWeight: current ? FontWeight.w700 : FontWeight.w400,
+        color: current ? scheme.primary : scheme.onSurfaceVariant,
+        height: 1.3,
+      ),
+      child: Center(
+        child: Text(
+          lyric[lineIndex].text,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

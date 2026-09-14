@@ -11,6 +11,8 @@ class SongTile extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.highlighted = false,
+    // 界面精简:列表不再展示歌曲来源(用户只关心歌本身)
+    @Deprecated('列表已不展示来源徽标,保留参数仅为兼容调用方')
     this.showPlatform = false,
     this.artworkSize = 52,
     this.onAdd,
@@ -93,7 +95,6 @@ class SongTile extends StatelessWidget {
               ? Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (showPlatform) PlatformBadge(platform: song.platform),
                     if (onDownload != null)
                       IconButton(
                         tooltip: '下载',
@@ -112,7 +113,7 @@ class SongTile extends StatelessWidget {
                       ),
                   ],
                 )
-              : (showPlatform ? PlatformBadge(platform: song.platform) : null)),
+              : null),
     );
   }
 }

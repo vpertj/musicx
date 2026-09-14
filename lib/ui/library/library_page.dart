@@ -216,8 +216,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                           final isFav = _selected == null;
                           return SongTile(
                             song: song,
-                            showPlatform: true,
-                            onTap: () => ref
+                                                        onTap: () => ref
                                 .read(playerControllerProvider.notifier)
                                 .playFromList(songs, i),
                             trailing: isFav

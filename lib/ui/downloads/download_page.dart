@@ -117,8 +117,7 @@ class DownloadPage extends ConsumerWidget {
                           currentPath != null;
                       return SongTile(
                         song: d.song,
-                        showPlatform: true,
-                        highlighted: isCurrent,
+                                                highlighted: isCurrent,
                         onTap: () {
                           // 从点击处开始整表连播
                           ctrl.playLocal(
