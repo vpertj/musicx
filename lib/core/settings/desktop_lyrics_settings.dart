@@ -190,7 +190,8 @@ class DesktopLyricsSettings {
       final v = raw.toDouble();
       return v.isFinite ? v : null;
     }
-    return double.tryParse('$raw');
+    final v = double.tryParse('$raw');
+    return (v != null && v.isFinite) ? v : null;
   }
 
   static int _int(Object? raw, int fallback) {

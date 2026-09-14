@@ -120,4 +120,19 @@ void main() {
     addTearDown(c.dispose);
     expect(c.read(desktopLyricsSettingsProvider), const DesktopLyricsSettings());
   });
+
+  test('bounds 子字段为 NaN/Infinity 字符串时按垃圾值处理', () {
+    expect(
+      DesktopLyricsSettings.fromJson(const {
+        'bounds': {'x': '10', 'y': '20', 'w': 'NaN', 'h': '180'},
+      }).bounds,
+      isNull,
+    );
+    expect(
+      DesktopLyricsSettings.fromJson(const {
+        'bounds': {'x': '10', 'y': '20', 'w': '800', 'h': 'Infinity'},
+      }).bounds,
+      isNull,
+    );
+  });
 }
