@@ -6,6 +6,8 @@ import 'package:musicx/core/providers.dart'
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
+import 'package:musicx/ui/desktop_lyrics/lyrics_settings_section.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 
 /// 安装入口类型。
@@ -461,6 +463,15 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               _AppearanceSection(),
             ],
           ),
+          if (DesktopLyricsService.supported) ...[
+            const SizedBox(height: 16),
+            _SettingsGroup(
+              title: '桌面歌词',
+              children: [
+                LyricsSettingsSection(),
+              ],
+            ),
+          ],
         ];
       case _SettingsSection.general:
         return [
