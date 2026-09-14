@@ -21,6 +21,30 @@ class MainActivity : FlutterActivity() {
 
     private val channelName = "musicx/installer"
 
+    /** 版本号变化时由 Flutter 侧调用:重启应用以加载新版本代码。 */
+    private fun restartApp() {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+            intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            finishAffinity()
+            Runtime.getRuntime().exit(0)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** 每次回到前台通知 Flutter:用于检测安装完成后自动重启。 */
+    override fun onResume() {
+        super.onResume()
+        try {
+            flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, channelName)
+                    .invokeMethod("onResume", null)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
@@ -33,6 +57,11 @@ class MainActivity : FlutterActivity() {
                         result.success(
                             if (path.isNullOrEmpty()) null else apkVersionCode(path)
                         )
+                    }
+                    // 回到前台:Flutter 侧据此检测「应用是否已被新版本替换」
+                    "restartApp" -> {
+                        restartApp()
+                        result.success(true)
                     }
                     "installApk" -> {
                         val path = call.argument<String>("path")

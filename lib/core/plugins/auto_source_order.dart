@@ -67,8 +67,14 @@ int autoSourcePriority(String platform) =>
     _kindPriority(classifySource(SourceIdentity(platform: platform)));
 
 int _kindPriority(SourceKind kind) => switch (kind) {
-      SourceKind.netease => 0,
-      SourceKind.tencent => 1,
+      // 2026-09 实测(同一查询「晴天 周杰伦」,过滤后原版率/封面/歌词/取流):
+      //   腾讯音乐   原版 22/30、封面 30/30、歌词 1388 字、取流 2021ms
+      //   网易       原版  9/20(翻唱多)、封面 20/20、歌词 1076 字、取流 159ms
+      //   酷我念心   原版 22/30、封面  3/30(几乎无封面)、歌词 1179 字、取流 28ms
+      // 用户要求自动源「正版 + 有歌词 + 有封面」→ 腾讯排第一;
+      // 搜不到/整页翻唱时由自动级联与质量校验继续试后面的源。
+      SourceKind.tencent => 0,
+      SourceKind.netease => 1,
       SourceKind.kuwo => 2,
       SourceKind.kugou => 3,
       SourceKind.other => 10,

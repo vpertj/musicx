@@ -1,11 +1,30 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
+import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_window.dart';
 import 'ui/home_shell.dart';
+
+/// 升级自愈:记录启动时的版本号,回到前台时若发现应用已被新版本替换
+/// (versionCode 变了)就自动重启,避免用户停在旧版本界面。
+/// 用户反馈:装完新版本,应用里还是旧版本 —— 根因是旧进程仍在运行。
+Future<void> _watchForUpgrade() async {
+  if (!Platform.isAndroid) return;
+  final atLaunch = await ApkInstaller.versionCode();
+  if (atLaunch == null || atLaunch <= 0) return;
+  ApkInstaller.listenResume(() async {
+    final now = await ApkInstaller.versionCode();
+    if (now != null && now != atLaunch) {
+      await ApkInstaller.restartApp();
+    }
+  });
+}
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +47,8 @@ Future<void> main(List<String> args) async {
   // 初始化跨平台数据目录(path_provider)后再启动 UI,
   // 确保各 Controller 读取到正确的数据/插件路径。
   await AppPaths.init();
+  unawaited(_watchForUpgrade());
+
   runApp(const ProviderScope(child: MusicxApp()));
 }
 

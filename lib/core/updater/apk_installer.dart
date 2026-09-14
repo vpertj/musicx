@@ -15,6 +15,21 @@ class ApkInstaller {
     return v;
   }
 
+  /// 监听「回到前台」:用于检测应用是否已被新版本替换,进而自动重启。
+  static void listenResume(void Function() onResume) {
+    channel.setMethodCallHandler((call) async {
+      if (call.method == 'onResume') onResume();
+      return null;
+    });
+  }
+
+  /// 重启应用(加载刚安装的新版本代码)。安卓实现;其它平台忽略。
+  static Future<void> restartApp() async {
+    try {
+      await channel.invokeMethod<bool>('restartApp');
+    } catch (_) {}
+  }
+
   /// 已安装应用的 versionCode(安卓);非安卓或失败返回 null。
   static Future<int?> versionCode() async {
     try {

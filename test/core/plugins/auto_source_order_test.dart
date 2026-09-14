@@ -40,15 +40,18 @@ void main() {
   });
 
   group('orderAutoSourceIdentities', () {
-    test('用户现有 4 个源:网易云最前,腾讯次之(即使网易被改名为 网yi)', () {
+    test('自动源正版优先:腾讯第一、网易次之(网易改名 网yi 也认得出)', () {
+      // 实测(2026-09,「晴天 周杰伦」,过滤后原版率):腾讯 22/30 且封面 30/30,
+      // 网易 9/20 且首条常是翻唱 —— 用户要「正版+封面+歌词」,故腾讯排第一。
       final ordered = orderAutoSourceIdentities([
         _id('腾讯音乐', srcUrl: 'https://x/tx.js'),
         _id('网yi', srcUrl: 'https://x/wy.js', fileName: '网易音乐.js'),
         _id('酷我(独家音源)', srcUrl: 'https://x/酷我_竹岑.js'),
         _id('酷我(念心音源)', srcUrl: 'https://x/酷我_念心.js'),
       ]);
-      expect(ordered.first.platform, '网yi');
-      expect(ordered[1].platform, '腾讯音乐');
+      expect(ordered.first.platform, '腾讯音乐');
+      expect(ordered[1].platform, '网yi',
+          reason: '网易改名后仍应被识别为第二顺位(靠 wy.js 归类)');
     });
 
     test('同主名只保留一个,代理型(念心)变体优先', () {
