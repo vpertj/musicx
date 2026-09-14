@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
@@ -233,7 +235,10 @@ class _UpdateProgressDialog extends ConsumerWidget {
             ),
           ] else if (installing)
             Text(
-              '正在替换应用,完成后将自动重启…',
+              Platform.isAndroid
+                  ? '已下载完成,正在打开系统安装器…\n'
+                      '首次需在系统提示中允许安装,装好后应用即为新版本。'
+                  : '正在替换应用,完成后将自动重启…',
               textAlign: TextAlign.center,
               style: textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只暴露应用自己的缓存目录:更新用的 APK 下载到这里,再经 FileProvider 交给系统安装器。 -->
+<paths>
+    <cache-path name="update" path="." />
+    <external-cache-path name="update_external" path="." />
+</paths>

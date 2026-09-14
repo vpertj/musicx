@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_service.dart';
@@ -74,7 +75,8 @@ class UpdateController extends Notifier<UpdateState> {
     }
   }
 
-  /// 执行更新:macOS 自动下载安装;Windows/Android/Linux 打开 Release 页手动下载。
+  /// 执行更新:macOS/Android 应用内下载并安装(Android 会拉起系统安装器);
+  /// Windows/Linux 打开 Release 页手动下载。
   Future<void> update() async {
     var info = state.info;
     if (info == null) {
@@ -86,7 +88,7 @@ class UpdateController extends Notifier<UpdateState> {
         return;
       }
     }
-    // 非 macOS:打开 GitHub Release 页,由用户手动下载安装。
+    // 不支持应用内安装的平台:打开 GitHub Release 页,由用户手动下载。
     if (!UpdateService.canAutoInstall) {
       final ok = await openExternalUrl(info.releaseUrl);
       state = ok
@@ -100,14 +102,22 @@ class UpdateController extends Notifier<UpdateState> {
     state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
     try {
       final service = ref.read(updateServiceProvider);
-      final dmg = await service.download(
+      final pkg = await service.download(
         info.dmgUrl,
         onProgress: (p) => state = state.copyWith(progress: p),
         expectedSha256: info.dmgSha256,
       );
       state = state.copyWith(phase: UpdatePhase.installing);
-      await service.installAndRestart(dmg);
-      // installAndRestart 会 exit(0),正常不会走到这里
+      await service.installAndRestart(pkg);
+      // macOS 的 installAndRestart 会 exit(0),正常不会走到这里;
+      // 安卓交给系统安装器后本进程仍在运行,提示用户继续按系统提示操作。
+      if (Platform.isAndroid) {
+        state = state.copyWith(
+          phase: UpdatePhase.idle,
+          clearInfo: true,
+          error: null,
+        );
+      }
     } catch (e) {
       state = state.copyWith(phase: UpdatePhase.error, error: '更新失败:$e');
     }

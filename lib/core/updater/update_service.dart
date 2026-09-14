@@ -3,9 +3,44 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+
+import 'package:musicx/core/updater/apk_installer.dart';
 
 /// GitHub 仓库信息:更新检查与下载均基于此仓库的 Releases。
 const kGitHubRepo = 'vpertj/musicx';
+
+/// 安卓安装包 MIME 类型(交给系统安装器时必须带)。
+const kApkMimeType = 'application/vnd.android.package-archive';
+
+/// 是否支持「下载后应用内安装」:macOS 用 DMG 替换,Android 调系统安装器。
+/// Windows/Linux 仍走打开 Release 页手动下载。
+bool canAutoInstallFor({required bool isMacOS, required bool isAndroid}) =>
+    isMacOS || isAndroid;
+
+/// 各平台对应的安装包后缀(用于在 Release 资产里挑包)。
+String updateAssetSuffixFor({
+  required bool isMacOS,
+  required bool isWindows,
+  required bool isAndroid,
+}) {
+  if (isMacOS) return '.dmg';
+  if (isWindows) return '.exe';
+  if (isAndroid) return '.apk';
+  return '.tar.gz';
+}
+
+/// 下载后的本地文件名。
+String updateDownloadFileNameFor({required bool isAndroid}) =>
+    isAndroid ? 'musicx_update.apk' : 'musicx_update.dmg';
+
+/// 从 macOS Info.plist 文本中取 CFBundleShortVersionString;取不到返回空串。
+String parseMacVersionFromPlist(String plistText) {
+  final m = RegExp(
+    '<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>',
+  ).firstMatch(plistText);
+  return m == null ? '' : m.group(1)!.trim();
+}
 
 /// 更新检查结果。
 class UpdateInfo {
@@ -51,9 +86,14 @@ int compareVersions(String a, String b) {
 /// 重启机制:先写一个带延迟的 shell 脚本,脚本等待本进程退出后
 /// 用 `open` 重新启动新版本,从而避免替换中的 .app 被占用。
 class UpdateService {
-  UpdateService({http.Client? client}) : _client = client ?? http.Client();
+  UpdateService({http.Client? client, Directory? downloadDir})
+      : _client = client ?? http.Client(),
+        _downloadDirOverride = downloadDir;
 
   final http.Client _client;
+
+  /// 测试注入的下载目录;为 null 时按平台选择。
+  final Directory? _downloadDirOverride;
 
   /// 当前应用版本:读取运行时 bundle 的 CFBundleShortVersionString。
   ///
@@ -66,26 +106,45 @@ class UpdateService {
       final contentsDir = File(exe).parent.parent; // .../musicx.app/Contents
       final plist = File('${contentsDir.path}/Info.plist');
       if (plist.existsSync()) {
-        final text = plist.readAsStringSync();
-        final m = RegExp(
-          '<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>',
-        ).firstMatch(text);
-        if (m != null) return m.group(1)!.trim();
+        final parsed = parseMacVersionFromPlist(plist.readAsStringSync());
+        if (parsed.isNotEmpty) return parsed;
       }
     } catch (_) {}
     return '0.0.0';
   }
 
-  /// 当前平台是否支持"自动下载并安装"更新。
-  /// 仅 macOS 实现了 DMG 挂载替换;Windows/Android/Linux 走"打开 Release 页"。
-  static bool get canAutoInstall => Platform.isMacOS;
+  /// 当前平台是否支持"下载后应用内安装"。
+  /// macOS:DMG 挂载替换;Android:下载 APK 后调系统安装器。
+  /// Windows/Linux:打开 Release 页手动下载。
+  static bool get canAutoInstall =>
+      canAutoInstallFor(isMacOS: Platform.isMacOS, isAndroid: Platform.isAndroid);
 
   /// 当前平台期望的安装包后缀(用于在 Release 资产中挑选)。
-  static String get _assetSuffix {
-    if (Platform.isMacOS) return '.dmg';
-    if (Platform.isWindows) return '.exe';
-    if (Platform.isAndroid) return '.apk';
-    return '.tar.gz';
+  static String get _assetSuffix => updateAssetSuffixFor(
+        isMacOS: Platform.isMacOS,
+        isWindows: Platform.isWindows,
+        isAndroid: Platform.isAndroid,
+      );
+
+  /// 当前版本号(异步):安卓走平台通道读 versionName;
+  /// 其它平台沿用 Info.plist 解析。读取结果缓存,避免重复过通道。
+  static String? _cachedVersion;
+
+  Future<String> resolveCurrentVersion() async {
+    if (_cachedVersion != null) return _cachedVersion!;
+    if (Platform.isAndroid) {
+      try {
+        final v = await ApkInstaller.versionName();
+        if (v != null && v.isNotEmpty) {
+          _cachedVersion = v;
+          return v;
+        }
+      } catch (_) {}
+    }
+    final v = currentVersion();
+    // macOS 之外读不到 bundle 版本时不要缓存 '0.0.0',否则永远提示有新版本。
+    if (v != '0.0.0') _cachedVersion = v;
+    return v;
   }
 
   /// 检查最新版本。失败时抛出异常。
@@ -133,11 +192,11 @@ class UpdateService {
     }
     // macOS 必须找到 DMG 才能自动安装;其他平台仅需 Release 页链接(手动下载)。
     if (assetUrl.isEmpty && canAutoInstall) {
-      throw HttpException('最新 Release 中没有找到 DMG 安装包');
+      throw HttpException('最新 Release 中没有找到可自动安装的更新包');
     }
     return UpdateInfo(
       latestVersion: latest,
-      currentVersion: currentVersion(),
+      currentVersion: await resolveCurrentVersion(),
       dmgUrl: assetUrl,
       releaseUrl: json['html_url'] as String? ?? '',
       releaseNotes: json['body'] as String?,
@@ -172,11 +231,11 @@ class UpdateService {
     final m = re.firstMatch(assetsResp.body);
     final assetUrl = m == null ? '' : 'https://github.com${m.group(1)}';
     if (assetUrl.isEmpty && canAutoInstall) {
-      throw HttpException('最新 Release 中没有找到 DMG 安装包');
+      throw HttpException('最新 Release 中没有找到可自动安装的更新包');
     }
     return UpdateInfo(
       latestVersion: latest,
-      currentVersion: currentVersion(),
+      currentVersion: await resolveCurrentVersion(),
       dmgUrl: assetUrl,
       releaseUrl: url,
     );
@@ -190,8 +249,16 @@ class UpdateService {
     void Function(double)? onProgress,
     String? expectedSha256,
   }) async {
-    final tmp = Directory.systemTemp;
-    final file = File('${tmp.path}/musicx_update.dmg');
+    // 安卓必须落在应用私有目录(cache),否则 FileProvider 无法把 APK 交给
+    // 系统安装器;桌面沿用系统临时目录。
+    final dir = _downloadDirOverride ??
+        (Platform.isAndroid
+            ? await getTemporaryDirectory()
+            : Directory.systemTemp);
+    final file = File(
+      '${dir.path}/${updateDownloadFileNameFor(isAndroid: Platform.isAndroid)}',
+    );
+    if (!dir.existsSync()) dir.createSync(recursive: true);
     if (file.existsSync()) file.deleteSync();
 
     final req = http.Request('GET', Uri.parse(url));
@@ -244,11 +311,21 @@ class UpdateService {
   ///
   /// 步骤:挂载 DMG → 复制新版 .app 覆盖当前 .app → 卸载 DMG →
   /// 生成重启脚本(延迟 2s,等本进程退出后 `open` 新应用) → 退出当前进程。
-  Future<void> installAndRestart(File dmg) async {
-    // 仅 macOS 支持 DMG 挂载替换;其他平台应走"打开 Release 页"(_openExternalUrl)。
+  Future<void> installAndRestart(File package) async {
+    // 安卓:把下载好的 APK 交给系统安装器(首次需用户授权「安装未知应用」)。
+    // 安装器接管后本进程不需要退出,系统会在安装完成时替换并重启应用。
+    if (Platform.isAndroid) {
+      final ok = await ApkInstaller.installApk(package.path);
+      if (!ok) {
+        throw HttpException('未能调起系统安装器,请到「设置 → 应用 → 未知来源」授权后重试');
+      }
+      return;
+    }
+    // macOS:DMG 挂载替换;其余平台应走"打开 Release 页"。
     if (!Platform.isMacOS) {
       throw HttpException('当前平台不支持自动安装,请从 GitHub Release 手动下载');
     }
+    final dmg = package;
     // 1. 挂载 DMG 到显式的临时挂载点,避免解析 stdout 的路径(脆弱)。
     final mountPoint = Directory(
       '${Directory.systemTemp.path}/musicx_update_mount',
