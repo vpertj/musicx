@@ -149,6 +149,13 @@ class UpdateService {
         isAndroid: Platform.isAndroid,
       );
 
+  /// 清空版本号缓存(应用内安装完成后必须调用)。
+  ///
+  /// 实测问题:旧进程在启动时把「1.7.11」缓存住了,应用内装上 1.7.13 后仍按
+  /// 缓存判断「有新版本」,再点更新就会拿同版本 APK 去装,被系统安装器以
+  /// 「已安装了更高版本」拒绝。清缓存后重读 PackageManager 即为新版本。
+  static void invalidateVersionCache() => _cachedVersion = null;
+
   /// 已知的当前版本号(同步):优先返回解析缓存;安卓未解析过时返回 null,
   /// 避免把 macOS 专用的 0.0.0 当作真实版本显示出来。
   static String? knownVersion() {
@@ -298,6 +305,15 @@ class UpdateService {
       '${dir.path}/${updateDownloadFileNameFor(isAndroid: Platform.isAndroid)}',
     );
     if (!dir.existsSync()) dir.createSync(recursive: true);
+    // 清掉所有历史更新包:万一有旧版本残留(musicx_update*.apk),
+    // 交给安装器时会以「已安装更高版本」被拒,且用户看到的版本对不上。
+    try {
+      for (final e in dir.listSync()) {
+        if (e is File && e.path.split('/').last.startsWith('musicx_update')) {
+          e.deleteSync();
+        }
+      }
+    } catch (_) {}
     if (file.existsSync()) file.deleteSync();
 
     final req = http.Request('GET', Uri.parse(url));
@@ -354,6 +370,16 @@ class UpdateService {
     // 安卓:把下载好的 APK 交给系统安装器(首次需用户授权「安装未知应用」)。
     // 安装器接管后本进程不需要退出,系统会在安装完成时替换并重启应用。
     if (Platform.isAndroid) {
+      // 交给安装器前核对:安装包版本必须高于已装版本,否则系统会以
+      // 「已安装了更高版本」拒绝(实测:缓存版本号导致重复下载同版本 APK)。
+      final apkCode = await ApkInstaller.versionCodeOf(package.path);
+      final installedCode = await ApkInstaller.versionCode();
+      if (apkCode != null && installedCode != null && apkCode <= installedCode) {
+        throw HttpException(
+          '下载到的安装包版本($apkCode)不高于已安装版本($installedCode),'
+          '已取消安装。请重启应用后重试,或到 GitHub Release 手动下载。',
+        );
+      }
       final ok = await ApkInstaller.installApk(package.path);
       if (!ok) {
         throw HttpException('未能调起系统安装器,请到「设置 → 应用 → 未知来源」授权后重试');

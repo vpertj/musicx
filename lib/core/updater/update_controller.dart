@@ -120,13 +120,17 @@ class UpdateController extends Notifier<UpdateState> {
       );
       state = state.copyWith(phase: UpdatePhase.installing);
       await service.installAndRestart(pkg);
-      // macOS 的 installAndRestart 会 exit(0),正常不会走到这里;
-      // 安卓交给系统安装器后本进程仍在运行,提示用户继续按系统提示操作。
+      // macOS 的 installAndRestart 会 exit(0),正常不会走到这里。
       if (Platform.isAndroid) {
+        // 关键:清掉缓存的版本号,否则本进程仍以为自己是旧版本,
+        // 会继续提示「有新版本」,再点更新就会拿同版本 APK 去装并被系统拒绝
+        // (实测:1.7.11 装完 1.7.13 后仍提示更新,安装器回「已安装更高版本」)。
+        UpdateService.invalidateVersionCache();
         state = state.copyWith(
-          phase: UpdatePhase.idle,
+          phase: UpdatePhase.error,
           clearInfo: true,
-          error: null,
+          error: '安装包已交给系统安装器。完成安装后请重新打开应用,'
+              '新版本才会生效。',
         );
       }
     } catch (e) {

@@ -27,6 +27,13 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getVersionName" -> result.success(versionName())
+                    "getVersionCode" -> result.success(versionCode())
+                    "apkVersionCode" -> {
+                        val path = call.argument<String>("path")
+                        result.success(
+                            if (path.isNullOrEmpty()) null else apkVersionCode(path)
+                        )
+                    }
                     "installApk" -> {
                         val path = call.argument<String>("path")
                         result.success(if (path.isNullOrEmpty()) false else installApk(path))
@@ -40,6 +47,34 @@ class MainActivity : FlutterActivity() {
         packageManager.getPackageInfo(packageName, 0).versionName ?: ""
     } catch (e: Exception) {
         ""
+    }
+
+    /** 已安装应用的 versionCode(安装前比较版本用)。 */
+    private fun versionCode(): Int = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode.toInt()
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode
+        }
+    } catch (e: Exception) {
+        -1
+    }
+
+    /** 读取 APK 文件的 versionCode:交给安装器之前核对,避免同版本/旧包被系统拒绝。 */
+    private fun apkVersionCode(path: String): Int = try {
+        val info = packageManager.getPackageArchiveInfo(path, 0)
+        if (info == null) {
+            -1
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode.toInt()
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode
+        }
+    } catch (e: Exception) {
+        -1
     }
 
     private fun installApk(path: String): Boolean = try {

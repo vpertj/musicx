@@ -15,6 +15,24 @@ class ApkInstaller {
     return v;
   }
 
+  /// 已安装应用的 versionCode(安卓);非安卓或失败返回 null。
+  static Future<int?> versionCode() async {
+    try {
+      return await channel.invokeMethod<int>('getVersionCode');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 读取某个 APK 文件的 versionCode(安装前核对用);失败返回 null。
+  static Future<int?> versionCodeOf(String path) async {
+    try {
+      return await channel.invokeMethod<int>('apkVersionCode', {'path': path});
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 把下载好的 APK 交给系统安装器。返回是否成功调起。
   static Future<bool> installApk(String path) async {
     final ok = await channel.invokeMethod<bool>('installApk', {'path': path});
