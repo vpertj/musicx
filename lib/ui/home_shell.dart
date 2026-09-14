@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
+import 'package:musicx/core/tray/tray_service.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
@@ -15,6 +18,7 @@ import 'package:musicx/ui/plugins/plugin_page.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 import 'package:musicx/ui/search/search_page.dart';
 import 'package:musicx/ui/widgets/mini_player_bar.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// 应用外壳(桌面优先响应式):
 /// - 宽窗口(>=760):左侧导航栏(含歌单列表) + 右侧内容区
@@ -55,11 +59,72 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     ];
     // 桌面歌词浮窗:定期把当前歌词行推送到独立浮窗(浮窗未开时为空操作)。
     if (DesktopLyricsService.supported) {
+      // 浮窗工具条改动回传:写回 provider 持久化(主窗口是唯一写者)。
+      DesktopLyricsService.setUpStyleHandler((settings) async {
+        ref.read(desktopLyricsSettingsProvider.notifier).update(settings);
+      });
+      // 先缓存当前样式,浮窗打开时由 service 补推,避免默认样式闪现。
+      DesktopLyricsService.pushStyle(ref.read(desktopLyricsSettingsProvider));
       _lyricsTimer = Timer.periodic(
         const Duration(milliseconds: 250),
         (_) => _pushLyrics(),
       );
     }
+    _initTray();
+  }
+
+  /// 歌词浮窗开关缓存(托盘菜单勾选态用;真实状态以 service 为准)。
+  bool _lyricsOpen = false;
+
+  /// 主窗口可见性缓存(托盘「显示/隐藏」文案用)。
+  bool _windowVisible = true;
+
+  /// 系统托盘:菜单动作直接挂到现有 controller / 服务。
+  Future<void> _initTray() async {
+    if (!TrayService.supported) return;
+    try {
+      await TrayService.instance.init(
+        state: () {
+          final player = ref.read(playerControllerProvider);
+          final song = player.current;
+          final artist = song?.artist ?? '';
+          return TrayStateInput(
+            playing: player.isPlaying,
+            lyricsOpen: _lyricsOpen,
+            windowVisible: _windowVisible,
+            songTitle: song == null
+                ? null
+                : (artist.isEmpty ? song.title : '${song.title} - $artist'),
+          );
+        },
+        actions: TrayActions(
+          playPause: () =>
+              ref.read(playerControllerProvider.notifier).togglePlay(),
+          previous: () =>
+              ref.read(playerControllerProvider.notifier).previous(),
+          next: () => ref.read(playerControllerProvider.notifier).next(),
+          showHide: () async {
+            try {
+              if (await windowManager.isVisible()) {
+                _windowVisible = false;
+                await windowManager.hide();
+              } else {
+                await windowManager.show();
+                await windowManager.focus();
+                _windowVisible = true;
+              }
+              await TrayService.instance.refresh();
+            } catch (_) {}
+          },
+          toggleLyrics: () async {
+            await DesktopLyricsService.toggle();
+            _lyricsOpen = await DesktopLyricsService.isOpen();
+            await TrayService.instance.refresh();
+          },
+          quit: () => exit(0),
+        ),
+      );
+    } catch (_) {}
   }
 
   Timer? _lyricsTimer;
@@ -67,7 +132,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   /// 推送当前歌词行到桌面歌词浮窗。
   Future<void> _pushLyrics() async {
     try {
-      if (!await DesktopLyricsService.isOpen()) return;
+      final open = await DesktopLyricsService.isOpen();
+      if (_lyricsOpen != open) {
+        _lyricsOpen = open;
+        await TrayService.instance.refresh();
+      }
+      if (!open) return;
       final state = ref.read(playerControllerProvider);
       final lines = state.lyric;
       final pos = state.position;
@@ -86,6 +156,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         next: next,
         playing: state.isPlaying,
         hasSong: state.current != null,
+        artwork: state.current?.artwork,
       );
     } catch (_) {}
   }
@@ -143,6 +214,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 播放状态变化时同步托盘菜单(播放/暂停文案、歌名)。
+    ref.listen(playerControllerProvider, (_, _) {
+      TrayService.instance.refresh();
+    });
+    // 设置改动实时推送到已打开的浮窗。
+    ref.listen<DesktopLyricsSettings>(
+        desktopLyricsSettingsProvider, (_, next) {
+      DesktopLyricsService.pushStyle(next);
+    });
     // 监听更新状态:检测到新版本时自动弹窗提示
     ref.listen(updateControllerProvider, (prev, next) {
       if (next.phase == UpdatePhase.ready &&

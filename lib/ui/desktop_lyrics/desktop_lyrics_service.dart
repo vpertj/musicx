@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 
+import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
+
 import 'lyrics_window.dart';
 
 /// 桌面歌词浮窗管理:创建 / 关闭 / 推送歌词(仅桌面平台)。
@@ -22,6 +24,48 @@ class DesktopLyricsService {
     kLyricsChannelName,
     mode: ChannelMode.unidirectional,
   );
+
+  /// 浮窗 → 主窗口(工具条改动回传,主窗口持久化)。
+  static const WindowMethodChannel _upChannel = WindowMethodChannel(
+    kLyricsUpChannelName,
+    mode: ChannelMode.unidirectional,
+  );
+
+  /// 最近一次推送的外观,浮窗打开成功后补推,避免默认样式闪现。
+  static DesktopLyricsSettings? _lastStyle;
+
+  /// 注册上行 handler:浮窗工具条改动回传主窗口。主窗口启动时调用一次。
+  static Future<void> setUpStyleHandler(
+    Future<void> Function(DesktopLyricsSettings settings) onStyle,
+  ) async {
+    if (!supported) return;
+    try {
+      await _upChannel.setMethodCallHandler((call) async {
+        if (call.method == kLyricsStyleUpMethod) {
+          final arg = call.arguments;
+          if (arg is Map && arg['style'] is Map) {
+            await onStyle(
+              DesktopLyricsSettings.fromJson(
+                Map<String, dynamic>.from(arg['style'] as Map),
+              ),
+            );
+          }
+        }
+        return null;
+      });
+    } catch (_) {}
+  }
+
+  /// 推送外观设置到浮窗(浮窗未开时仅缓存,待 open 后补推)。
+  static Future<void> pushStyle(DesktopLyricsSettings settings) async {
+    _lastStyle = settings;
+    if (_windowId == null) return;
+    try {
+      await _channel.invokeMethod(kLyricsStyleMethod, {
+        'style': settings.toJson(),
+      });
+    } catch (_) {}
+  }
 
   static Future<bool> isOpen() async {
     if (!supported) return false;
@@ -49,6 +93,14 @@ class DesktopLyricsService {
     );
     _windowId = controller.windowId;
     await controller.show();
+    final style = _lastStyle;
+    if (style != null) {
+      try {
+        await _channel.invokeMethod(kLyricsStyleMethod, {
+          'style': style.toJson(),
+        });
+      } catch (_) {}
+    }
   }
 
   static Future<void> close() async {
@@ -75,6 +127,7 @@ class DesktopLyricsService {
     required String next,
     required bool playing,
     required bool hasSong,
+    String? artwork,
   }) async {
     if (_windowId == null) return;
     try {
@@ -83,6 +136,7 @@ class DesktopLyricsService {
         'next': next,
         'playing': playing,
         'hasSong': hasSong,
+        'artwork': artwork,
       });
     } catch (_) {}
   }
