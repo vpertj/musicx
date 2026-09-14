@@ -30,6 +30,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   /// 首页动态推荐:热歌榜 + 猜你喜欢(方案 C)。源不支持时回退静态关键词卡。
   List<MusicItem> _hotSongs = const [];
+  /// 可切换的榜单(热歌榜/飙升榜/新歌榜…)与当前选中项。
+  List<Map<String, dynamic>> _topLists = const [];
+  int _topListIndex = 0;
   List<MusicItem> _guessSongs = const [];
   bool _recLoading = false;
 
@@ -68,12 +71,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final hot = <MusicItem>[];
       final lists = await manager.topLists();
       if (lists.isNotEmpty) {
-        final detail = await manager.topListDetail(lists.first);
-        for (final raw in detail.take(12)) {
+        // 只保留前 6 个榜作为可切换项,避免首页堆一排芯片
+        _topListIndex = 0;
+        final picked = lists.take(6).toList();
+        final detail = await manager.topListDetail(picked.first);
+        for (final raw in detail.take(6)) {
           try {
             hot.add(MusicItem.fromJson(raw));
           } catch (_) {}
         }
+        if (mounted) setState(() => _topLists = picked);
       }
       // 猜你喜欢:按本地播放历史里最常听的歌手去找
       final artists = topArtistsFromHistory(ref.read(playHistoryProvider));
@@ -132,6 +139,39 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     _hotSongs = hot;
     _guessSongs = guess;
+  }
+
+  /// 切换到第 index 个榜单(热歌榜/飙升榜/新歌榜…)。
+  Future<void> _switchTopList(int index) async {
+    if (index == _topListIndex || index < 0 || index >= _topLists.length) return;
+    setState(() {
+      _topListIndex = index;
+      _hotSongs = const [];
+      _recLoading = true;
+    });
+    try {
+      final manager = ref.read(pluginManagerProvider);
+      final detail = await manager.topListDetail(_topLists[index]);
+      final songs = <MusicItem>[];
+      for (final raw in detail.take(6)) {
+        try {
+          songs.add(MusicItem.fromJson(raw));
+        } catch (_) {}
+      }
+      if (mounted) setState(() => _hotSongs = songs);
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _recLoading = false);
+    }
+  }
+
+  /// 播放历史里的条目可能是旧数据,解析失败就跳过(不炸整页)。
+  MusicItem? _safeItem(Map<String, dynamic> raw) {
+    try {
+      return MusicItem.fromJson(raw);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 播放首页推荐里的第 index 首。
@@ -246,6 +286,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 hotSongs: _hotSongs,
                                 guessSongs: _guessSongs,
                                 recLoading: _recLoading,
+                                topLists: _topLists,
+                                topListIndex: _topListIndex,
+                                onPickTopList: _switchTopList,
+                                recentPlays: [
+                                  for (final e
+                                      in ref
+                                          .watch(playHistoryProvider)
+                                          .take(3))
+                                    if (_safeItem(e) != null) _safeItem(e)!,
+                                ],
+                                onPlayRecent: (i) => _playRecommended(
+                                  [
+                                    for (final e
+                                        in ref
+                                            .read(playHistoryProvider)
+                                            .take(3))
+                                      if (_safeItem(e) != null) _safeItem(e)!,
+                                  ],
+                                  i,
+                                ),
                                 onPlayHot: (i) => _playRecommended(_hotSongs, i),
                                 onPlayGuess: (i) =>
                                     _playRecommended(_guessSongs, i),
@@ -455,6 +515,11 @@ class _IdleView extends StatelessWidget {
     this.recLoading = false,
     this.onPlayHot,
     this.onPlayGuess,
+    this.topLists = const [],
+    this.topListIndex = 0,
+    this.onPickTopList,
+    this.recentPlays = const [],
+    this.onPlayRecent,
   });
 
   final List<String> history;
@@ -466,6 +531,13 @@ class _IdleView extends StatelessWidget {
   final bool recLoading;
   final ValueChanged<int>? onPlayHot;
   final ValueChanged<int>? onPlayGuess;
+  final List<Map<String, dynamic>> topLists;
+  final int topListIndex;
+  final ValueChanged<int>? onPickTopList;
+
+  /// 最近播放(原「音乐由插件驱动」卡片的替代,用户诉求)。
+  final List<MusicItem> recentPlays;
+  final ValueChanged<int>? onPlayRecent;
   final ValueChanged<String> onPick;
   final VoidCallback onClearHistory;
   final VoidCallback? onOpenPlugins;
@@ -485,16 +557,37 @@ class _IdleView extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 0, 24),
       children: [
         // 动态热歌榜(真实音源排行榜);拉不到时退回下面的静态关键词卡
-        if (hotSongs.isNotEmpty) ...[
-          _SectionTitle('热歌榜', icon: Icons.local_fire_department_rounded),
+        if (topLists.isNotEmpty) ...[
+          _SectionTitle('排行榜', icon: Icons.local_fire_department_rounded),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(right: 20),
+              itemCount: topLists.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final selected = i == topListIndex;
+                return _TopListChip(
+                  label: '${topLists[i]['title'] ?? '榜单'}',
+                  selected: selected,
+                  onTap: () => onPickTopList?.call(i),
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 12),
-          _SongCardRow(songs: hotSongs, onPlay: onPlayHot),
+        ],
+        if (hotSongs.isNotEmpty) ...[
+          // 两排、每排三个(用户诉求)
+          _SongCardGrid(songs: hotSongs.take(6).toList(), onPlay: onPlayHot),
           const SizedBox(height: 24),
         ],
         if (guessSongs.isNotEmpty) ...[
           _SectionTitle('猜你喜欢', icon: Icons.auto_awesome_rounded),
           const SizedBox(height: 12),
-          _SongCardRow(songs: guessSongs, onPlay: onPlayGuess),
+          _SongCardGrid(songs: guessSongs.take(6).toList(), onPlay: onPlayGuess),
           const SizedBox(height: 24),
         ],
         if (hotSongs.isEmpty && recLoading)
@@ -562,7 +655,16 @@ class _IdleView extends StatelessWidget {
             ),
           ),
         ],
-        if (onOpenPlugins != null) ...[
+        if (recentPlays.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _SectionTitle('最近播放', icon: Icons.history_rounded),
+          const SizedBox(height: 8),
+          for (var i = 0; i < recentPlays.length; i++)
+            _RecentPlayRow(
+              song: recentPlays[i],
+              onTap: () => onPlayRecent?.call(i),
+            ),
+        ] else if (onOpenPlugins != null) ...[
           const SizedBox(height: 28),
           Padding(
             padding: const EdgeInsets.only(right: 20),
@@ -623,63 +725,94 @@ class _IdleView extends StatelessWidget {
   }
 }
 
-/// 横滑歌曲卡:真实歌曲(热歌榜/猜你喜欢),点击即播放。
-class _SongCardRow extends StatelessWidget {
-  const _SongCardRow({required this.songs, required this.onPlay});
+/// 榜单芯片(热歌榜/飙升榜/新歌榜…)。
+class _TopListChip extends StatelessWidget {
+  const _TopListChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final List<MusicItem> songs;
-  final ValueChanged<int>? onPlay;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return SizedBox(
-      height: 168,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(right: 20),
-        itemCount: songs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, i) {
-          final song = songs[i];
-          return InkWell(
-            onTap: onPlay == null ? null : () => onPlay!(i),
-            borderRadius: BorderRadius.circular(14),
-            child: SizedBox(
-              width: 124,
+    return Material(
+      color: selected ? scheme.primary : scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Text(
+            label,
+            style: textTheme.labelMedium?.copyWith(
+              color: selected ? Colors.white : scheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 最近播放行:替代原「音乐由插件驱动」卡片(用户诉求)。
+class _RecentPlayRow extends StatelessWidget {
+  const _RecentPlayRow({required this.song, required this.onTap});
+
+  final MusicItem song;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 40,
+                height: 40,
+                color: scheme.surfaceContainerHighest,
+                child: song.artwork == null || song.artwork!.isEmpty
+                    ? Icon(
+                        Icons.music_note_rounded,
+                        size: 18,
+                        color: scheme.outline,
+                      )
+                    : Image.network(
+                        song.artwork!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.music_note_rounded,
+                          size: 18,
+                          color: scheme.outline,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      width: 124,
-                      height: 124,
-                      color: scheme.surfaceContainerHighest,
-                      child: song.artwork == null || song.artwork!.isEmpty
-                          ? Icon(
-                              Icons.music_note_rounded,
-                              color: scheme.outline,
-                              size: 34,
-                            )
-                          : Image.network(
-                              song.artwork!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.music_note_rounded,
-                                color: scheme.outline,
-                                size: 34,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
                   Text(
                     song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
+                    style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -694,102 +827,104 @@ class _SongCardRow extends StatelessWidget {
                 ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// 热门推荐横滑卡片:渐变底 + 序号 + 关键词。
-class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({
-    required this.keyword,
-    required this.index,
-    required this.onTap,
-  });
-
-  final String keyword;
-  final int index;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final gradient =
-        _IdleView._cardGradients[index % _IdleView._cardGradients.length];
-
-    return Material(
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: Ink(
-        decoration: BoxDecoration(gradient: gradient),
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: [
-              Positioned(
-                right: -14,
-                bottom: -16,
-                child: Icon(
-                  Icons.music_note_rounded,
-                  size: 72,
-                  color: Colors.white.withValues(alpha: .16),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'TOP ${index + 1}',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: Colors.white.withValues(alpha: .75),
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    Text(
-                      keyword,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            Icon(
+              Icons.play_arrow_rounded,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text, {this.icon});
+/// 推荐卡片网格:两排、每排三个。
+class _SongCardGrid extends StatelessWidget {
+  const _SongCardGrid({required this.songs, required this.onPlay});
 
-  final String text;
-  final IconData? icon;
+  final List<MusicItem> songs;
+  final ValueChanged<int>? onPlay;
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(
-      context,
-    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700);
-    return Row(
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 6),
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(right: 20),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        mainAxisExtent: 158,
+      ),
+      itemCount: songs.length,
+      itemBuilder: (context, i) => _SongCard(
+        song: songs[i],
+        onTap: onPlay == null ? null : () => onPlay!(i),
+      ),
+    );
+  }
+}
+
+/// 单个歌曲卡:封面 + 歌名 + 歌手。
+class _SongCard extends StatelessWidget {
+  const _SongCard({required this.song, required this.onTap});
+
+  final MusicItem song;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                color: scheme.surfaceContainerHighest,
+                child: song.artwork == null || song.artwork!.isEmpty
+                    ? Icon(
+                        Icons.music_note_rounded,
+                        color: scheme.outline,
+                        size: 28,
+                      )
+                    : Image.network(
+                        song.artwork!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.music_note_rounded,
+                          color: scheme.outline,
+                          size: 28,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            song.artist ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
         ],
-        Text(text, style: style),
-      ],
+      ),
     );
   }
 }
@@ -1078,6 +1213,99 @@ class _EmptyResultView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 热门推荐横滑卡片:渐变底 + 序号 + 关键词。
+class _SuggestionCard extends StatelessWidget {
+  const _SuggestionCard({
+    required this.keyword,
+    required this.index,
+    required this.onTap,
+  });
+
+  final String keyword;
+  final int index;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final gradient =
+        _IdleView._cardGradients[index % _IdleView._cardGradients.length];
+
+    return Material(
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: BoxDecoration(gradient: gradient),
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -14,
+                bottom: -16,
+                child: Icon(
+                  Icons.music_note_rounded,
+                  size: 72,
+                  color: Colors.white.withValues(alpha: .16),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'TOP ${index + 1}',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: Colors.white.withValues(alpha: .75),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      keyword,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text, {this.icon});
+
+  final String text;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700);
+    return Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 6),
+        ],
+        Text(text, style: style),
+      ],
     );
   }
 }

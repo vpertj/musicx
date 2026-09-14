@@ -770,7 +770,33 @@ class PluginManager {
 
   /// 按 musicItem.platform 匹配插件获取歌词源 URL,再由 Dart 侧下载解析。
   /// 不在插件内解析:flutter_js XHR 桥会把多行 JSON 的 \n 转义破坏。
+  /// 歌词缓存:同一首歌(平台+曲目 id)重复播放/切回时直接命中。
+  /// 切歌体感里歌词占大头,缓存后第二次起几乎瞬时。
+  static final Map<String, (DateTime, String)> _lyricCache = {};
+  static const Duration _lyricCacheTtl = Duration(minutes: 30);
+
   Future<String> resolveLyric(
+    Map<String, dynamic> musicItem, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final cacheKey = '${musicItem['platform']}|'
+        '${musicItem['songId'] ?? musicItem['id']}';
+    final hit = _lyricCache[cacheKey];
+    if (hit != null) {
+      if (DateTime.now().difference(hit.$1) < _lyricCacheTtl &&
+          hit.$2.isNotEmpty) {
+        return hit.$2;
+      }
+      _lyricCache.remove(cacheKey);
+    }
+    final text = await _resolveLyricUncached(musicItem, timeout: timeout);
+    if (text.isNotEmpty) {
+      _lyricCache[cacheKey] = (DateTime.now(), text);
+    }
+    return text;
+  }
+
+  Future<String> _resolveLyricUncached(
     Map<String, dynamic> musicItem, {
     Duration timeout = const Duration(seconds: 8),
   }) async {

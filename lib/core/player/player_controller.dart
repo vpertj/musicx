@@ -286,14 +286,19 @@ class PlayerController extends Notifier<PlayerState> {
       final url = media['url'] as String;
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
-      // 后台预取下一首的播放地址:真正切歌时命中缓存,接近瞬时。
-      // (放在歌词解析前,尽早发出)
-      _prefetchNext();
-      // 歌词解析较慢且非阻塞;完成后再校验 token,避免旧请求写入新请求的歌词。
-      final lyricText = await manager.resolveLyric(current.toJson());
       if (token != _playToken) return;
-      final lyric = parseLrc(lyricText);
-      state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
+      // 关键:先切到「播放中」并把歌词清空,歌词在后台再取。
+      // 此前这里 await 歌词解析后才置为播放中,而歌词解析包含重试与跨源兜底
+      // (要再发搜索请求),于是列表点击切歌要等歌词才生效 —— 用户体感「非常慢」。
+      state = state.copyWith(
+        isPlaying: true,
+        clearError: true,
+        lyric: const [],
+      );
+      // 后台预取下一首的播放地址:真正切歌时命中缓存,接近瞬时。
+      _prefetchNext();
+      // 歌词后台加载:完成后再校验 token,避免旧请求写入新请求的歌词。
+      unawaited(_loadLyric(current, token));
     } catch (e) {
       if (token != _playToken) return;
       // 旧加载被新请求打断不算错误
@@ -301,6 +306,19 @@ class PlayerController extends Notifier<PlayerState> {
       state = state.copyWith(error: e.toString());
     }
   }
+
+  /// 后台加载歌词:不阻塞切歌(播放状态已先行更新)。
+  Future<void> _loadLyric(MusicItem song, int token) async {
+    try {
+      final manager = ref.read(pluginManagerProvider);
+      final text = await manager.resolveLyric(song.toJson());
+      if (token != _playToken) return; // 已切到别的歌,丢弃
+      state = state.copyWith(lyric: parseLrc(text));
+    } catch (_) {
+      // 歌词失败不影响播放
+    }
+  }
+
 
   /// 预取下一首播放地址(配合 PluginManager 的媒体缓存,切歌零等待)。
   void _prefetchNext() {
