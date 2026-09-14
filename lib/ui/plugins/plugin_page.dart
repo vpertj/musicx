@@ -12,7 +12,8 @@ import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/core/plugins/bundled_install.dart';
 import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
-import 'package:musicx/ui/desktop_lyrics/lyrics_settings_section.dart';
+import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
+import 'package:musicx/ui/plugins/lyrics_settings_page.dart';
 import 'package:musicx/ui/plugins/bundled_sources_sheet.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
@@ -696,22 +697,27 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           ),
         ];
       case _SettingsSection.appearance:
+        final lyrics = ref.watch(desktopLyricsSettingsProvider);
         return [
           _SettingsGroup(
             title: '外观',
             children: [
               _AppearanceSection(),
+              if (DesktopLyricsService.supported)
+                _MenuItemRow(
+                  icon: Icons.lyrics_rounded,
+                  title: '桌面歌词',
+                  trailing:
+                      '${lyrics.cardStyle == LyricsCardStyle.plain ? '纯文字' : '毛玻璃'}'
+                      ' · ${lyrics.fontSize.round()}px',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LyricsSettingsPage(),
+                    ),
+                  ),
+                ),
             ],
           ),
-          if (DesktopLyricsService.supported) ...[
-            const SizedBox(height: 16),
-            _SettingsGroup(
-              title: '桌面歌词',
-              children: [
-                LyricsSettingsSection(),
-              ],
-            ),
-          ],
         ];
       case _SettingsSection.general:
         return [
@@ -902,93 +908,95 @@ class _AppearanceSection extends ConsumerWidget {
   }
 }
 
-/// 顶部品牌信息卡(主流 App「我的」页风格)。
-class _ProfileCard extends StatelessWidget {
+/// 顶部品牌条(瘦身版):图标 + 名称 + 版本号 + 插件数。
+///
+/// 原先是一张高约 100 的大渐变卡,占位多、把设置项挤到下面;改为一行矮条,
+/// 只在最需要时提供信息(用户诉求:设置页看着乱)。
+class _ProfileCard extends ConsumerStatefulWidget {
   const _ProfileCard({required this.pluginCount, required this.onInstall});
 
   final int pluginCount;
   final VoidCallback onInstall;
 
   @override
+  ConsumerState<_ProfileCard> createState() => _ProfileCardState();
+}
+
+class _ProfileCardState extends ConsumerState<_ProfileCard> {
+  String? _version;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(updateServiceProvider).resolveCurrentVersion().then((v) {
+      if (mounted && v.isNotEmpty && v != '0.0.0') setState(() => _version = v);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Ink(
       decoration: BoxDecoration(
         gradient: AppTheme.softGradient,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: InkWell(
-        onTap: onInstall,
-        borderRadius: BorderRadius.circular(24),
+        onTap: widget.onInstall,
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
-                width: 62,
-                height: 62,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: .18),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.music_note_rounded,
                   color: Colors.white,
-                  size: 32,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'MusicX',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -.3,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 1),
                     Text(
-                      '插件化音乐播放器 · 轻量免费',
+                      _version == null ? '插件化音乐播放器' : 'v$_version',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: .8),
-                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: .85),
+                        fontSize: 11,
                       ),
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+              Text(
+                '${widget.pluginCount} 个音源',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: .9),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .16),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.extension_rounded,
-                      color: Colors.white,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$pluginCount 个插件',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: .8),
+                size: 18,
               ),
             ],
           ),
