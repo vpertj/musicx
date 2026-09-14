@@ -13,8 +13,15 @@ library;
 /// 128kbps ≈ 16KB/s。
 const int _bytesPerSecond = 16000;
 
-/// 时长未知时使用的体积阈值(约 25 秒 128kbps)。
-const int _unknownDurationThreshold = 400 * 1024;
+/// 时长未知时使用的体积阈值。
+///
+/// 实测(安卓真机):酷我等源搜索结果不带时长,此时仅靠体积判断:
+/// - 0.18MB = 「请在手机客户端播放」提示音
+/// - 1.26MB = 128kbps 约 80 秒片段
+/// 而正常整曲(3 分钟以上 128kbps)普遍 >2MB,故阈值取 1.5MB 以内才能挡住
+/// 1.26MB 这类片段。代价:极短的完整曲(60~90 秒)在时长未知时也可能被判为
+/// 片段,此时会继续换源,实在只有它才明确报错(产品决策:不播片段)。
+const int _unknownDurationThreshold = 1536 * 1024;
 
 /// 估算与实际体积之比低于该比例即认为是片段。
 const double _previewRatio = 0.5;

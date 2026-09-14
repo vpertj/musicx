@@ -532,10 +532,10 @@ class PluginManager {
         for (final raw in data) {
           if (raw is! Map) continue;
           final candidate = Map<String, dynamic>.from(raw);
-          candidate['platform'] = plugin.platform;
-          if (candidate['songId'] == null || candidate['songId'] == '') {
-            candidate['songId'] = candidate['id'];
-          }
+          // 与主链路一致地归一化:platform/songId 补全 + 时长量纲(酷我等
+          // 源返回「秒」)。此前漏了这步,duration=267 被当成 267ms,
+          // 试听检测的「应有体积」算成几 KB,任何片段都被判为完整曲放行。
+          normalizeResultItem(candidate, platform: plugin.platform);
           if (!_sameSong(candidate, musicItem)) continue;
           final result = await _callGetMediaSource(
             plugin,
@@ -598,9 +598,17 @@ class PluginManager {
     final bytes = audioTotalBytesProbe != null
         ? await audioTotalBytesProbe!(url)
         : await _audioTotalBytes(url);
-    if (bytes <= 0) return false;
     final durationMs = (musicItem['duration'] as num?)?.toInt();
-    return looksLikePreview(contentLength: bytes, durationMs: durationMs);
+    final verdict = bytes <= 0
+        ? false
+        : looksLikePreview(contentLength: bytes, durationMs: durationMs);
+    // 诊断:真机上曾出现「片段被当成完整曲返回」,把边界数值打出来便于定位
+    // (体积探测失败会静默放过,光看结果无法区分)。
+    debugPrint(
+      'MusicX 试听检测: bytes=$bytes durationMs=$durationMs '
+      'preview=$verdict host=${Uri.tryParse(url)?.host}',
+    );
+    return verdict;
   }
 
   /// 读取音频真实总字节数;失败返回 -1(调用方按「未知」处理)。
@@ -721,11 +729,69 @@ class PluginManager {
         }
       }
     }
+    // 跨源歌词兜底:本平台的源都拿不到歌词时(上游接口偶发返回 null、
+    // 或该源本身无歌词),按「歌名+歌手」到其它已装音源找同一首歌的歌词。
+    // 与取流的跨源换源同一思路:实测酷我歌词接口会偶发返回 null,
+    // 只重试同源仍会让用户看到「暂无歌词」。
+    final cross = await _lyricFromOtherSources(
+      plugins: plugins,
+      musicItem: musicItem,
+      timeout: timeout,
+      excludePlatform: wantPlatform,
+    );
+    if (cross != null && cross.isNotEmpty) return cross;
+
     debugPrint(
       'MusicX 歌词: 未获取到 "${musicItem['title']}" '
       '(platform=$wantPlatform) 的歌词',
     );
     return '';
+  }
+
+  /// 到其它音源找同一首歌的歌词;找不到返回 null。
+  Future<String?> _lyricFromOtherSources({
+    required List<PluginInfo> plugins,
+    required Map<String, dynamic> musicItem,
+    required Duration timeout,
+    String? excludePlatform,
+  }) async {
+    final title = (musicItem['title'] as String?)?.trim() ?? '';
+    final artist = (musicItem['artist'] as String?)?.trim() ?? '';
+    if (title.isEmpty) return null;
+    final keyword = artist.isEmpty ? title : '$title $artist';
+
+    for (final plugin in _prioritizeAutoPlugins(plugins)) {
+      if (plugin.platform == excludePlatform) continue;
+      try {
+        final source = await File(plugin.path).readAsString();
+        final found = await _sandbox.callPlugin(source, 'search', [
+          keyword,
+          1,
+          'music',
+        ], timeout: timeout);
+        final data = (found['data'] as List?) ?? const [];
+        for (final raw in data) {
+          if (raw is! Map) continue;
+          final candidate = Map<String, dynamic>.from(raw);
+          normalizeResultItem(candidate, platform: plugin.platform);
+          if (!_sameSong(candidate, musicItem)) continue;
+          final lyric = await _sandbox.callPlugin(source, 'getLyric', [
+            pluginItem(candidate),
+          ], timeout: timeout);
+          final rawLrc = lyric['rawLrc'];
+          if (rawLrc is String && rawLrc.isNotEmpty) {
+            debugPrint(
+              'MusicX 歌词: 跨源命中 ${plugin.platform} '
+              '(${candidate['title']}) ${rawLrc.length} 字符',
+            );
+            return rawLrc;
+          }
+        }
+      } catch (_) {
+        // 单个音源失败继续尝试其它音源
+      }
+    }
+    return null;
   }
 
   /// 把插件返回的播放地址规范化:

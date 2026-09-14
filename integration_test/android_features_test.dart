@@ -252,4 +252,69 @@ void main() {
     expect(lrc, isNotEmpty, reason: '腾讯音乐歌词不能为空(此前显示「暂无歌词」)');
     expect(lines, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 180)));
+
+  testWidgets('8) 多首歌采样:绝不返回试听片段(否则必须明确报错)', (tester) async {
+    final catalog = BundledPluginCatalog();
+    for (final p in await catalog.list()) {
+      await manager.installBundledJs(await catalog.readJs(p),
+          source: 'bundled:${p.assetPath}');
+    }
+
+    Future<int> totalBytes(String url) async {
+      try {
+        final client = HttpClient();
+        final req = await client.getUrl(Uri.parse(url))
+            .timeout(const Duration(seconds: 10));
+        req.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
+        req.followRedirects = true;
+        final resp = await req.close();
+        var n = resp.contentLength;
+        final range = resp.headers.value(HttpHeaders.contentRangeHeader);
+        await resp.drain<void>();
+        if (range != null && range.contains('/')) {
+          n = int.tryParse(range.split('/').last.trim()) ?? n;
+        }
+        return n;
+      } catch (_) {
+        return -1;
+      }
+    }
+
+    final keywords = ['周杰伦 晴天', '林俊杰 江南', '陈奕迅 富士山下'];
+    var okCount = 0;
+    for (final kw in keywords) {
+      final found = await manager.search(kw, page: 1,
+          timeout: const Duration(seconds: 25));
+      final items = (found['data'] as List).cast<Map<String, dynamic>>();
+      if (items.isEmpty) {
+        debugPrint('RESULT: $kw -> 搜不到,跳过');
+        continue;
+      }
+      final item = Map<String, dynamic>.from(items.first);
+      final dur = (item['duration'] as num?)?.toInt();
+      final title = item['title'];
+      final platform = item['platform'];
+      String? url;
+      try {
+        final media = await manager.resolveMediaSource(item,
+            timeout: const Duration(seconds: 30));
+        url = (media['url'] as String?) ?? '';
+      } catch (e) {
+        // 产品决策:全部只有试听时明确报错(不播片段),报错须说明原因
+        debugPrint('RESULT: $title($platform) -> 拒绝:$e');
+        expect(e.toString(), contains('试听'),
+            reason: '拿不到完整歌曲时报错必须说明是试听片段');
+        continue;
+      }
+      // 断言放在 try 之外,避免 expect 失败被 catch 吞掉而假通过
+      final bytes = await totalBytes(url);
+      final preview = looksLikePreview(contentLength: bytes, durationMs: dur);
+      debugPrint('RESULT: $title($platform) -> ${Uri.tryParse(url)?.host} '
+          '${(bytes / 1048576).toStringAsFixed(2)}MB preview=$preview');
+      expect(preview, isFalse,
+          reason: '$title:解析出的必须是完整歌曲,不能是试听片段');
+      okCount++;
+    }
+    debugPrint('RESULT: 采样完成,完整曲=$okCount/${keywords.length}');
+  }, timeout: const Timeout(Duration(seconds: 300)));
 }

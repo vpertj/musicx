@@ -20,8 +20,11 @@ void main() {
       expect(looksLikePreview(contentLength: 2200000, durationMs: 269000), isFalse);
     });
 
-    test('未知时长:回落到体积阈值', () {
-      expect(looksLikePreview(contentLength: 300 * 1024), isTrue);
+    test('未知时长:回落到体积阈值(实测片段 0.18MB / 1.26MB 都要挡住)', () {
+      expect(looksLikePreview(contentLength: 185 * 1024), isTrue,
+          reason: '0.18MB 是「请在手机客户端播放」提示音');
+      expect(looksLikePreview(contentLength: 1323746), isTrue,
+          reason: '1.26MB 是约 80 秒片段,真机上曾被当成完整曲放行');
       expect(looksLikePreview(contentLength: 5 * 1024 * 1024), isFalse);
     });
 
