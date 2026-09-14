@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicx/core/utils/app_paths.dart';
@@ -152,6 +151,6 @@ class RecommendCache {
     _store[key] = (DateTime.now(), value);
   }
 
-  @visibleForTesting
+  /// 清空缓存(音源变化等需要强制重载时使用)。
   void clear() => _store.clear();
 }

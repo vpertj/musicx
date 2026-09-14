@@ -221,6 +221,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 音源变化时重载推荐:推荐只在 initState 加载一次,用户装完音源若不重启,
+    // 首页会一直停在静态兜底卡(实测问题)。这里监听插件列表变化后重试。
+    ref.listen(pluginListProvider, (_, next) {
+      final count = next.value?.length ?? 0;
+      if (count > 0 && (_hotSongs.isEmpty || _guessSongs.isEmpty)) {
+        _recCache.clear();
+        _loadRecommendations();
+      }
+    });
     final state = ref.watch(searchControllerProvider);
     final hasQuery = state.query.isNotEmpty;
 
