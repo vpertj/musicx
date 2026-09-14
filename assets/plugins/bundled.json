@@ -17,14 +17,6 @@
       "sourceUrl": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/main/plugins/wy.js"
     },
     {
-      "name": "酷我(独家音源)",
-      "platform": "酷我(独家音源)",
-      "version": "4",
-      "asset": "assets/plugins/kuwo_dujia.js",
-      "author": "竹佀＆玥然OvO",
-      "sourceUrl": "https://raw.gitcode.com/Crystim/mfp/raw/main/%E9%85%B7%E6%88%91_%E7%AB%B9%E7%8E%A5.js"
-    },
-    {
       "name": "酷我(念心音源)",
       "platform": "酷我(念心音源)",
       "version": "1.0.0",

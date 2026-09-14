@@ -6,6 +6,7 @@ import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/auto_source_order.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
+import 'package:musicx/core/plugins/preview_detector.dart';
 import 'package:musicx/core/plugins/result_normalizer.dart';
 import 'package:musicx/core/plugins/search_failure.dart';
 import 'package:musicx/core/utils/app_paths.dart';
@@ -418,8 +419,8 @@ class PluginManager {
             );
             final url = result['url'] as String?;
             if (url == null || url.isEmpty) continue;
-            // 短音频检测:HEAD 请求,内容长度 < 256KB 视为可疑提示音,跳过
-            if (await _isSuspiciousShortAudio(url)) continue;
+            // 试听片段/提示音检测:结合歌曲时长判断,跳过并继续换源
+            if (await _isPreviewAudio(url, musicItem)) continue;
             return result;
           } catch (_) {
             // 继续
@@ -428,9 +429,90 @@ class PluginManager {
       }
     }
 
-    throw Exception(
-      'no plugin resolved media source: ${wantPlatform ?? 'auto'}',
+    // 第三轮:跨源换源。QQ/网易的 VIP 歌曲常只给 20 秒试听,
+    // 同一首歌在其它音源(酷我/念心等)往往是完整版,故按「歌名+歌手」
+    // 到其它已装音源里找同曲再取流。
+    final cross = await _resolveFromOtherSources(
+      plugins: plugins,
+      musicItem: musicItem,
+      quality: quality,
+      timeout: timeout,
     );
+    if (cross != null) return cross;
+
+    throw Exception(
+      '该歌曲在已装音源中只找到试听片段(通常需要登录或会员),'
+      '可在设置里换用其它音源后重试',
+    );
+  }
+
+  /// 跨源换源:按歌名+歌手在其它音源里搜索同一首歌并取流。
+  ///
+  /// 只在同平台候选都拿不到完整音频时调用(见 [resolveMediaSource] 第三轮)。
+  Future<Map<String, dynamic>?> _resolveFromOtherSources({
+    required List<PluginInfo> plugins,
+    required Map<String, dynamic> musicItem,
+    required String quality,
+    required Duration timeout,
+  }) async {
+    final title = (musicItem['title'] as String?)?.trim() ?? '';
+    final artist = (musicItem['artist'] as String?)?.trim() ?? '';
+    final wantPlatform = musicItem['platform'] as String?;
+    if (title.isEmpty) return null;
+    final keyword = artist.isEmpty ? title : '$title $artist';
+
+    // 到其它音源里搜(自动顺序:网易 → 腾讯 → 酷我 …)
+    for (final plugin in _prioritizeAutoPlugins(plugins)) {
+      if (plugin.platform == wantPlatform) continue;
+      try {
+        final source = await File(plugin.path).readAsString();
+        final found = await _sandbox.callPlugin(
+          source,
+          'search',
+          [keyword, 1, 'music'],
+          timeout: timeout,
+        );
+        final data = (found['data'] as List?) ?? const [];
+        for (final raw in data) {
+          if (raw is! Map) continue;
+          final candidate = Map<String, dynamic>.from(raw);
+          candidate['platform'] = plugin.platform;
+          if (candidate['songId'] == null || candidate['songId'] == '') {
+            candidate['songId'] = candidate['id'];
+          }
+          if (!_sameSong(candidate, musicItem)) continue;
+          final result = await _callGetMediaSource(
+            plugin,
+            candidate,
+            quality,
+            timeout,
+          );
+          final url = result['url'] as String?;
+          if (url == null || url.isEmpty) continue;
+          if (await _isPreviewAudio(url, candidate)) continue;
+          return result;
+        }
+      } catch (_) {
+        // 单个音源失败不影响其它音源
+      }
+    }
+    return null;
+  }
+
+  /// 判断两个结果是否为同一首歌:歌名归一化后相等,且歌手有交集。
+  bool _sameSong(Map<String, dynamic> a, Map<String, dynamic> b) {
+    String norm(Object? v) => (v as String? ?? '')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s\(\)\[\]【】\-—_·.,，、]'), '');
+    final ta = norm(a['title']);
+    final tb = norm(b['title']);
+    if (ta.isEmpty || ta != tb) return false;
+    final aa = norm(a['artist']);
+    final ab = norm(b['artist']);
+    if (aa.isEmpty || ab.isEmpty) return true;
+    if (aa == ab) return true;
+    // 歌手串常见「A/B」「A、B」「A feat. B」,做包含判断
+    return aa.contains(ab) || ab.contains(aa);
   }
 
   /// 代理型音源评分:越高的越优先尝试。
@@ -446,30 +528,42 @@ class PluginManager {
     return 0;
   }
 
-  /// 短音频检测:HEAD 请求看内容长度,<256KB 视为可疑提示音。
-  /// 完整歌曲(128kbps 约 3 分钟)通常 >2MB;『请在手机客户端播放』提示
-  /// 音频约 11 秒 181KB。
-  Future<bool> _isSuspiciousShortAudio(String url) async {
+  /// 试听片段/提示音检测:取真实音频体积,结合歌曲时长判断。
+  ///
+  /// 两点实测教训:
+  /// - 仅用「小于 256KB」会漏掉 20 秒试听(128kbps ≈ 320KB);
+  /// - 这些 CDN 对 HEAD 请求返回 0/-1(或 403),所以必须用
+  ///   `GET + Range: bytes=0-0` 读 `Content-Range` 里的总长度。
+  Future<bool> _isPreviewAudio(
+    String url,
+    Map<String, dynamic> musicItem,
+  ) async {
+    final bytes = await _audioTotalBytes(url);
+    if (bytes <= 0) return false;
+    final durationMs = (musicItem['duration'] as num?)?.toInt();
+    return looksLikePreview(contentLength: bytes, durationMs: durationMs);
+  }
+
+  /// 读取音频真实总字节数;失败返回 -1(调用方按「未知」处理)。
+  Future<int> _audioTotalBytes(String url) async {
     try {
-      final client = _dartIo;
-      try {
-        final req = await client
-            .openUrl('HEAD', Uri.parse(url))
-            .timeout(const Duration(seconds: 5));
-        req.followRedirects = false;
-        final resp = await req.close();
-        final len = resp.contentLength;
-        await resp.drain<void>();
-        // 重定向(302)交给播放器跟随,不判定为可疑
-        if (resp.statusCode >= 300 && resp.statusCode < 400) return false;
-        if (len > 0 && len < 256 * 1024) return true;
-        return false;
-      } catch (_) {
-        // 请求失败不阻断,视为非可疑
-        return false;
+      final req = await _dartIo
+          .getUrl(Uri.parse(url))
+          .timeout(const Duration(seconds: 6));
+      // 只要 1 字节,但响应头会带上整段长度
+      req.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
+      req.followRedirects = true;
+      final resp = await req.close();
+      final range = resp.headers.value(HttpHeaders.contentRangeHeader);
+      final len = resp.contentLength;
+      await resp.drain<void>();
+      if (range != null && range.contains('/')) {
+        final total = int.tryParse(range.split('/').last.trim());
+        if (total != null && total > 0) return total;
       }
+      return len;
     } catch (_) {
-      return false; // 检测失败不阻断
+      return -1;
     }
   }
 

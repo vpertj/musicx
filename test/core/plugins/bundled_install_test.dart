@@ -27,7 +27,8 @@ void main() {
     final bundled = await catalog.list();
     expect(
       bundled.map((p) => p.platform).toSet(),
-      {'腾讯音乐', '网yi', '酷我(独家音源)', '酷我(念心音源)'},
+      {'腾讯音乐', '网yi', '酷我(念心音源)'},
+      reason: '酷我(独家音源) 上游仍为 v4、其 API 已拒绝,不再内置',
     );
   });
 
@@ -50,7 +51,7 @@ void main() {
     final installed = await manager.listPlugins();
     expect(
       installed.map((p) => p.platform).toSet(),
-      {'腾讯音乐', '网yi', '酷我(独家音源)', '酷我(念心音源)'},
+      {'腾讯音乐', '网yi', '酷我(念心音源)'},
     );
   });
 
