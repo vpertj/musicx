@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/providers.dart';
+import 'package:musicx/core/search/original_filter.dart';
+import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/music_item.dart';
 
 export 'package:musicx/core/providers.dart'
@@ -57,7 +59,10 @@ class SearchController extends Notifier<SearchState> {
       final result = source == null
           ? await manager.search(keyword, page: 1)
           : await manager.search(keyword, platform: source, page: 1);
-      final items = _parse(result);
+      final items = applyCoverFilter(
+        _parse(result),
+        hide: ref.read(hideCoversProvider),
+      );
       state = SearchState(
         query: keyword,
         results: items,
@@ -80,7 +85,10 @@ class SearchController extends Notifier<SearchState> {
       final result = s.source == null
           ? await manager.search(s.query, page: nextPage)
           : await manager.search(s.query, platform: s.source, page: nextPage);
-      final items = _parse(result);
+      final items = applyCoverFilter(
+        _parse(result),
+        hide: ref.read(hideCoversProvider),
+      );
       state = s.copyWith(results: [...s.results, ...items], page: nextPage);
     } catch (_) {
       // 分页失败不打扰用户(已有结果),回到非加载态
@@ -95,11 +103,32 @@ class SearchController extends Notifier<SearchState> {
   List<MusicItem> _parse(Map<String, dynamic> result) {
     final data = (result['data'] as List? ?? const [])
         .cast<Map<String, dynamic>>();
-    return data.map(MusicItem.fromJson).where((m) {
+    final items = data.map(MusicItem.fromJson).where((m) {
       final d = m.duration;
       if (d == null || d <= 0) return true; // 未知时长保留
       return d >= _minSongDurationMs;
     }).toList();
+    // 原唱优先排序:歌手命中查询、有专辑信息的排前面,翻唱/伴奏/Live 降权。
+    // 用下标映射回原始条目:早前用「标题+歌手+专辑」拼 key,歌手为空的歌
+    // 会因 key 不一致被整批丢掉(搜索结果直接变空)。
+    if (items.isEmpty) return items;
+    final views = [
+      for (final m in items)
+        (title: m.title, artist: m.artist ?? '', album: m.album ?? ''),
+    ];
+    return [
+      for (final i in rankSearchOrder(views, query: state.query)) items[i],
+    ];
+  }
+
+  /// 按设置过滤翻唱(结果全为翻唱时保留,避免搜不到任何东西)。
+  List<MusicItem> applyCoverFilter(List<MusicItem> items, {required bool hide}) {
+    if (!hide || items.isEmpty) return items;
+    final views = [
+      for (final m in items)
+        (title: m.title, artist: m.artist ?? '', album: m.album ?? ''),
+    ];
+    return [for (final i in originalOnlyOrder(views)) items[i]];
   }
 
   /// 清空搜索状态,回到空闲页。

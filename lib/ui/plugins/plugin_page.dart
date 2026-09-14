@@ -642,6 +642,8 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 onTap: () => _pickDefaultSource(plugins, source),
               ),
               const SizedBox(height: 8),
+              _FilterCoversRow(),
+              const SizedBox(height: 8),
               _MenuItemRow(
                 icon: Icons.download_rounded,
                 title: '下载音源',
@@ -1452,6 +1454,42 @@ class _SourceSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 过滤翻唱开关:内置音源里不要翻唱,尽量都是正版原唱。
+class _FilterCoversRow extends ConsumerWidget {
+  const _FilterCoversRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hide = ref.watch(hideCoversProvider);
+    return Row(
+      children: [
+        Icon(Icons.verified_rounded,
+            size: 20, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('过滤翻唱',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text('隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ),
+        Switch(
+          value: hide,
+          onChanged: (v) => ref.read(hideCoversProvider.notifier).update(v),
+        ),
+      ],
     );
   }
 }

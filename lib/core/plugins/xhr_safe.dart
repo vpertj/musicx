@@ -213,7 +213,11 @@ JavascriptRuntime enableSafeXhr(JavascriptRuntime runtime) {
   runtime.localContext['musicxXhrSend'] = evalSend.rawResult;
 
   // 定时排空 pending 请求;与 flutter_js 自带桥一致,随 runtime 生命周期常驻。
+  // 每次循环先泵一遍 QuickJS 的 Promise 微任务队列(见 _pumpJobs):XHR 回调
+  // resolve 了 fetch 的 Promise 后,axios/插件的 then 链要等 executePendingJob
+  // 才会继续;40ms 兜底覆盖 setTimeout 回调等其它入队路径。
   Timer.periodic(const Duration(milliseconds: 40), (timer) {
+    _pumpJobs(runtime);
     final pending = runtime.dartContext[pendingKey] as List<_XhrPendingCall>?;
     if (pending == null || pending.isEmpty) return;
     final calls = List<_XhrPendingCall>.from(pending);
@@ -248,6 +252,22 @@ JavascriptRuntime enableSafeXhr(JavascriptRuntime runtime) {
   return runtime;
 }
 
+/// 泵动 JS Promise 微任务队列。
+///
+/// 引擎差异(实测安卓全源 10s 超时的根因):QuickJS(Android/Windows/Linux)
+/// 的 Promise 任务必须显式调用 executePendingJob 才会执行 —— XHR 回调里
+/// resolve fetch 的 Promise 后,若无人泵队列,axios→插件的整条 then 链永远
+/// 停滞,插件调用只能等到超时。JavaScriptCore(macOS/iOS)在每次脚本执行
+/// 后自动清空微任务队列,所以桌面端从未暴露。JSC 实现的 executePendingJob
+/// 是一次空 eval,额外调用无副作用。
+void _pumpJobs(JavascriptRuntime runtime) {
+  try {
+    runtime.executePendingJob();
+  } catch (_) {
+    // 引擎已销毁等极端场景:忽略,下一次调用自会重建/退出。
+  }
+}
+
 Future<void> _dispatch(
   JavascriptRuntime runtime,
   _XhrPendingCall call,
@@ -276,6 +296,7 @@ Future<void> _dispatch(
     runtime.evaluate(
       'globalThis.xhrRequests[${call.idRequest}].callback(${_infoJson(0, 'Network Error')}, $errorText, null);',
     );
+    _pumpJobs(runtime);
     return;
   }
   final responseText = utf8.decode(response.bodyBytes);
@@ -284,6 +305,9 @@ Future<void> _dispatch(
   runtime.evaluate(
     'globalThis.xhrRequests[${call.idRequest}].callback($info, ${jsonEncode(responseText)}, null);',
   );
+  // 立即泵动微任务队列:让 resolve 之后的 then 链在同一 tick 内推进到底,
+  // 不必等 40ms 定时器(搜索/取流每省一个 tick 都直接提速)。
+  _pumpJobs(runtime);
 }
 
 String _infoJson(int code, String text) =>

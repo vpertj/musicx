@@ -60,3 +60,23 @@ final themePreferenceProvider =
       ThemePreferenceController.new,
     );
 
+
+/// 是否过滤翻唱/非原唱版本(默认开启)。
+///
+/// 用户诉求:内置音源结果里不要翻唱,尽量都是正版原唱。识别逻辑见
+/// core/search/original_filter.dart;过滤后若为空会回退不过滤。
+class HideCoversController extends Notifier<bool> {
+  @override
+  bool build() {
+    final map = ref.watch(settingsStoreProvider).readAll();
+    return map['hideCovers'] is bool ? map['hideCovers'] as bool : true;
+  }
+
+  void update(bool value) {
+    state = value;
+    ref.read(settingsStoreProvider).merge({'hideCovers': value});
+  }
+}
+
+final hideCoversProvider =
+    NotifierProvider<HideCoversController, bool>(HideCoversController.new);
