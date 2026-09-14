@@ -52,9 +52,13 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       bundled: bundled,
       installedVersions: {for (final p in installed) p.platform: p.version},
     ).length;
-    if (mounted && pending != _bundledPending) {
-      setState(() => _bundledPending = pending);
-    }
+    if (!mounted) return;
+    // 内置平台名集合必须在启动路径就填好:否则音源列表与默认音源选择器会把
+    // 内置音源当成用户音源显示出来(单测抓到的疏漏)。
+    setState(() {
+      _bundledPlatforms = {for (final p in bundled) p.platform};
+      _bundledPending = pending;
+    });
   }
 
   @override
@@ -176,6 +180,9 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   /// 内置音源待处理数(未安装 + 版本不同),用于音乐源分组行的角标。
   int _bundledPending = 0;
 
+  /// 随 App 内置的音源平台名:装好后不再出现在音源列表/默认音源选择器里。
+  Set<String> _bundledPlatforms = <String>{};
+
   /// 读取已安装音源的 platform → version。
   Future<Map<String, String>> _installedVersions() async {
     final manager = ref.read(pluginManagerProvider);
@@ -186,6 +193,11 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   Future<void> _syncBundledPending() async {
     final bundled = await BundledPluginCatalog().list();
     if (bundled.isEmpty) return;
+    if (mounted) {
+      setState(() {
+        _bundledPlatforms = {for (final p in bundled) p.platform};
+      });
+    }
     final pending = pendingBundledPlugins(
       bundled: bundled,
       installedVersions: await _installedVersions(),
@@ -634,10 +646,18 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   ) {
     switch (section) {
       case _SettingsSection.sources:
+        // 内置音源(腾讯/网易/酷我)是随 App 自带的实现细节:装好后不再出现在
+        // 音源列表里,只留一条「内置音源:已安装 N」的状态;列表与默认音源
+        // 选择器只展示用户自己装的音源(用户诉求)。
+        final userPlugins = [
+          for (final p in plugins)
+            if (!_bundledPlatforms.contains(p.platform)) p,
+        ];
+        final bundledInstalled =
+            plugins.where((p) => _bundledPlatforms.contains(p.platform)).length;
         return [
-          // 没有音源时:在「音乐源」分组内显示引导卡片,而不是整页替换。
-          // 否则「通用 → 检查更新 / 关于(版本号)」也会一起消失(用户反馈:
-          // 设置里找不到更新检查入口)。
+          // 没有任何音源(含内置)时,在分组内显示引导卡片而不是整页替换,
+          // 否则「通用 → 检查更新 / 关于(版本号)」会一起消失。
           if (plugins.isEmpty) ...[
             _EmptyPlugins(
               onInstall: _installFromUrl,
@@ -650,29 +670,27 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             children: [
               _DefaultSourceRow(
                 current: source,
-                onTap: () => _pickDefaultSource(plugins, source),
+                onTap: () => _pickDefaultSource(userPlugins, source),
               ),
               const SizedBox(height: 8),
               _FilterCoversRow(),
               const SizedBox(height: 8),
               _MenuItemRow(
-                icon: Icons.download_rounded,
-                title: '下载音源',
-                trailing: _bundledPending > 0 ? '$_bundledPending' : '已最新',
-                onTap: () => _downloadBundledSources(),
-              ),
-              const SizedBox(height: 8),
-              _MenuItemRow(
-                icon: Icons.list_alt_rounded,
-                title: '音源明细',
+                icon: Icons.verified_rounded,
+                title: '内置音源',
+                trailing: _bundledPending > 0
+                    ? '可安装 $_bundledPending'
+                    : (bundledInstalled > 0
+                          ? '已安装 $bundledInstalled'
+                          : '未安装'),
                 onTap: () => _showBundledSources(),
               ),
               const SizedBox(height: 8),
               _MenuItemRow(
                 icon: Icons.library_music_rounded,
                 title: '已安装音源',
-                trailing: '${plugins.length}',
-                onTap: () => _openSourceManager(plugins),
+                trailing: '${userPlugins.length}',
+                onTap: () => _openSourceManager(userPlugins),
               ),
             ],
           ),
@@ -1062,11 +1080,6 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
               color: scheme.onSurfaceVariant,
               height: 1.6,
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'MusicX v1.6.8 · 插件协议兼容 MusicFree',
-            style: textTheme.labelSmall?.copyWith(color: scheme.outline),
           ),
         ],
       ),
