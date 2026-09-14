@@ -36,6 +36,20 @@ void main() {
       expect(looksLikeCover(title: '晴天', artist: 'Cover Nation'), isTrue);
     });
 
+    test('混音/DJ/Live/变速等「其它版本」一律过滤(用户只要原版)', () {
+      expect(looksLikeNonOriginal(title: '晴天 (Remix)', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 混音版', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 DJ版', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 (Live)', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 现场版', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 演唱会版', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 加速版', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 8D环绕', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 铃声', artist: '周杰伦'), isTrue);
+      expect(looksLikeNonOriginal(title: '晴天 (不插电)', artist: '周杰伦'), isFalse,
+          reason: '不插电是官方常见版本,暂不误杀');
+    });
+
     test('正常原唱不误杀', () {
       expect(
         looksLikeCover(title: '晴天', artist: '周杰伦', album: '叶惠美'),
@@ -50,8 +64,7 @@ void main() {
         looksLikeCover(title: '屋顶', artist: '周杰伦&温岚'),
         isFalse,
       );
-      // 「Live」是官方现场,不当翻唱(但会被排序降权,见 rankSearchResults)
-      expect(looksLikeCover(title: '晴天 (Live)', artist: '周杰伦'), isFalse);
+      // Live 属于「其它版本」,用户只要原版 → 现在会过滤(见上一条用例)
     });
   });
 
@@ -85,13 +98,14 @@ void main() {
   });
 
   group('filterOriginals', () {
-    test('默认过滤翻唱,但保留 Live 等以原唱为主的版本', () {
+    test('只留原版:翻唱、Live、Remix 都被过滤(用户只要原版)', () {
       final kept = filterOriginals([
         (title: '晴天 (翻唱版)', artist: '小透明', album: '翻唱合集'),
         (title: '晴天', artist: '周杰伦', album: '叶惠美'),
         (title: '晴天 (Live)', artist: '周杰伦', album: '演唱会'),
+        (title: '晴天 (Remix)', artist: '周杰伦', album: ''),
       ]);
-      expect(kept.map((e) => e.title).toList(), ['晴天', '晴天 (Live)']);
+      expect(kept.map((e) => e.title).toList(), ['晴天']);
     });
 
     test('全是翻唱时不过滤到空(否则用户什么都搜不到)', () {

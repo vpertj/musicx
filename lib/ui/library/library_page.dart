@@ -4,6 +4,7 @@ import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/models/music_item.dart';
+import 'package:musicx/models/playlist.dart';
 import 'package:musicx/ui/downloads/download_page.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
@@ -68,6 +69,38 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     setState(() => _selected = p.id);
   }
 
+  /// 删除自定义歌单:二次确认后删除,并切回「我喜欢的」。
+  Future<void> _deletePlaylist(Playlist playlist) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('删除歌单「${playlist.name}」?'),
+        content: Text(
+          playlist.songs.isEmpty
+              ? '该歌单为空,删除后不可恢复。'
+              : '歌单内有 ${playlist.songs.length} 首歌,删除后不可恢复(已下载的文件不受影响)。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    ref.read(libraryControllerProvider.notifier).deletePlaylist(playlist.id);
+    setState(() => _selected = null);
+    messenger.showSnackBar(
+      SnackBar(content: Text('已删除歌单「${playlist.name}」')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final lib = ref.watch(libraryControllerProvider);
@@ -88,6 +121,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     // AppBar 标题:默认「我的」,选中歌单时显示歌单名
     final appBarTitle = _selected == null ? '我的' : title;
+
+    // 当前选中的自定义歌单(用于删除入口);「我喜欢的」不可删除
+    final selectedPlaylist = _selected == null
+        ? null
+        : lib.playlists.where((p) => p.id == _selected).firstOrNull;
 
     // 分类条目(两种布局共用)
     final categories = <_Category>[
@@ -125,6 +163,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       appBar: AppBar(
         title: Text(appBarTitle),
         actions: [
+          // 删除歌单:此前 controller 有 deletePlaylist 但界面没有入口,
+          // 用户新建的歌单无法删除。选中自定义歌单时在标题栏给出入口。
+          if (selectedPlaylist != null)
+            IconButton(
+              tooltip: '删除歌单',
+              icon: const Icon(Icons.delete_outline_rounded),
+              onPressed: () => _deletePlaylist(selectedPlaylist),
+            ),
           IconButton(
             tooltip: '设置',
             icon: const Icon(Icons.settings_outlined),

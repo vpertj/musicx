@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/utils/open_external.dart';
@@ -146,6 +147,16 @@ class DownloadPage extends ConsumerWidget {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                            ),
+                            // 下载的歌曲此前无法加入歌单(用户诉求):
+                            // 直接复用「加入歌单」选择器(含新建歌单)。
+                            IconButton(
+                              tooltip: '加入歌单',
+                              iconSize: 20,
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.playlist_add_rounded),
+                              onPressed: () =>
+                                  showPlaylistPicker(context, ref, d.song),
                             ),
                             IconButton(
                               tooltip: '删除下载',

@@ -4,20 +4,49 @@
 /// 搜索结果前排常混入用户上传的翻唱、伴奏、纯音乐、DJ 版,这些在标题/专辑/
 /// 歌手名上通常有明显特征词,可以直接识别。
 ///
-/// 设计取舍:
-/// - 只把**强特征**(翻唱/cover/伴奏/纯音乐/女声版/DJ版/片段…)判为翻唱并隐藏;
-/// - `Live`/`remix`/`合唱` 属于正常发行形式,只降权不隐藏;
-/// - 过滤后若结果为空,则回退不过滤(否则用户会「搜不到任何东西」)。
+/// 设计取舍(用户明确要求「只要原版」):
+/// - 翻唱/伴奏/纯音乐/混音(remix)/DJ/加速减速/Live 现场/女声男声版/片段…
+///   一律视为「非原版」并隐藏;
+/// - 过滤后若结果为空,则回退不过滤(否则用户会「搜不到任何东西」,
+///   例如某首歌全网只有现场版)。
 library;
 
-/// 判定为翻唱的强特征词(小写匹配)。
-const List<String> _coverMarkers = [
+/// 非原版特征词(小写匹配):翻唱、重制演绎、伴奏、以及各类改编版本。
+///
+/// 用户诉求「只要原版」,故 Live/remix/DJ 等也从「仅降权」改为隐藏。
+const List<String> _nonOriginalMarkers = [
+  // 翻唱/演绎
   '翻唱',
   'cover',
+  'tribute',
+  '改编',
+  '清唱',
+  '抖音版',
+  '快手版',
+  // 伴奏/无人声
   '伴奏',
   '纯音乐',
   'instrumental',
   'karaoke',
+  'ktv',
+  // 混音/电子
+  'remix',
+  '混音',
+  'dj',
+  '慢摇',
+  '8d',
+  '环绕',
+  // 变速
+  '加速版',
+  '加快版',
+  '慢速版',
+  '减速版',
+  '变速',
+  // 现场
+  'live',
+  '现场',
+  '演唱会',
+  // 人声/器乐改编
   '女声版',
   '男声版',
   '童声版',
@@ -27,19 +56,12 @@ const List<String> _coverMarkers = [
   '二胡版',
   '口琴版',
   '八音盒',
-  '抖音版',
-  '快手版',
-  'dj版',
-  '加速版',
-  '慢速版',
-  '改编版',
-  '清唱',
+  '阿卡贝拉',
+  // 片段类
   '片段',
-  'tribute',
+  '试听',
+  '铃声',
 ];
-
-/// 非原版但不算翻唱,仅降权。
-const List<String> _nonOriginalMarkers = ['live', 'remix', '现场', '演唱会'];
 
 /// 简易条目视图(避免与 MusicItem 耦合,便于单测)。
 typedef SongView = ({String title, String artist, String album});
@@ -49,17 +71,25 @@ bool _hasMarker(String text, List<String> markers) {
   return markers.any(t.contains);
 }
 
-/// 是否明显是翻唱/非原唱版本。
-bool looksLikeCover({
+/// 是否明显不是原版(翻唱/伴奏/混音/Live/变速/片段…)。
+bool looksLikeNonOriginal({
   required String title,
   required String artist,
   String album = '',
 }) {
-  if (_hasMarker(title, _coverMarkers)) return true;
-  if (album.isNotEmpty && _hasMarker(album, _coverMarkers)) return true;
-  if (_hasMarker(artist, _coverMarkers)) return true;
+  if (_hasMarker(title, _nonOriginalMarkers)) return true;
+  if (album.isNotEmpty && _hasMarker(album, _nonOriginalMarkers)) return true;
+  if (_hasMarker(artist, _nonOriginalMarkers)) return true;
   return false;
 }
+
+/// 兼容旧名(语义已扩展为「非原版」)。
+bool looksLikeCover({
+  required String title,
+  required String artist,
+  String album = '',
+}) =>
+    looksLikeNonOriginal(title: title, artist: artist, album: album);
 
 /// 排序得分:越高越像正版原唱。
 int _originalScore(SongView song, String query) {
@@ -76,8 +106,11 @@ int _originalScore(SongView song, String query) {
     }
   }
   if (song.album.trim().isNotEmpty) score += 1;
-  if (_hasMarker('${song.title}${song.album}', _nonOriginalMarkers)) score -= 2;
-  if (looksLikeCover(title: song.title, artist: song.artist, album: song.album)) {
+  if (looksLikeNonOriginal(
+    title: song.title,
+    artist: song.artist,
+    album: song.album,
+  )) {
     score -= 5;
   }
   return score;
@@ -103,7 +136,7 @@ List<int> rankSearchOrder(List<SongView> songs, {required String query}) {
 List<int> originalOnlyOrder(List<SongView> songs) {
   final kept = <int>[
     for (var i = 0; i < songs.length; i++)
-      if (!looksLikeCover(
+      if (!looksLikeNonOriginal(
         title: songs[i].title,
         artist: songs[i].artist,
         album: songs[i].album,
