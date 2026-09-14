@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/providers.dart';
+import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/models/lyric_line.dart';
 import 'package:musicx/models/music_item.dart';
 import 'player_service.dart';
@@ -271,6 +272,10 @@ class PlayerController extends Notifier<PlayerState> {
     }
     final current = state.current;
     if (current == null) return;
+    // 记录播放历史:首页「猜你喜欢」按最常听的歌手做推荐(方案 C)
+    try {
+      ref.read(playHistoryProvider.notifier).record(current.toJson());
+    } catch (_) {}
     final token = ++_playToken;
     try {
       final manager = ref.read(pluginManagerProvider);

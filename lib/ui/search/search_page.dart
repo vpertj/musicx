@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/search_controller.dart';
 import 'package:musicx/core/search/search_history.dart';
+import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
@@ -27,6 +28,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   // 下拉是否可见(聚焦或输入时)
   bool _dropdownOpen = false;
 
+  /// 首页动态推荐:热歌榜 + 猜你喜欢(方案 C)。源不支持时回退静态关键词卡。
+  List<MusicItem> _hotSongs = const [];
+  List<MusicItem> _guessSongs = const [];
+  bool _recLoading = false;
+
+  /// 推荐缓存(10 分钟),避免每次回首页都打源站。
+  static final RecommendCache _recCache = RecommendCache();
+
   static const List<String> _suggestions = [
     'SoundHelix',
     '周杰伦',
@@ -37,6 +46,98 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     'Lo-Fi',
     'City Pop',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 首帧后异步拉取推荐,不阻塞页面
+    Future.microtask(_loadRecommendations);
+  }
+
+  /// 拉取热歌榜与猜你喜欢:都是真实音源数据,失败则回退静态卡。
+  Future<void> _loadRecommendations() async {
+    if (_recLoading) return;
+    final cached = _recCache.get('home');
+    if (cached != null) {
+      if (mounted) setState(() => _applyRecommendRaw(cached));
+      return;
+    }
+    setState(() => _recLoading = true);
+    try {
+      final manager = ref.read(pluginManagerProvider);
+      final hot = <MusicItem>[];
+      final lists = await manager.topLists();
+      if (lists.isNotEmpty) {
+        final detail = await manager.topListDetail(lists.first);
+        for (final raw in detail.take(12)) {
+          try {
+            hot.add(MusicItem.fromJson(raw));
+          } catch (_) {}
+        }
+      }
+      // 猜你喜欢:按本地播放历史里最常听的歌手去找
+      final artists = topArtistsFromHistory(ref.read(playHistoryProvider));
+      final guess = <MusicItem>[];
+      for (final artist in artists) {
+        try {
+          final r = await manager.search(artist, page: 1);
+          final data = (r['data'] as List?) ?? const [];
+          for (final raw in data.take(4)) {
+            if (raw is! Map) continue;
+            final item = Map<String, dynamic>.from(raw);
+            // 只保留该歌手本人的歌(避免又混进翻唱)
+            if (!'${item['artist'] ?? ''}'.contains(artist)) continue;
+            guess.add(MusicItem.fromJson(item));
+          }
+        } catch (_) {}
+      }
+      final merged = mergeRecommendations([
+        [for (final m in guess) m.toJson()],
+      ], limit: 12);
+      final guessItems = <MusicItem>[];
+      for (final raw in merged) {
+        try {
+          guessItems.add(MusicItem.fromJson(raw));
+        } catch (_) {}
+      }
+      _recCache.put('home', [
+        for (final m in hot) {'__kind': 'hot', ...m.toJson()},
+        for (final m in guessItems) {'__kind': 'guess', ...m.toJson()},
+      ]);
+      if (mounted) {
+        setState(() {
+          _hotSongs = hot;
+          _guessSongs = guessItems;
+        });
+      }
+    } catch (_) {
+      // 拉取失败:保持静态关键词卡兜底
+    } finally {
+      if (mounted) setState(() => _recLoading = false);
+    }
+  }
+
+  void _applyRecommendRaw(List<Map<String, dynamic>> raw) {
+    final hot = <MusicItem>[];
+    final guess = <MusicItem>[];
+    for (final e in raw) {
+      try {
+        final item = MusicItem.fromJson(e);
+        if (e['__kind'] == 'hot') {
+          hot.add(item);
+        } else {
+          guess.add(item);
+        }
+      } catch (_) {}
+    }
+    _hotSongs = hot;
+    _guessSongs = guess;
+  }
+
+  /// 播放首页推荐里的第 index 首。
+  void _playRecommended(List<MusicItem> songs, int index) {
+    ref.read(playerControllerProvider.notifier).playFromList(songs, index);
+  }
 
   @override
   void dispose() {
@@ -142,6 +243,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             : _IdleView(
                                 history: ref.watch(searchHistoryProvider),
                                 suggestions: _suggestions,
+                                hotSongs: _hotSongs,
+                                guessSongs: _guessSongs,
+                                recLoading: _recLoading,
+                                onPlayHot: (i) => _playRecommended(_hotSongs, i),
+                                onPlayGuess: (i) =>
+                                    _playRecommended(_guessSongs, i),
                                 onPick: _pickSuggestion,
                                 onClearHistory: () => ref
                                     .read(searchHistoryProvider.notifier)
@@ -343,10 +450,22 @@ class _IdleView extends StatelessWidget {
     required this.onPick,
     required this.onClearHistory,
     this.onOpenPlugins,
+    this.hotSongs = const [],
+    this.guessSongs = const [],
+    this.recLoading = false,
+    this.onPlayHot,
+    this.onPlayGuess,
   });
 
   final List<String> history;
   final List<String> suggestions;
+
+  /// 动态推荐:真实音源的热歌榜与「猜你喜欢」(方案 C)。
+  final List<MusicItem> hotSongs;
+  final List<MusicItem> guessSongs;
+  final bool recLoading;
+  final ValueChanged<int>? onPlayHot;
+  final ValueChanged<int>? onPlayGuess;
   final ValueChanged<String> onPick;
   final VoidCallback onClearHistory;
   final VoidCallback? onOpenPlugins;
@@ -365,6 +484,25 @@ class _IdleView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 0, 24),
       children: [
+        // 动态热歌榜(真实音源排行榜);拉不到时退回下面的静态关键词卡
+        if (hotSongs.isNotEmpty) ...[
+          _SectionTitle('热歌榜', icon: Icons.local_fire_department_rounded),
+          const SizedBox(height: 12),
+          _SongCardRow(songs: hotSongs, onPlay: onPlayHot),
+          const SizedBox(height: 24),
+        ],
+        if (guessSongs.isNotEmpty) ...[
+          _SectionTitle('猜你喜欢', icon: Icons.auto_awesome_rounded),
+          const SizedBox(height: 12),
+          _SongCardRow(songs: guessSongs, onPlay: onPlayGuess),
+          const SizedBox(height: 24),
+        ],
+        if (hotSongs.isEmpty && recLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        if (hotSongs.isEmpty && !recLoading) ...[
         _SectionTitle('热门推荐', icon: Icons.local_fire_department_rounded),
         const SizedBox(height: 12),
         LayoutBuilder(
@@ -391,6 +529,7 @@ class _IdleView extends StatelessWidget {
             );
           },
         ),
+        ],
         if (history.isNotEmpty) ...[
           const SizedBox(height: 24),
           Row(
@@ -480,6 +619,84 @@ class _IdleView extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// 横滑歌曲卡:真实歌曲(热歌榜/猜你喜欢),点击即播放。
+class _SongCardRow extends StatelessWidget {
+  const _SongCardRow({required this.songs, required this.onPlay});
+
+  final List<MusicItem> songs;
+  final ValueChanged<int>? onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      height: 168,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(right: 20),
+        itemCount: songs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          final song = songs[i];
+          return InkWell(
+            onTap: onPlay == null ? null : () => onPlay!(i),
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              width: 124,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: 124,
+                      height: 124,
+                      color: scheme.surfaceContainerHighest,
+                      child: song.artwork == null || song.artwork!.isEmpty
+                          ? Icon(
+                              Icons.music_note_rounded,
+                              color: scheme.outline,
+                              size: 34,
+                            )
+                          : Image.network(
+                              song.artwork!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.music_note_rounded,
+                                color: scheme.outline,
+                                size: 34,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    song.artist ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

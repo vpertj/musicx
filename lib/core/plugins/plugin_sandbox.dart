@@ -48,6 +48,28 @@ class PluginSandbox {
     List<dynamic> args, {
     Duration timeout = const Duration(seconds: 10),
   }) async {
+    final raw = await callPluginRaw(
+      source,
+      method,
+      args,
+      timeout: timeout,
+    );
+    if (raw is! Map) {
+      throw StateError('plugin $method returned ${raw.runtimeType}, 期望 Map');
+    }
+    return raw.cast<String, dynamic>();
+  }
+
+  /// 与 [callPlugin] 相同,但允许插件返回**数组**等任意 JSON。
+  ///
+  /// 生态里存在返回数组的接口(如 getTopLists 返回排行榜数组),
+  /// 强制 Map 会直接失败(首页热歌榜就踩过这个坑)。
+  Future<Object?> callPluginRaw(
+    String source,
+    String method,
+    List<dynamic> args, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
     final resultPort = ReceivePort();
     late Isolate worker;
     try {
@@ -60,13 +82,11 @@ class PluginSandbox {
       rethrow;
     }
 
-    final completer = Completer<Map<String, dynamic>>();
+    final completer = Completer<Object?>();
     resultPort.listen((msg) {
       if (msg is! List || msg.isEmpty) return;
       if (msg[0] == 'ok') {
-        completer.complete(
-          (msg[1] as Map).cast<String, dynamic>(),
-        );
+        completer.complete(msg[1]);
       } else {
         completer.completeError(
           StateError('plugin $method failed: ${msg[1]}'),

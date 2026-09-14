@@ -334,6 +334,91 @@ class PluginManager {
     ], keyword);
   }
 
+  /// 取当前最优音源的排行榜列表(热歌榜/飙升榜…)。
+  ///
+  /// 首页「热歌榜」用它做动态推荐;源不支持或失败时返回空,由调用方回退。
+  Future<List<Map<String, dynamic>>> topLists({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final plugins = await listPlugins();
+    for (final plugin in _prioritizeAutoPlugins(plugins)) {
+      try {
+        final source = await File(plugin.path).readAsString();
+        final result = await _sandbox.callPluginRaw(
+          source,
+          'getTopLists',
+          const [],
+          timeout: timeout,
+        );
+        final list = result is List
+            ? result
+            : (result is Map
+                  ? (result['__array'] ?? result['data']) as List?
+                  : null);
+        if (list == null || list.isEmpty) continue;
+        // 插件返回的是「分组 → 子榜」(如 {title: 官方榜, data: [热歌榜, 飙升榜…]}),
+        // 直接拿分组去取详情会得到 0 首,必须展平成可选榜单列表。
+        final flat = <Map<String, dynamic>>[];
+        for (final raw in list) {
+          if (raw is! Map) continue;
+          final group = Map<String, dynamic>.from(raw);
+          final children = group['data'];
+          if (children is List && children.isNotEmpty) {
+            for (final child in children) {
+              if (child is! Map) continue;
+              flat.add({
+                ...group,
+                ...Map<String, dynamic>.from(child),
+                'platform': plugin.platform,
+              });
+            }
+          } else {
+            flat.add({...group, 'platform': plugin.platform});
+          }
+        }
+        if (flat.isEmpty) continue;
+        return flat;
+      } catch (_) {
+        // 该源不支持排行榜,换下一个
+      }
+    }
+    return const [];
+  }
+
+  /// 取某个排行榜的歌曲列表(首页热歌卡点击播放用)。
+  Future<List<Map<String, dynamic>>> topListDetail(
+    Map<String, dynamic> topList, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final platform = topList['platform'] as String?;
+    final plugins = await listPlugins();
+    for (final plugin in plugins) {
+      if (platform != null && plugin.platform != platform) continue;
+      try {
+        final source = await File(plugin.path).readAsString();
+        final result = await _sandbox.callPlugin(
+          source,
+          'getTopListDetail',
+          [pluginItem(topList)],
+          timeout: timeout,
+        );
+        final songs = (result['musicList'] ?? result['data']) as List?;
+        if (songs == null || songs.isEmpty) continue;
+        final normalized = <Map<String, dynamic>>[];
+        for (final raw in songs) {
+          if (raw is! Map) continue;
+          final item = Map<String, dynamic>.from(raw);
+          normalizeResultItem(item, platform: plugin.platform);
+          normalized.add(item);
+        }
+        return normalized;
+      } catch (_) {
+        // 换下一个同名源
+      }
+    }
+    return const [];
+  }
+
   /// 自动模式插件排序与过滤:
   /// - 已知失效音源(官方 API 已死且无代理兜底)直接跳过,避免拖慢搜索
   /// - 同平台多个变体只保留一个(如多个『酷我』),减少重复请求

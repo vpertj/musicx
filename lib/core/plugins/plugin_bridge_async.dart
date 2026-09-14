@@ -126,6 +126,10 @@ class PluginBridgeAsync {
       final value = data['value'];
       if (value is Map<String, dynamic>) {
         call.completer.complete(value);
+      } else if (value is List) {
+        // 生态里存在返回数组的接口(getTopLists 等):包一层交给调用方解包,
+        // 直接判为错误会让「首页热歌榜」这类功能永远取不到数据。
+        call.completer.complete(<String, dynamic>{'__array': value});
       } else {
         call.completer.completeError(
           PluginCallException(call.method, 'plugin returned non-object value'),

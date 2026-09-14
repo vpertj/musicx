@@ -45,12 +45,15 @@ void main() {
         child: const MaterialApp(home: SearchPage()),
       ),
     );
-    await tester.pumpAndSettle();
+    // 首页会异步拉推荐,加载态有持续动画 → 用 pump 而非 pumpAndSettle
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     for (final label in ['自动', '腾讯音乐', '网yi', '酷我(念心音源)']) {
       expect(find.text(label), findsNothing, reason: '首页不应再出现音源芯片「$label」');
     }
-    expect(find.text('热门推荐'), findsOneWidget, reason: '首页其余内容保持');
+    // 首页其余内容保持(加载态下静态「热门推荐」会被动态推荐替代,故断言搜索框)
+    expect(find.text('搜索歌曲 / 歌手 / 专辑'), findsOneWidget);
   });
 
   testWidgets('歌曲列表不显示来源标签,但保留下载/加歌单按钮', (tester) async {
