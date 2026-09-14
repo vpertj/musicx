@@ -763,7 +763,10 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           }
           final plugins = snapshot.data ?? const [];
           if (plugins.isEmpty) {
-            return _EmptyPlugins(onInstall: _installFromUrl);
+            return _EmptyPlugins(
+              onInstall: _installFromUrl,
+              onDownloadBundled: _downloadBundledSources,
+            );
           }
           final source = ref.watch(searchSourceProvider);
           // 自适应:宽屏左右栏(左侧菜单 + 右侧内容),窄屏单列
@@ -1296,9 +1299,15 @@ class _PluginCard extends StatelessWidget {
 /// 已安装音源行:选中(默认)高亮描边 + 右上角徽标 + 删除。
 
 class _EmptyPlugins extends StatelessWidget {
-  const _EmptyPlugins({required this.onInstall});
+  const _EmptyPlugins({
+    required this.onInstall,
+    required this.onDownloadBundled,
+  });
 
   final VoidCallback onInstall;
+
+  /// 一键安装随 App 内置的默认音源(新用户首屏入口)。
+  final VoidCallback onDownloadBundled;
 
   @override
   Widget build(BuildContext context) {
@@ -1333,7 +1342,7 @@ class _EmptyPlugins extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '在线安装或导入订阅源,启用搜索与播放',
+              'App 已内置默认音源,一键即可开始使用',
               textAlign: TextAlign.center,
               style: textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
@@ -1341,7 +1350,16 @@ class _EmptyPlugins extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            // 真机验证发现:空态此前只有「在线安装插件」,新用户根本看不到
+            // 「下载音源」入口(它在「音乐源」分组里,而该分组只在有插件时渲染),
+            // 内置音源等于白做。这里把一键下载放到首屏主按钮位置。
             FilledButton.icon(
+              onPressed: onDownloadBundled,
+              icon: const Icon(Icons.download_rounded),
+              label: const Text('下载内置音源'),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
               onPressed: onInstall,
               icon: const Icon(Icons.link_rounded),
               label: const Text('在线安装插件'),
@@ -1767,7 +1785,10 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
         error: (e, _) => Center(child: Text('加载失败:$e')),
         data: (plugins) {
           if (plugins.isEmpty) {
-            return _EmptyPlugins(onInstall: widget.onInstallUrl);
+            return _EmptyPlugins(
+              onInstall: widget.onInstallUrl,
+              onDownloadBundled: widget.onInstallBundled,
+            );
           }
           final source = ref.watch(searchSourceProvider);
           return Align(

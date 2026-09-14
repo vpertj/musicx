@@ -11,6 +11,12 @@ export 'package:musicx/core/plugins/plugin_manager.dart' show PluginManager;
 class SearchState {
   final String query;
   final bool loading;
+
+  /// 加载下一页中(与 [loading] 分开:翻页时不替换整页,列表保持可见)。
+  final bool loadingMore;
+
+  /// 音源已无更多结果(继续上滑不再发请求)。
+  final bool isEnd;
   final List<MusicItem> results;
   final String? error;
 
@@ -22,6 +28,8 @@ class SearchState {
   const SearchState({
     this.query = '',
     this.loading = false,
+    this.loadingMore = false,
+    this.isEnd = false,
     this.results = const [],
     this.error,
     this.source,
@@ -30,6 +38,8 @@ class SearchState {
 
   SearchState copyWith({
     bool? loading,
+    bool? loadingMore,
+    bool? isEnd,
     List<MusicItem>? results,
     String? error,
     int? page,
@@ -37,6 +47,8 @@ class SearchState {
     return SearchState(
       query: query,
       loading: loading ?? this.loading,
+      loadingMore: loadingMore ?? this.loadingMore,
+      isEnd: isEnd ?? this.isEnd,
       results: results ?? this.results,
       error: error ?? this.error,
       source: source,
@@ -68,6 +80,8 @@ class SearchController extends Notifier<SearchState> {
         results: items,
         source: source,
         page: 1,
+        // 第一页就空说明没有更多了
+        isEnd: items.isEmpty,
       );
     } catch (e) {
       state = SearchState(query: keyword, error: e.toString(), source: source);
@@ -75,11 +89,14 @@ class SearchController extends Notifier<SearchState> {
   }
 
   /// 加载下一页(滚动到底部触发)。
+  ///
+  /// 不触碰 [SearchState.loading]:翻页期间列表保持原样,仅列表尾部
+  /// 显示小加载器,避免整页替换造成闪白。
   Future<void> loadMore() async {
     final s = state;
-    if (s.loading || s.query.isEmpty) return;
+    if (s.loading || s.loadingMore || s.isEnd || s.query.isEmpty) return;
     final nextPage = s.page + 1;
-    state = s.copyWith(loading: true);
+    state = s.copyWith(loadingMore: true);
     try {
       final manager = ref.read(pluginManagerProvider);
       final result = s.source == null
@@ -89,10 +106,16 @@ class SearchController extends Notifier<SearchState> {
         _parse(result),
         hide: ref.read(hideCoversProvider),
       );
-      state = s.copyWith(results: [...s.results, ...items], page: nextPage);
+      state = state.copyWith(
+        results: [...state.results, ...items],
+        page: nextPage,
+        loadingMore: false,
+        // 音源返回空页或声明没有更多
+        isEnd: items.isEmpty || result['isEnd'] == true,
+      );
     } catch (_) {
       // 分页失败不打扰用户(已有结果),回到非加载态
-      state = s.copyWith(loading: false);
+      state = state.copyWith(loadingMore: false);
     }
   }
 

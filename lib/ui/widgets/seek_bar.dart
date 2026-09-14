@@ -62,6 +62,9 @@ class _SeekBarState extends State<SeekBar> {
             );
           },
           child: SizedBox(
+            // 必须显式撑满宽度:CustomPaint 无 child 时默认 Size.zero,
+            // 否则整条进度条会缩成一个居中的红点(底轨/填充均为 0 宽)。
+            width: double.infinity,
             height: 32,
             child: CustomPaint(
               painter: _SeekBarPainter(

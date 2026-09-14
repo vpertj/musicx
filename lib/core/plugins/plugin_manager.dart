@@ -18,15 +18,26 @@ class PluginManager {
   final PluginSandbox _sandbox;
   final http.Client _client;
 
+  /// 音频总字节数探测(试听片段检测用)。测试注入假探针,免开真实 socket;
+  /// 生产为 null,走 [_audioTotalBytes] 的 dart:io 默认实现。
+  final Future<int> Function(String url)? audioTotalBytesProbe;
+
   /// 共享的 dart:io HttpClient(短音频检测/URL 规范化复用,避免每次新建)。
   /// 延迟初始化;随 manager 生命周期存活,不主动关闭。
   HttpClient? _dartIoClient;
   HttpClient get _dartIo => _dartIoClient ??= HttpClient();
 
-  PluginManager(this.rootDir, {http.Client? client})
-    : _store = PluginStore(rootDir),
-      _sandbox = PluginSandbox(),
-      _client = client ?? http.Client();
+  PluginManager(
+    this.rootDir, {
+    http.Client? client,
+    HttpClient? dartIoClient,
+    this.audioTotalBytesProbe,
+  }) : _store = PluginStore(rootDir),
+       _sandbox = PluginSandbox(),
+       _client = client ?? http.Client(),
+       // 命名参数无法用私有 initializing formal,忽略该 lint
+       // ignore: prefer_initializing_formals
+       _dartIoClient = dartIoClient;
 
   Future<List<PluginInfo>> listPlugins() async {
     final files = _store.scanPluginFiles();
@@ -278,12 +289,11 @@ class PluginManager {
       if (platform != null && plugin.platform != platform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.callPlugin(
-          source,
-          'search',
-          [keyword, page, 'music'],
-          timeout: timeout,
-        );
+        final result = await _sandbox.callPlugin(source, 'search', [
+          keyword,
+          page,
+          'music',
+        ], timeout: timeout);
         // 宿主补全:MusicFree 协议中 platform/songId 由宿主填充,
         // 插件结果往往缺省(如 bilibili 只返回 id)。
         _normalizeResults(result, platform: plugin.platform);
@@ -360,19 +370,61 @@ class PluginManager {
     }
   }
 
+  /// 媒体地址缓存:预取/重试/切回同一首歌时直接命中,不再走插件解析
+  /// (解析要起 isolate + 多次网络请求,秒级耗时;缓存命中近瞬时)。
+  /// 取流地址通常带签名时效,TTL 取 10 分钟足够短。
+  static const Duration _mediaCacheTtl = Duration(minutes: 10);
+  final Map<String, ({Map<String, dynamic> result, DateTime expiry})>
+  _mediaCache = {};
+
+  String _mediaCacheKey(Map<String, dynamic> musicItem, String quality) =>
+      '${musicItem['platform']}|${musicItem['songId'] ?? musicItem['id']}|$quality';
+
   /// 根据 musicItem 解析真实播放地址(走插件 getMediaSource)。
-  /// 按 musicItem.platform 匹配对应插件,避免跨源错误调用
-  /// (如用网易云 songId 去酷我接口拿到错误提示)。
-  /// [quality]: 音质(low/standard/high/super),默认 standard。
-  /// 根据 musicItem 解析真实播放地址(走插件 getMediaSource)。
-  /// 按 musicItem.platform 匹配对应插件,避免跨源错误调用;
-  /// 若精确匹配的插件解析失败(如酷我独家音源官方 API 失效),
-  /// 自动降级尝试同平台其它插件(platform 包含相同关键词)。
+  /// 命中缓存近瞬时返回;未命中走 [_resolveMediaSourceUncached] 并写缓存。
   /// [quality]: 音质(low/standard/high/super),默认 standard。
   Future<Map<String, dynamic>> resolveMediaSource(
     Map<String, dynamic> musicItem, {
     String quality = 'standard',
     Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final key = _mediaCacheKey(musicItem, quality);
+    final hit = _mediaCache[key];
+    if (hit != null && DateTime.now().isBefore(hit.expiry)) {
+      return hit.result;
+    }
+    final result = await _resolveMediaSourceUncached(
+      musicItem,
+      quality: quality,
+      timeout: timeout,
+    );
+    _mediaCache[key] = (
+      result: result,
+      expiry: DateTime.now().add(_mediaCacheTtl),
+    );
+    // 简单上限:防止长会话膨胀(FIFO 淘汰)
+    while (_mediaCache.length > 64) {
+      _mediaCache.remove(_mediaCache.keys.first);
+    }
+    return result;
+  }
+
+  /// 预取播放地址(只预热缓存,不抛错 —— 供切歌提速,失败不影响播放)。
+  Future<void> prefetchMediaSource(
+    Map<String, dynamic> musicItem, {
+    String quality = 'standard',
+  }) async {
+    try {
+      await resolveMediaSource(musicItem, quality: quality);
+    } catch (_) {
+      // 预取失败静默:真正切歌时会按原流程重试
+    }
+  }
+
+  Future<Map<String, dynamic>> _resolveMediaSourceUncached(
+    Map<String, dynamic> musicItem, {
+    required String quality,
+    required Duration timeout,
   }) async {
     final plugins = await listPlugins();
     final wantPlatform = musicItem['platform'] as String?;
@@ -388,6 +440,11 @@ class PluginManager {
           timeout,
         );
         if (result['url'] != null && (result['url'] as String).isNotEmpty) {
+          // 第一轮同样做试听检测:网易/腾讯对 VIP 歌返回 20~45 秒试听,
+          // 命中则落入后续轮次换完整版(与二/三轮判定口径一致)。
+          if (await _isPreviewAudio(result['url'] as String, musicItem)) {
+            continue;
+          }
           return result;
         }
       } catch (_) {
@@ -466,12 +523,11 @@ class PluginManager {
       if (plugin.platform == wantPlatform) continue;
       try {
         final source = await File(plugin.path).readAsString();
-        final found = await _sandbox.callPlugin(
-          source,
-          'search',
-          [keyword, 1, 'music'],
-          timeout: timeout,
-        );
+        final found = await _sandbox.callPlugin(source, 'search', [
+          keyword,
+          1,
+          'music',
+        ], timeout: timeout);
         final data = (found['data'] as List?) ?? const [];
         for (final raw in data) {
           if (raw is! Map) continue;
@@ -501,9 +557,10 @@ class PluginManager {
 
   /// 判断两个结果是否为同一首歌:歌名归一化后相等,且歌手有交集。
   bool _sameSong(Map<String, dynamic> a, Map<String, dynamic> b) {
-    String norm(Object? v) => (v as String? ?? '')
-        .toLowerCase()
-        .replaceAll(RegExp(r'[\s\(\)\[\]【】\-—_·.,，、]'), '');
+    String norm(Object? v) => (v as String? ?? '').toLowerCase().replaceAll(
+      RegExp(r'[\s\(\)\[\]【】\-—_·.,，、]'),
+      '',
+    );
     final ta = norm(a['title']);
     final tb = norm(b['title']);
     if (ta.isEmpty || ta != tb) return false;
@@ -538,7 +595,9 @@ class PluginManager {
     String url,
     Map<String, dynamic> musicItem,
   ) async {
-    final bytes = await _audioTotalBytes(url);
+    final bytes = audioTotalBytesProbe != null
+        ? await audioTotalBytesProbe!(url)
+        : await _audioTotalBytes(url);
     if (bytes <= 0) return false;
     final durationMs = (musicItem['duration'] as num?)?.toInt();
     return looksLikePreview(contentLength: bytes, durationMs: durationMs);
@@ -575,12 +634,11 @@ class PluginManager {
     Duration timeout,
   ) async {
     final source = await File(plugin.path).readAsString();
-    final result = await _sandbox.callPlugin(
-      source,
-      'getMediaSource',
-      [musicItem, quality],
-      timeout: timeout,
-    );
+    final result = await _sandbox.callPlugin(source, 'getMediaSource', [
+      // 还原插件专属字段(如 QQ 的 songmid/strMediaMid),否则部分插件取不到流
+      pluginItem(musicItem),
+      quality,
+    ], timeout: timeout);
     final raw = result['url'] as String?;
     if (raw == null || raw.isEmpty) {
       throw Exception('plugin returned empty url');
@@ -608,53 +666,59 @@ class PluginManager {
               base.isNotEmpty &&
               (plugin.platform == base || plugin.platform.startsWith(base)));
       if (!matches) continue;
-      try {
-        final source = await File(plugin.path).readAsString();
-        final result = await _sandbox.callPlugin(
-          source,
-          'getLyric',
-          [musicItem],
-          timeout: timeout,
-        );
-        // MusicFree 协议:插件可返回 `rawLrc`(歌词纯文本)或 `url`(歌词源地址)
-        final rawLrc = result['rawLrc'];
-        if (rawLrc is String && rawLrc.isNotEmpty) {
-          return rawLrc;
-        }
-        final url = result['url'];
-        if (url is String && url.isNotEmpty) {
-          final client = http.Client();
-          try {
-            final resp = await client
-                .get(
-                  Uri.parse(url),
-                  headers: const {
-                    'user-agent': 'Mozilla/5.0',
-                    'referer': 'https://music.163.com/',
-                  },
-                )
-                .timeout(timeout);
-            if (resp.statusCode == 200) {
-              final body = utf8.decode(resp.bodyBytes);
-              // 歌词接口返回 JSON,提取 lrc.lyric 字段
-              try {
-                final map = jsonDecode(body);
-                if (map is Map && map['lrc'] is Map) {
-                  final lrc = (map['lrc'] as Map)['lyric'];
-                  if (lrc is String && lrc.isNotEmpty) return lrc;
+      // 上游歌词接口会偶发失败:安卓模拟器实测酷我歌词接口返回 null,
+      // 插件抛 `cannot read property 'lrclist' of null`,一次失败就返回空
+      // 会让用户看到「没有歌词」。故单插件重试一次再放弃(仍是毫秒级)。
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        try {
+          final source = await File(plugin.path).readAsString();
+          final result = await _sandbox.callPlugin(source, 'getLyric', [
+            // 关键:tx.js 的歌词接口用 musicItem.songmid,该字段只存在于
+            // 插件原始结果中,必须从 extra 还原,否则歌词为空。
+            pluginItem(musicItem),
+          ], timeout: timeout);
+          // MusicFree 协议:插件可返回 `rawLrc`(歌词纯文本)或 `url`(歌词源地址)
+          final rawLrc = result['rawLrc'];
+          if (rawLrc is String && rawLrc.isNotEmpty) {
+            return rawLrc;
+          }
+          final url = result['url'];
+          if (url is String && url.isNotEmpty) {
+            final client = http.Client();
+            try {
+              final resp = await client
+                  .get(
+                    Uri.parse(url),
+                    headers: const {
+                      'user-agent': 'Mozilla/5.0',
+                      'referer': 'https://music.163.com/',
+                    },
+                  )
+                  .timeout(timeout);
+              if (resp.statusCode == 200) {
+                final body = utf8.decode(resp.bodyBytes);
+                // 歌词接口返回 JSON,提取 lrc.lyric 字段
+                try {
+                  final map = jsonDecode(body);
+                  if (map is Map && map['lrc'] is Map) {
+                    final lrc = (map['lrc'] as Map)['lyric'];
+                    if (lrc is String && lrc.isNotEmpty) return lrc;
+                  }
+                } catch (_) {
+                  // 非 JSON(如直接 LRC 文本),原样返回
                 }
-              } catch (_) {
-                // 非 JSON(如直接 LRC 文本),原样返回
+                return body;
               }
-              return body;
+            } finally {
+              client.close();
             }
-          } finally {
-            client.close();
+          }
+        } catch (e) {
+          // 该插件无歌词或失败,继续下一个;记录日志便于诊断。
+          if (attempt == 2) {
+            debugPrint('MusicX 歌词: [${plugin.platform}] getLyric 失败: $e');
           }
         }
-      } catch (e) {
-        // 该插件无歌词或失败,继续下一个;记录日志便于诊断。
-        debugPrint('MusicX 歌词: [${plugin.platform}] getLyric 失败: $e');
       }
     }
     debugPrint(

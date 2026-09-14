@@ -29,10 +29,30 @@ void normalizeResultItem(
   Map<dynamic, dynamic> item, {
   required String platform,
 }) {
+  // 先把插件原始字段整体存进 extra:MusicItem 只保留固定字段,
+  // 插件专属字段(如腾讯音乐的 songmid/strMediaMid、酷我的 albumId)在
+  // 往返后会丢失,导致 getLyric/getMediaSource 拿到 undefined 而失败。
+  // 实测:腾讯音乐歌词接口依赖 songmid,丢失后歌词页显示「暂无歌词」。
+  if (item['extra'] is! Map || (item['extra'] as Map).isEmpty) {
+    item['extra'] = Map<String, dynamic>.from(item);
+  }
   item['platform'] = platform;
   final songId = item['songId'];
   if (songId is! String || songId.isEmpty) {
     item['songId'] = item['id'];
   }
   item['duration'] = normalizeDurationMs(item['duration']);
+}
+
+/// 调用插件前把 extra 里保存的原始字段还原到条目上。
+///
+/// 条目自身的字段优先(宿主补全/修正过的值不能被旧值覆盖),
+/// extra 只补空缺。没有 extra 时原样返回(不复制,避免无谓开销)。
+Map<String, dynamic> pluginItem(Map<String, dynamic> item) {
+  final extra = item['extra'];
+  if (extra is! Map || extra.isEmpty) return item;
+  return {
+    for (final e in extra.entries) '${e.key}': e.value,
+    ...item,
+  };
 }

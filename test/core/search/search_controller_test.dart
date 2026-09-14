@@ -71,4 +71,51 @@ module.exports = { platform: "demo", version: "0.1.0",
     // 时长未知的歌曲不被误杀
     expect(titles, contains('无时长字段'));
   });
+
+  test('loadMore 追加结果、列表保持可见、翻页到底后停止请求', () async {
+    const paged = '''
+module.exports = { platform: "demo", version: "0.1.0",
+  search: function (q, page) {
+    page = page || 1;
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        var data = page <= 2
+            ? [ { id: "p" + page, title: "歌曲第" + page + "页", duration: 180000,
+                  platform: "demo", songId: "p" + page, extra: {} } ]
+            : [];
+        resolve({ isEnd: page >= 2, data: data });
+      }, 60);
+    });
+  },
+  getMediaSource: function (m) { return { url: "https://x/a.mp3" }; }
+};
+''';
+    File('${tmp.path}/demo.js').deleteSync();
+    File('${tmp.path}/paged.js').writeAsStringSync(paged);
+    final container = ProviderContainer(
+      overrides: [pluginManagerProvider.overrideWithValue(PluginManager(tmp))],
+    );
+    addTearDown(container.dispose);
+    final ctrl = container.read(searchControllerProvider.notifier);
+    await ctrl.search('歌');
+    expect(container.read(searchControllerProvider).results, hasLength(1));
+
+    // 翻页中:loadingMore 置位但 loading 不动、已有列表保持(整页不闪白的关键)
+    final pending = ctrl.loadMore();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final mid = container.read(searchControllerProvider);
+    expect(mid.loadingMore, isTrue);
+    expect(mid.loading, isFalse);
+    expect(mid.results, hasLength(1));
+    await pending;
+
+    final s2 = container.read(searchControllerProvider);
+    expect(s2.results, hasLength(2));
+    expect(s2.loadingMore, isFalse);
+    expect(s2.isEnd, isTrue); // 第 2 页 isEnd=true
+
+    // 到底后再触发:不再发请求(isEnd 守卫),结果不变
+    await ctrl.loadMore();
+    expect(container.read(searchControllerProvider).results, hasLength(2));
+  });
 }

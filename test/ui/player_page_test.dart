@@ -44,6 +44,11 @@ void main() {
     // 底部固定控制台:进度条始终可见;队列入口在顶部右上角
     expect(find.byType(SeekBar), findsOneWidget);
     expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
+    // 回归:CustomPaint 无 child 默认 Size.zero,曾把进度条缩成居中一个
+    // 红点(底轨/填充 0 宽)—— SeekBar 必须真实撑满可用宽度。
+    final barSize = tester.getSize(find.byType(SeekBar));
+    expect(barSize.width, greaterThan(300));
+    expect(barSize.height, 32);
   });
 
   testWidgets('歌词视图下进度条与控制台仍可见', (tester) async {

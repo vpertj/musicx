@@ -111,6 +111,7 @@ class PlayerController extends Notifier<PlayerState> {
 
   Future<void> playFromList(List<MusicItem> songs, int index) async {
     if (songs.isEmpty) return;
+    _localPaths = null; // 切回在线队列
     state = state.copyWith(
       queue: List.of(songs),
       currentIndex: index,
@@ -217,30 +218,57 @@ class PlayerController extends Notifier<PlayerState> {
   }
 
   /// 播放本地下载的音频文件(不经过插件解析)。
-  Future<void> playLocal(MusicItem song, String filePath) async {
+  /// [paths] 与 [songs] 一一对应时整表作为队列连播(下一首/上一首在本表内循环);
+  /// 不传则单曲队列。本地播放零网络解析,切歌近瞬时。
+  Future<void> playLocal(
+    MusicItem song,
+    String filePath, {
+    List<MusicItem>? songs,
+    List<String>? paths,
+  }) async {
+    final queue = songs ?? [song];
+    final pathList = paths ?? [filePath];
+    final index = songs == null ? 0 : songs.indexOf(song);
     state = state.copyWith(
-      queue: [song],
-      currentIndex: 0,
+      queue: List.of(queue),
+      currentIndex: index < 0 ? 0 : index,
       isPlaying: false,
       clearError: true,
       position: Duration.zero,
       duration: Duration.zero,
       lyric: const [],
     );
+    _localPaths = pathList;
     try {
-      final service = ref.read(playerServiceProvider);
-      await service.playUrl('file://$filePath');
-      state = state.copyWith(isPlaying: true, clearError: true);
+      await _playCurrentLocal();
     } catch (e) {
       if (e.toString().contains('Loading interrupted')) return;
       state = state.copyWith(error: e.toString());
     }
   }
 
+  /// 与队列平行的本地文件路径;非 null 表示当前队列为本地播放模式。
+  List<String>? _localPaths;
+
+  Future<void> _playCurrentLocal() async {
+    final current = state.current;
+    final paths = _localPaths;
+    if (current == null || paths == null) return;
+    if (state.currentIndex >= paths.length) return;
+    final service = ref.read(playerServiceProvider);
+    await service.playUrl('file://${paths[state.currentIndex]}');
+    state = state.copyWith(isPlaying: true, clearError: true);
+  }
+
   /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报)。
   int _playToken = 0;
 
   Future<void> _playCurrent() async {
+    // 本地队列:直接播文件,不走插件解析
+    if (_localPaths != null) {
+      await _playCurrentLocal();
+      return;
+    }
     final current = state.current;
     if (current == null) return;
     final token = ++_playToken;
@@ -253,6 +281,9 @@ class PlayerController extends Notifier<PlayerState> {
       final url = media['url'] as String;
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
+      // 后台预取下一首的播放地址:真正切歌时命中缓存,接近瞬时。
+      // (放在歌词解析前,尽早发出)
+      _prefetchNext();
       // 歌词解析较慢且非阻塞;完成后再校验 token,避免旧请求写入新请求的歌词。
       final lyricText = await manager.resolveLyric(current.toJson());
       if (token != _playToken) return;
@@ -264,5 +295,13 @@ class PlayerController extends Notifier<PlayerState> {
       if (e.toString().contains('Loading interrupted')) return;
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  /// 预取下一首播放地址(配合 PluginManager 的媒体缓存,切歌零等待)。
+  void _prefetchNext() {
+    final idx = _advance(forward: true);
+    if (idx == null) return;
+    final upcoming = state.queue[idx];
+    ref.read(pluginManagerProvider).prefetchMediaSource(upcoming.toJson());
   }
 }

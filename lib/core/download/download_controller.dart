@@ -16,11 +16,15 @@ final downloadControllerProvider =
     );
 
 class DownloadController extends Notifier<List<DownloadedSong>> {
-  /// 下载目录:优先系统下载目录下的 MusicX(跨平台),退回临时目录。
+  /// 下载目录:优先系统下载目录下的 MusicX(跨平台);
+  /// 不可写(如安卓 scoped storage)时回退应用私有持久目录 —— 列表仍以
+  /// downloads.json 为准在应用内展示,用户不会「下载后找不到」;
+  /// 临时目录仅作最后兜底(可能被系统清理)。
   static Directory downloadDir() {
     final downloadsBase = AppPaths.downloadsBase;
     final candidates = <Directory>[
       if (downloadsBase != null) Directory('${downloadsBase.path}/MusicX'),
+      Directory('${AppPaths.base.path}/downloads'),
       Directory('${Directory.systemTemp.path}/musicx_downloads'),
     ];
     for (final d in candidates) {

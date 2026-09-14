@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/models/music_item.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/widgets/playlist_picker.dart';
 
 /// 弹出音质选择器并下载歌曲。
+///
+/// 下载成功后紧接着弹出「加入歌单」选择器(我喜欢的 / 已有歌单 / 新建歌单
+/// 并加入),让用户当场把歌归档;直接关掉即跳过,不强制分类。
 Future<void> showDownloadPicker(
   BuildContext context,
   WidgetRef ref,
@@ -63,6 +67,9 @@ Future<void> showDownloadPicker(
     final path = await ref
         .read(downloadControllerProvider.notifier)
         .download(song, quality);
+    if (!context.mounted) return;
+    // 下载完成 → 引导归档歌单(可关闭跳过)
+    await showPlaylistPicker(context, ref, song);
     messenger.showSnackBar(SnackBar(content: Text('✅ 已下载: $path')));
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('下载失败: $e')));

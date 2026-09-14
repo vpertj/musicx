@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/models/music_item.dart';
+import 'package:musicx/ui/downloads/download_page.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
 
@@ -69,6 +71,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     final lib = ref.watch(libraryControllerProvider);
+    final downloadCount = ref.watch(
+      downloadControllerProvider,
+    ).length; // 首位入口:下载音乐数量随下载实时更新
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -83,6 +88,38 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     // AppBar 标题:默认「我的」,选中歌单时显示歌单名
     final appBarTitle = _selected == null ? '我的' : title;
+
+    // 分类条目(两种布局共用)
+    final categories = <_Category>[
+      _Category(
+        label: '我喜欢的',
+        icon: Icons.favorite_rounded,
+        selected: _selected == null,
+        onTap: () => setState(() => _selected = null),
+      ),
+      // 下载音乐:固定入口(手机端此前没有下载列表入口)
+      _Category(
+        label: '下载音乐 ($downloadCount)',
+        icon: Icons.download_for_offline_outlined,
+        selected: false,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const DownloadPage()),
+        ),
+      ),
+      for (final p in lib.playlists)
+        _Category(
+          label: p.name,
+          icon: Icons.queue_music_rounded,
+          selected: _selected == p.id,
+          onTap: () => setState(() => _selected = p.id),
+        ),
+      _Category(
+        label: '新建歌单',
+        icon: Icons.add_rounded,
+        selected: false,
+        onTap: _createPlaylist,
+      ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -104,40 +141,48 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 分类选择:我喜欢的 + 歌单 + 新建
-              SizedBox(
-                height: 52,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  itemCount: lib.playlists.length + 2,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) {
-                    if (i == 0) {
-                      return _CatChip(
-                        label: '♥ 我喜欢的',
-                        selected: _selected == null,
-                        onTap: () => setState(() => _selected = null),
-                      );
-                    }
-                    if (i == lib.playlists.length + 1) {
-                      return _CatChip(
-                        label: '＋ 新建歌单',
-                        selected: false,
-                        onTap: _createPlaylist,
-                      );
-                    }
-                    final p = lib.playlists[i - 1];
-                    return _CatChip(
-                      label: p.name,
-                      selected: _selected == p.id,
-                      onTap: () => setState(() => _selected = p.id),
+              // 分类选择:窄屏横滑芯片;宽屏(桌面)竖排列表
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth >= 760) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final c in categories)
+                            _CategoryTile(category: c),
+                        ],
+                      ),
                     );
-                  },
-                ),
+                  }
+                  return SizedBox(
+                    height: 52,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      itemCount: categories.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
+                        final c = categories[i];
+                        return _CatChip(
+                          label: switch (i) {
+                            0 => '♥ ${c.label}',
+                            1 => '⬇ ${c.label}',
+                            _ when i == categories.length - 1 =>
+                              '＋ ${c.label}',
+                            _ => c.label,
+                          },
+                          selected: c.selected,
+                          onTap: c.onTap,
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -210,6 +255,83 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 分类条目描述(横滑芯片与竖排列表共用)。
+class _Category {
+  const _Category({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+}
+
+/// 宽屏(桌面)竖排分类行:图标 + 名称,选中行高亮。
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({required this.category});
+
+  final _Category category;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: category.selected
+            ? scheme.primaryContainer
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: category.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: [
+                Icon(
+                  category.icon,
+                  size: 18,
+                  color: category.selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    category.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: category.selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: category.selected
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (category.selected)
+                  Icon(
+                    Icons.check_rounded,
+                    size: 16,
+                    color: scheme.onPrimaryContainer,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

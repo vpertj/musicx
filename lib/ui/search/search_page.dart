@@ -716,14 +716,21 @@ class _ResultViewState extends State<_ResultView> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    if (state.loading) return _LoadingView(query: state.query);
-    if (state.error != null) {
+    // 仅「首屏加载」才整页转圈;翻页(loadMore)时列表保持可见,尾部小加载器,
+    // 避免每次上滑加载下一页整页闪白。
+    if (state.loading && state.results.isEmpty) {
+      return _LoadingView(query: state.query);
+    }
+    if (state.error != null && state.results.isEmpty) {
       return _ErrorView(error: state.error!, onRetry: widget.onRetry);
     }
     if (state.results.isEmpty) return _EmptyResultView(query: state.query);
 
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    // 列表尾部:翻页中显示小加载器;没有更多时显示「已加载全部」
+    final footerCount =
+        (state.loadingMore || state.isEnd) && !state.loading ? 1 : 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,8 +773,15 @@ class _ResultViewState extends State<_ResultView> {
           child: ListView.builder(
             controller: _scroll,
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
-            itemCount: state.results.length,
+            itemCount: state.results.length + footerCount,
             itemBuilder: (context, index) {
+              if (index >= state.results.length) {
+                return _ListFooter(
+                  loadingMore: state.loadingMore,
+                  isEnd: state.isEnd,
+                  total: state.results.length,
+                );
+              }
               final song = state.results[index];
               return SongTile(
                 song: song,
@@ -782,6 +796,54 @@ class _ResultViewState extends State<_ResultView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 列表尾部:翻页小加载器 / 已加载全部提示(不替换列表,无感加载)。
+class _ListFooter extends StatelessWidget {
+  const _ListFooter({
+    required this.loadingMore,
+    required this.isEnd,
+    required this.total,
+  });
+
+  final bool loadingMore;
+  final bool isEnd;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: loadingMore
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '加载中…',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                '已加载全部 $total 首',
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.outline,
+                ),
+              ),
+      ),
     );
   }
 }

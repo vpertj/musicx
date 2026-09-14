@@ -42,6 +42,48 @@ void main() {
     expect(item['duration'], 269000);
   });
 
+  test('normalizeResultItem 保留插件专属字段到 extra(songmid 等)', () {
+    final item = <String, dynamic>{
+      'id': 97773,
+      'title': '晴天',
+      'songmid': '0039MnYb0qxYhV',
+      'strMediaMid': '003Qui1q2u1Zho',
+      'mid': '0039MnYb0qxYhV',
+      'duration': 269,
+    };
+    normalizeResultItem(item, platform: '腾讯音乐');
+
+    final extra = item['extra'] as Map<String, dynamic>;
+    expect(extra['songmid'], '0039MnYb0qxYhV');
+    expect(extra['strMediaMid'], '003Qui1q2u1Zho');
+  });
+
+  test('pluginItem 把 extra 里的专属字段还原给插件(item 自身优先)', () {
+    final item = <String, dynamic>{
+      'id': '97773',
+      'title': '晴天',
+      'platform': '腾讯音乐',
+      'songId': '97773',
+      'duration': 269000,
+      'extra': <String, dynamic>{
+        'songmid': '0039MnYb0qxYhV',
+        'strMediaMid': '003Qui1q2u1Zho',
+        'title': '旧标题',
+      },
+    };
+    final forPlugin = pluginItem(item);
+    expect(forPlugin['songmid'], '0039MnYb0qxYhV',
+        reason: 'tx.js 的 getLyric 依赖 songmid,丢了就取不到歌词');
+    expect(forPlugin['strMediaMid'], '003Qui1q2u1Zho');
+    expect(forPlugin['title'], '晴天', reason: 'item 自身字段优先');
+    expect(forPlugin['duration'], 269000);
+  });
+
+  test('pluginItem 对没有 extra 的条目原样返回', () {
+    final item = <String, dynamic>{'id': '1', 'title': 'x'};
+    expect(pluginItem(item), same(item));
+  });
+
   test('normalizeResultItem 不动已有的 songId', () {
     final item = <String, dynamic>{'id': 1, 'songId': 'keep', 'duration': 200000};
     normalizeResultItem(item, platform: 'x');
