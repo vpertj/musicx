@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
+import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/providers.dart'
     show pluginManagerProvider, pluginListProvider;
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/models/plugin_source.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/core/plugins/bundled_install.dart';
 import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_settings_section.dart';
@@ -45,15 +47,10 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   Future<void> _refreshBundledPending(List<PluginInfo> installed) async {
     final bundled = await BundledPluginCatalog().list();
     if (bundled.isEmpty) return;
-    final versions = {for (final p in installed) p.platform: p.version};
-    final pending = bundled
-        .where((p) =>
-            bundledInstallState(
-              bundledVersion: p.version,
-              installedVersion: versions[p.platform],
-            ) !=
-            BundledInstallState.installed)
-        .length;
+    final pending = pendingBundledPlugins(
+      bundled: bundled,
+      installedVersions: {for (final p in installed) p.platform: p.version},
+    ).length;
     if (mounted && pending != _bundledPending) {
       setState(() => _bundledPending = pending);
     }
@@ -178,8 +175,68 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   /// 内置音源待处理数(未安装 + 版本不同),用于音乐源分组行的角标。
   int _bundledPending = 0;
 
-  /// 内置音源面板:随 App 打包的默认音源,用户手动安装。
-  Future<void> _installBundledSources() async {
+  /// 读取已安装音源的 platform → version。
+  Future<Map<String, String>> _installedVersions() async {
+    final manager = ref.read(pluginManagerProvider);
+    return {for (final p in await manager.listPlugins()) p.platform: p.version};
+  }
+
+  /// 刷新「内置音源待处理数」角标。
+  Future<void> _syncBundledPending() async {
+    final bundled = await BundledPluginCatalog().list();
+    if (bundled.isEmpty) return;
+    final pending = pendingBundledPlugins(
+      bundled: bundled,
+      installedVersions: await _installedVersions(),
+    ).length;
+    if (mounted && pending != _bundledPending) {
+      setState(() => _bundledPending = pending);
+    } else {
+      _bundledPending = pending;
+    }
+  }
+
+  /// 覆盖安装前先移除同平台旧插件,避免同平台出现多个插件文件。
+  Future<bool> _confirmOverwrite(List<BundledPlugin> plugins) async {
+    final manager = ref.read(pluginManagerProvider);
+    final installed = await manager.listPlugins();
+    if (!mounted) return false;
+    final clash = installed
+        .where((p) => plugins.any((b) => b.platform == p.platform))
+        .toList();
+    if (clash.isEmpty) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('已有 ${clash.length} 个同平台音源'),
+        content: Text(
+          '将覆盖安装:${clash.map((p) => p.platform).join('、')}。'
+          '覆盖会先移除旧版本。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('覆盖安装'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    for (final old in clash) {
+      await manager.uninstall(old);
+    }
+    return true;
+  }
+
+  /// 一键「下载音源」:把所有未安装/可更新的内置音源装好。
+  ///
+  /// 已是最新的直接跳过;只有在需要覆盖同平台已有插件时才弹一次确认,
+  /// 其余全自动,装完给一条汇总提示。
+  Future<void> _downloadBundledSources() async {
     final messenger = ScaffoldMessenger.of(context);
     final manager = ref.read(pluginManagerProvider);
     final catalog = BundledPluginCatalog();
@@ -191,53 +248,65 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       return;
     }
 
-    Future<Map<String, String>> installedMap() async => {
-          for (final p in await manager.listPlugins()) p.platform: p.version,
-        };
+    final pending = pendingBundledPlugins(
+      bundled: bundled,
+      installedVersions: await _installedVersions(),
+    );
+    if (pending.isEmpty) {
+      await _syncBundledPending();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('音源已是最新,无需重复安装')),
+      );
+      return;
+    }
 
-    var installed = await installedMap();
-    _bundledPending = bundled
-        .where((p) =>
-            bundledInstallState(
-              bundledVersion: p.version,
-              installedVersion: installed[p.platform],
-            ) !=
-            BundledInstallState.installed)
-        .length;
+    if (!await _confirmOverwrite(pending)) return;
+
+    final result = await installBundledPlugins(
+      manager: manager,
+      catalog: catalog,
+      plugins: pending,
+    );
+    final done = result.installed.map((p) => p.name).toList();
+    final failed = result.failed.map((p) => p.name).toList();
+
     if (!mounted) return;
+    setState(() => _reload++);
+    _bumpPluginList();
+    await _syncBundledPending();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          failed.isEmpty
+              ? '已安装 ${done.length} 个音源:${done.join('、')}'
+              : '已安装 ${done.length} 个;失败 ${failed.length} 个:${failed.join('、')}',
+        ),
+      ),
+    );
+  }
 
+  /// 内置音源明细面板(查看版本/单独安装或更新)。
+  Future<void> _showBundledSources() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final manager = ref.read(pluginManagerProvider);
+    final catalog = BundledPluginCatalog();
+
+    final bundled = await catalog.list();
+    if (!mounted) return;
+    if (bundled.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('内置音源清单为空')));
+      return;
+    }
+
+    final versions = await _installedVersions();
+    if (!mounted) return;
     await showBundledSourcesSheet(
       context,
       plugins: bundled,
-      installedVersions: installed,
-      installedCount: installed.length,
+      installedVersions: versions,
+      installedCount: versions.length,
       onInstall: (plugin) async {
-        final existing = await manager.listPlugins();
-        if (!mounted) return;
-        final same = existing.where((p) => p.platform == plugin.platform);
-        if (same.isNotEmpty) {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text('覆盖安装「${plugin.name}」?'),
-              content: const Text('已存在同平台音源,覆盖安装会先移除旧版本。'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('覆盖安装'),
-                ),
-              ],
-            ),
-          );
-          if (ok != true) return;
-          for (final old in same) {
-            await manager.uninstall(old);
-          }
-        }
+        if (!await _confirmOverwrite([plugin])) return;
         try {
           final info = await manager.installBundledJs(
             await catalog.readJs(plugin),
@@ -255,17 +324,9 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       },
     );
 
-    // 面板关闭后刷新角标与列表。
-    installed = await installedMap();
-    _bundledPending = bundled
-        .where((p) =>
-            bundledInstallState(
-              bundledVersion: p.version,
-              installedVersion: installed[p.platform],
-            ) !=
-            BundledInstallState.installed)
-        .length;
-    if (mounted) setState(() => _reload++);
+    if (!mounted) return;
+    setState(() => _reload++);
+    await _syncBundledPending();
   }
 
   /// 订阅源导入:输入 plugins.json 地址,列出可选插件。
@@ -395,6 +456,13 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       await ref
           .read(pluginManagerProvider)
           .updatePlugin(p, name: result.name, srcUrl: result.srcUrl);
+      // 改名后当前选中的源要跟着迁移,否则搜索会指着已不存在的平台名。
+      final migrated = migrateSelectedSource(
+        selected: ref.read(searchSourceProvider),
+        from: p.platform,
+        to: result.name,
+      );
+      ref.read(searchSourceProvider.notifier).select(migrated);
       if (mounted) setState(() => _reload++);
       _bumpPluginList();
       messenger.showSnackBar(const SnackBar(content: Text('音源信息已更新')));
@@ -551,7 +619,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           onInstallUrl: _installFromUrl,
           onInstallPath: _installFromPath,
           onInstallSource: _importFromSource,
-          onInstallBundled: _installBundledSources,
+          onInstallBundled: _showBundledSources,
         ),
       ),
     );
@@ -575,10 +643,16 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ),
               const SizedBox(height: 8),
               _MenuItemRow(
-                icon: Icons.widgets_rounded,
-                title: '内置默认音源',
-                trailing: '$_bundledPending',
-                onTap: () => _installBundledSources(),
+                icon: Icons.download_rounded,
+                title: '下载音源',
+                trailing: _bundledPending > 0 ? '$_bundledPending' : '已最新',
+                onTap: () => _downloadBundledSources(),
+              ),
+              const SizedBox(height: 8),
+              _MenuItemRow(
+                icon: Icons.list_alt_rounded,
+                title: '音源明细',
+                onTap: () => _showBundledSources(),
               ),
               const SizedBox(height: 8),
               _MenuItemRow(
@@ -632,7 +706,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             tooltip: '安装插件',
             icon: const Icon(Icons.add_rounded),
             onSelected: (action) => switch (action) {
-              _InstallAction.bundled => _installBundledSources(),
+              _InstallAction.bundled => _downloadBundledSources(),
               _InstallAction.url => _installFromUrl(),
               _InstallAction.source => _importFromSource(),
               _InstallAction.file => _installFromPath(),
@@ -642,8 +716,8 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 value: _InstallAction.bundled,
                 child: ListTile(
                   leading: Icon(Icons.widgets_rounded),
-                  title: Text('安装默认音源'),
-                  subtitle: Text('酷我 / 网易云,随 App 内置'),
+                  title: Text('下载音源'),
+                  subtitle: Text('酷我 / 网易云,随 App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -1614,8 +1688,8 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
                 value: _InstallAction.bundled,
                 child: ListTile(
                   leading: Icon(Icons.widgets_rounded),
-                  title: Text('安装默认音源'),
-                  subtitle: Text('酷我 / 网易云,随 App 内置'),
+                  title: Text('下载音源'),
+                  subtitle: Text('酷我 / 网易云,随 App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

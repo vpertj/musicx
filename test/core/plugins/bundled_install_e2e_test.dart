@@ -18,7 +18,7 @@ void main() {
 
   test('内置清单与插件正文都能从 asset 读到', () async {
     final bundled = await BundledPluginCatalog().list();
-    expect(bundled.map((p) => p.platform), containsAll(['netease', 'kuwo']));
+    expect(bundled.map((p) => p.platform), contains('腾讯音乐'));
     for (final p in bundled) {
       final js = await BundledPluginCatalog().readJs(p);
       expect(js, contains('module.exports'), reason: '${p.name} 正文应可读');
@@ -38,7 +38,7 @@ void main() {
     }
 
     final installed = await manager.listPlugins();
-    expect(installed.map((p) => p.platform), containsAll(['netease', 'kuwo']));
+    expect(installed.map((p) => p.platform), contains('腾讯音乐'));
     // 版本与清单一致(用于「已安装 / 可更新」判定)
     for (final plugin in bundled) {
       final hit = installed.firstWhere((p) => p.platform == plugin.platform);

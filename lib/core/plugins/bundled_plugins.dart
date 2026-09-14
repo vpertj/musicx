@@ -82,6 +82,25 @@ BundledInstallState bundledInstallState({
   return BundledInstallState.updatable;
 }
 
+/// 需要安装/更新的内置音源(未安装 + 版本不同);已是最新的跳过。
+///
+/// 「下载音源」一键安装与面板角标共用同一判定,避免多处条件漂移。
+List<BundledPlugin> pendingBundledPlugins({
+  required List<BundledPlugin> bundled,
+  required Map<String, String> installedVersions,
+}) {
+  return bundled
+      .where(
+        (p) =>
+            bundledInstallState(
+              bundledVersion: p.version,
+              installedVersion: installedVersions[p.platform],
+            ) !=
+            BundledInstallState.installed,
+      )
+      .toList();
+}
+
 /// 内置音源目录:读清单 + 读插件正文。
 ///
 /// asset 读取经构造注入,便于单测(不依赖真实 bundle)。

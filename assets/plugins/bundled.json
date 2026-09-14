@@ -1,19 +1,36 @@
 {
-  "_comment": "随 App 打包的默认音源清单。第三方作品:保留作者与上游地址,不改动插件内原有署名。",
   "plugins": [
     {
-      "name": "网易云音乐",
-      "platform": "netease",
-      "version": "2025.09.14",
-      "asset": "assets/plugins/netease.js",
-      "author": "Thomas喲",
-      "sourceUrl": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/wy.js"
+      "name": "腾讯音乐",
+      "platform": "腾讯音乐",
+      "version": "2025.09.13",
+      "asset": "assets/plugins/tx.js",
+      "author": "",
+      "sourceUrl": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/main/plugins/tx.js"
     },
     {
-      "name": "酷我音乐",
-      "platform": "kuwo",
-      "version": "0.1.0",
-      "asset": "assets/plugins/kuwo.js"
+      "name": "网易云音乐",
+      "platform": "网yi",
+      "version": "2025.09.14",
+      "asset": "assets/plugins/wy.js",
+      "author": "",
+      "sourceUrl": "https://raw.githubusercontent.com/ThomasBy2025/musicfree/main/plugins/wy.js"
+    },
+    {
+      "name": "酷我(独家音源)",
+      "platform": "酷我(独家音源)",
+      "version": "4",
+      "asset": "assets/plugins/kuwo_dujia.js",
+      "author": "竹佀＆玥然OvO",
+      "sourceUrl": "https://raw.gitcode.com/Crystim/mfp/raw/main/%E9%85%B7%E6%88%91_%E7%AB%B9%E7%8E%A5.js"
+    },
+    {
+      "name": "酷我(念心音源)",
+      "platform": "酷我(念心音源)",
+      "version": "1.0.0",
+      "asset": "assets/plugins/kuwo_nianxin.js",
+      "author": "玥然OvO",
+      "sourceUrl": "https://raw.gitcode.com/Crystim/mfp/raw/main/%E9%85%B7%E6%88%91_%E5%BF%B5%E5%BF%83.js"
     }
   ]
 }

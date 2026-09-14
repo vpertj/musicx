@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
+import 'package:musicx/core/plugins/result_normalizer.dart';
 import 'package:musicx/core/utils/app_paths.dart';
 import 'package:musicx/models/plugin_source.dart';
 
@@ -375,12 +376,7 @@ class PluginManager {
     if (data is! List) return;
     for (final item in data) {
       if (item is! Map) continue;
-      // 始终覆盖为当前插件名,插件内硬编码的旧 platform 不参与路由
-      item['platform'] = platform;
-      final songId = item['songId'];
-      if (songId is! String || songId.isEmpty) {
-        item['songId'] = item['id'];
-      }
+      normalizeResultItem(item, platform: platform);
     }
   }
 

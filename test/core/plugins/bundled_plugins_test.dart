@@ -62,6 +62,27 @@ void main() {
     );
   });
 
+  test('一键安装的待装集合:跳过已是最新的,含可更新与未安装', () {
+    final bundled = parseBundledPlugins(_manifest);
+    expect(
+      pendingBundledPlugins(
+        bundled: bundled,
+        installedVersions: const {'netease': '2025.09.14', 'kuwo': '0.1.0'},
+      ),
+      isEmpty,
+    );
+    final pending = pendingBundledPlugins(
+      bundled: bundled,
+      installedVersions: const {'netease': '2025.09.14'},
+    );
+    expect(pending.map((p) => p.platform), ['kuwo']);
+    final updatable = pendingBundledPlugins(
+      bundled: bundled,
+      installedVersions: const {'netease': '2024.01.01'},
+    );
+    expect(updatable.map((p) => p.platform), ['netease', 'kuwo']);
+  });
+
   test('目录:经注入的 loader 读清单与插件正文,不碰真实 asset', () async {
     final files = <String, String>{
       BundledPluginCatalog.manifestAsset: _manifest,

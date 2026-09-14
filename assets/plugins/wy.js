@@ -98,7 +98,7 @@ function formatMusicItem(_) {
     let content = ((_.fee == 0 || _.fee == 8) && (_.privilege ? (_.privilege.st > -1) : 1)) ? 0 : 1;
     return {
         /* 隶属插件 */
-        // platform: "netease",
+        // platform: "网易音乐",
         /* 歌曲类别☆  0免费 1付费 */
         type: ((_.fee == 0 || _.fee == 8) && (_.privilege ? (_.privilege.st > -1) : 1)) ? "0" : "1",
         /* 歌曲在平台的唯一编号 */
@@ -138,7 +138,7 @@ function formatSheetItem(_) {
     _ = _.baseInfo || _;
     return {
         /* 隶属插件 */
-        // platform: "netease",
+        // platform: "网易音乐",
         /* 分组类别☆  2歌单 3榜单 4专辑 */
         type: "2",
         /* 歌单id */
@@ -180,7 +180,7 @@ function formatAlbumItem(_) {
 function formatArtistItem(_) {
     return {
         /* 隶属插件 */
-        // platform: "netease",
+        // platform: "网易音乐",
         /* 分组类别☆ 5歌手 */
         type: "5",
         /* 歌手id */
@@ -523,12 +523,8 @@ async function getMediaSource(musicItem, quality) {
         level: qualityMap[quality]
     })).data;
     if (_ && _[0] && _[0].url) {
-        // 网易云 CDN 偶尔返回 http:// 地址,Android 9+ 默认禁止明文流量,
-        // 统一升级为 https(m*.music.126.net 支持 https)。
-        let u = String(_[0].url).split("?")[0];
-        if (/^http:\/\//i.test(u)) u = "https://" + u.slice(7);
         return {
-            url: u,
+            url: String(_[0].url).split("?")[0],
             size: _[0].size,
             quality,
             // userAgent: "",
@@ -740,21 +736,6 @@ async function getMusicComments(musicItem, page = 1) {
 
 
 // 搜索函数
-// 智能过滤翻唱:若搜索词命中歌手名,只保留该歌手原唱
-function filterCoverSongs(data, keyword) {
-    var kw = String(keyword || "").trim().toLowerCase();
-    if (!kw) return data;
-    var hasSingerHit = data.some(function (it) {
-        var a = String(it.artist || "").toLowerCase();
-        return a === kw || a.split("&").concat(a.split("/")).some(function (x) { return x.trim() === kw; });
-    });
-    if (!hasSingerHit) return data;
-    return data.filter(function (it) {
-        var a = String(it.artist || "").toLowerCase();
-        return a.split("&").concat(a.split("/")).some(function (x) { return x.trim() === kw; });
-    });
-}
-
 async function searchBase(query, page, type, v1 = "") {
     let path = "/api" + v1 + "/search/" + (/\//.test(type) ? type : (type + "/get"));
     let data = {
@@ -770,7 +751,7 @@ async function searchBase(query, page, type, v1 = "") {
     return res.data || res.result;
 }
 module.exports = {
-    platform: "netease",
+   platform: "网yi",
     author: '反馈Q群@365976134',
     version: "2025.09.14",
     appVersion: ">0.4.0-alpha.0",
@@ -832,12 +813,9 @@ module.exports = {
         let list = _.resources || _.albums || _.artists || [];
         let total1 = page * pageSize
         let total2 = _.songCount || _.playlistCount || _.albumCount || _.totalCount || (total1 - pageSize + list.length);
-        let data = list.map(stype.m);
-        // 翻唱过滤(仅歌曲搜索)
-        if (type === 'music') data = filterCoverSongs(data, query);
         return {
             isEnd: total2 <= total1,
-            data: data
+            data: list.map(stype.m)
         }
     },
     importMusicSheet,

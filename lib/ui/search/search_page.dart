@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/search_controller.dart';
 import 'package:musicx/core/search/search_history.dart';
+import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
@@ -44,6 +45,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
+  /// 实际生效的音源:选中的源已被改名/卸载时自动回落「自动」,
+  /// 避免继续用它搜索直接报 plugin not installed。
+  String? get _effectiveSource {
+    final installed =
+        ref.read(pluginListProvider).value?.map((p) => p.platform).toSet() ??
+            const <String>{};
+    return effectiveSearchSource(
+      selected: ref.read(searchSourceProvider),
+      installedPlatforms: installed,
+    );
+  }
+
   void _submit(String raw) {
     final keyword = raw.trim();
     if (keyword.isEmpty) return;
@@ -53,7 +66,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     ref.read(searchHistoryProvider.notifier).add(keyword);
     ref
         .read(searchControllerProvider.notifier)
-        .search(keyword, source: ref.read(searchSourceProvider));
+        .search(keyword, source: _effectiveSource);
   }
 
   /// 切换音源:更新全局设置;若已有搜索词则用新音源重新搜索。
@@ -115,7 +128,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ),
                 // 音源切换条
                 _SourceBar(
-                  selected: ref.watch(searchSourceProvider),
+                  selected: effectiveSearchSource(
+                    selected: ref.watch(searchSourceProvider),
+                    installedPlatforms:
+                        ref.watch(pluginListProvider).value
+                                ?.map((p) => p.platform)
+                                .toSet() ??
+                            const <String>{},
+                  ),
                   onSelect: _selectSource,
                 ),
                 Expanded(
