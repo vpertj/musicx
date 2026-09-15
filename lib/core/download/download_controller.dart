@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:musicx/core/providers.dart' show pluginManagerProvider;
 import 'package:musicx/core/utils/app_paths.dart';
+import 'package:musicx/core/download/lyric_sidecar.dart';
 import 'package:musicx/models/downloaded_song.dart';
 import 'package:musicx/models/music_item.dart';
 
@@ -133,6 +134,19 @@ class DownloadController extends Notifier<List<DownloadedSong>> {
         ...state.where((d) => d.filePath != file.path),
       ];
       _save();
+      // 歌词随歌曲一起下载:旁挂同名 .lrc(用户诉求),离线播放时直接读它。
+      // 取不到歌词(占位文案/确实没有)就不写文件,不影响下载本身。
+      try {
+        final lyric = await manager.resolveLyric(
+          song.toJson(),
+          timeout: const Duration(seconds: 20),
+        );
+        final wrote = await writeLyricSidecar(file.path, lyric);
+        debugPrint('MusicX 下载: 歌词旁挂 ${wrote ? "已写入" : "无可用歌词"} → '
+            '${lrcPathFor(file.path)}');
+      } catch (e) {
+        debugPrint('MusicX 下载: 歌词获取失败(不影响下载): $e');
+      }
       return file.path;
     } finally {
       client.close();

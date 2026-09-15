@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/download/lyric_sidecar.dart';
 import 'package:musicx/core/providers.dart';
 import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/models/lyric_line.dart';
@@ -291,8 +294,16 @@ class PlayerController extends Notifier<PlayerState> {
       ref.read(playHistoryProvider.notifier).record(current.toJson());
     } catch (_) {}
     final service = ref.read(playerServiceProvider);
-    await service.playUrl('file://${paths[state.currentIndex]}');
-    state = state.copyWith(isPlaying: true, clearError: true);
+    final path = paths[state.currentIndex];
+    await service.playUrl('file://$path');
+    // 本地播放优先用**下载时存的旁挂歌词**(离线也有词);没有则不显示歌词,
+    // 也不再联网找(本地播放应完全离线可用)。
+    final sidecar = await readLyricSidecar(path);
+    final lyric = sidecar == null ? const <LyricLine>[] : parseLrc(sidecar);
+    debugPrint(
+      'MusicX 本地歌词: ${lyric.isEmpty ? "无旁挂歌词" : "${lyric.length} 行"} ← $path',
+    );
+    state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
   }
 
   /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报)。
