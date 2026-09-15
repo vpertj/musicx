@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
+
+import 'package:musicx/core/updater/install_decision.dart';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -362,23 +366,79 @@ class UpdateService {
     return sha256.convert(bytes).toString();
   }
 
+  /// 安装包校验结果(供 UI/日志展示)。
+  ///
+  /// 抽成独立方法是为了**可测试**:真机上「下载到的包版本不对」这类问题
+  /// 只能靠版本号核对定位。
+  Future<
+    ({
+      InstallDecision decision,
+      int? apkCode,
+      String? apkVersion,
+      int? installedVersion,
+    })
+  >
+  verifyPackageForInstall({
+    required String path,
+    required String expectedVersion,
+  }) async {
+    final apkCode = await ApkInstaller.versionCodeOf(path);
+    final apkName = await ApkInstaller.versionNameOf(path);
+    final installedCode = await ApkInstaller.versionCode();
+    final decision = decideInstall(
+      apkVersionCode: apkCode,
+      apkVersionName: apkName,
+      installedVersionCode: installedCode,
+      expectedVersion: expectedVersion,
+    );
+    debugPrint(
+      'MusicX 更新校验: 安装包=v${apkName ?? "?"}($apkCode) '
+      '已装=$installedCode 目标=v$expectedVersion → ${decision.name}',
+    );
+    return (
+      decision: decision,
+      apkCode: apkCode,
+      apkVersion: apkName,
+      installedVersion: installedCode,
+    );
+  }
+
   /// 用 DMG 替换当前应用并重启。
   ///
   /// 步骤:挂载 DMG → 复制新版 .app 覆盖当前 .app → 卸载 DMG →
   /// 生成重启脚本(延迟 2s,等本进程退出后 `open` 新应用) → 退出当前进程。
-  Future<void> installAndRestart(File package) async {
+  Future<void> installAndRestart(File package, {String? version}) async {
     // 安卓:把下载好的 APK 交给系统安装器(首次需用户授权「安装未知应用」)。
     // 安装器接管后本进程不需要退出,系统会在安装完成时替换并重启应用。
     if (Platform.isAndroid) {
-      // 交给安装器前核对:安装包版本必须高于已装版本,否则系统会以
-      // 「已安装了更高版本」拒绝(实测:缓存版本号导致重复下载同版本 APK)。
-      final apkCode = await ApkInstaller.versionCodeOf(package.path);
-      final installedCode = await ApkInstaller.versionCode();
-      if (apkCode != null && installedCode != null && apkCode <= installedCode) {
-        throw HttpException(
-          '下载到的安装包版本($apkCode)不高于已安装版本($installedCode),'
-          '已取消安装。请重启应用后重试,或到 GitHub Release 手动下载。',
-        );
+      // 交给安装器前**严格核对**(用户反复遇到「提示有新版却报已安装相同版本」):
+      //   ① 必须能读出安装包与已装应用的版本号(fail-closed,读不到就不装);
+      //   ② 安装包的 versionName 必须等于本次要更新的目标版本;
+      //   ③ 安装包 versionCode 必须严格大于已装版本。
+      // 任一不满足都给出可读原因,绝不再把含糊的「已安装相同版本」留给系统提示。
+      final result = await verifyPackageForInstall(
+        path: package.path,
+        expectedVersion: version ?? '',
+      );
+      switch (result.decision) {
+        case InstallDecision.install:
+          break;
+        case InstallDecision.alreadyLatest:
+          UpdateService.invalidateVersionCache();
+          throw HttpException(
+            '当前已是最新版本 v${result.installedVersion}(安装包 '
+            'v${result.apkVersion}),无需重复安装',
+          );
+        case InstallDecision.mismatchRetry:
+          unawaited(package.delete().catchError((_) => package));
+          throw HttpException(
+            '下载到的安装包是 v${result.apkVersion},与目标版本 v$version 不一致,'
+            '已作废,请重新点击更新',
+          );
+        case InstallDecision.invalid:
+          throw HttpException(
+            '安装包校验失败(无法读取版本信息,可能下载不完整),请重新下载',
+          );
       }
       final ok = await ApkInstaller.installApk(package.path);
       if (!ok) {

@@ -64,6 +64,17 @@ class ApkInstaller {
     }
   }
 
+  /// 读取某个 APK 文件的 versionName(核对是否为目标版本);失败返回 null。
+  static Future<String?> versionNameOf(String path) async {
+    try {
+      return await channel.invokeMethod<String>('apkVersionName', {
+        'path': path,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 把下载好的 APK 交给系统安装器。返回是否成功调起。
   static Future<bool> installApk(String path) async {
     final ok = await channel.invokeMethod<bool>('installApk', {'path': path});

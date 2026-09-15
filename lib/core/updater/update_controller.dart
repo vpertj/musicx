@@ -134,7 +134,8 @@ class UpdateController extends Notifier<UpdateState> {
         expectedSha256: info.dmgSha256,
       );
       state = state.copyWith(phase: UpdatePhase.installing);
-      await service.installAndRestart(pkg);
+      // 把目标版本一并交给校验:安装包的 versionName 必须等于它
+      await service.installAndRestart(pkg, version: info.latestVersion);
       // macOS 的 installAndRestart 会 exit(0),正常不会走到这里。
       if (Platform.isAndroid) {
         // 关键:清掉缓存的版本号,否则本进程仍以为自己是旧版本,
