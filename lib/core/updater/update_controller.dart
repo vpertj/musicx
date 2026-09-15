@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/apk_installer.dart';
+import 'package:musicx/core/updater/install_decision.dart';
 import 'package:musicx/core/updater/update_service.dart';
 import 'package:musicx/core/utils/open_external.dart';
 
@@ -131,6 +133,37 @@ class UpdateController extends Notifier<UpdateState> {
         );
         return;
       }
+    }
+    // 下载前先核对**直链里的版本号**:更新检查若给出旧版本直链,我们会白下载
+    // 60MB 再被系统以「已安装更高版本」拒绝(用户实测)。这里提前拦下并自动
+    // 重新检查一次;重检后仍不可信则给出带版本号的可读提示。
+    final pre = decidePreDownload(
+      assetUrl: info.dmgUrl,
+      installedVersion: installed,
+      expectedLatest: info.latestVersion,
+    );
+    if (pre == PreDownloadDecision.staleCheck) {
+      debugPrint(
+        'MusicX 更新: 直链版本不可信(url=${info.dmgUrl} '
+        'installed=$installed latest=${info.latestVersion}),重新检查',
+      );
+      final retry = await service.checkForUpdate();
+      final pre2 = decidePreDownload(
+        assetUrl: retry.dmgUrl,
+        installedVersion: installed,
+        expectedLatest: retry.latestVersion,
+      );
+      if (pre2 == PreDownloadDecision.staleCheck) {
+        state = state.copyWith(
+          phase: UpdatePhase.error,
+          clearInfo: true,
+          error: '更新包版本(${versionFromAssetUrl(retry.dmgUrl) ?? "未知"})'
+              '不高于当前版本(v$installed),无需更新。'
+              '如仍提示,请到 GitHub Releases 手动下载最新版',
+        );
+        return;
+      }
+      info = retry;
     }
     state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
     try {
