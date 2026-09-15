@@ -20,113 +20,123 @@ Future<void> showPlaylistPicker(
     builder: (ctx) {
       final scheme = Theme.of(ctx).colorScheme;
       final textTheme = Theme.of(ctx).textTheme;
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-              child: Text(
-                '加入歌单',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-              child: Text(
-                song.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: Icon(
-                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: scheme.primary,
-              ),
-              title: const Text('我喜欢的音乐'),
-              trailing: isFav
-                  ? Text(
-                      '已加入',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: scheme.primary,
-                      ),
-                    )
-                  : null,
-              onTap: () {
-                notifier.toggleFavorite(song);
-                Navigator.pop(ctx);
-                messenger.showSnackBar(
-                  SnackBar(content: Text(isFav ? '已取消喜欢' : '已加入「我喜欢的音乐」')),
-                );
-              },
-            ),
-            for (final p in state.playlists)
-              ListTile(
-                leading: const Icon(Icons.queue_music_rounded),
-                title: Text(
-                  p.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${p.songs.length} 首',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                onTap: () {
-                  notifier.addSongToPlaylist(p.id, song);
-                  Navigator.pop(ctx);
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('已加入「${p.name}」')),
-                  );
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.add_rounded),
-              title: const Text('新建歌单并加入'),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final controller = TextEditingController();
-                final name = await showDialog<String>(
-                  context: context,
-                  builder: (dctx) => AlertDialog(
-                    title: const Text('新建歌单'),
-                    content: TextField(
-                      controller: controller,
-                      autofocus: true,
-                      decoration: const InputDecoration(hintText: '歌单名称'),
+      // 歌单多时内容会超出弹层高度(实测溢出 111px),故整体可滚动并限制最大高度。
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                  child: Text(
+                    '加入歌单',
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dctx),
-                        child: const Text('取消'),
-                      ),
-                      FilledButton(
-                        onPressed: () =>
-                            Navigator.pop(dctx, controller.text.trim()),
-                        child: const Text('创建'),
-                      ),
-                    ],
                   ),
-                );
-                if (name == null || name.isEmpty) return;
-                final p = notifier.createPlaylist(name);
-                notifier.addSongToPlaylist(p.id, song);
-                messenger.showSnackBar(
-                  SnackBar(content: Text('已创建并加入「$name」')),
-                );
-              },
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(
+                    isFav
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: scheme.primary,
+                  ),
+                  title: const Text('我喜欢的音乐'),
+                  trailing: isFav
+                      ? Text(
+                          '已加入',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: scheme.primary,
+                          ),
+                        )
+                      : null,
+                  onTap: () {
+                    notifier.toggleFavorite(song);
+                    Navigator.pop(ctx);
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(isFav ? '已取消喜欢' : '已加入「我喜欢的音乐」')),
+                    );
+                  },
+                ),
+                for (final p in state.playlists)
+                  ListTile(
+                    leading: const Icon(Icons.queue_music_rounded),
+                    title: Text(
+                      p.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '${p.songs.length} 首',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    onTap: () {
+                      notifier.addSongToPlaylist(p.id, song);
+                      Navigator.pop(ctx);
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('已加入「${p.name}」')),
+                      );
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.add_rounded),
+                  title: const Text('新建歌单并加入'),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final controller = TextEditingController();
+                    final name = await showDialog<String>(
+                      context: context,
+                      builder: (dctx) => AlertDialog(
+                        title: const Text('新建歌单'),
+                        content: TextField(
+                          controller: controller,
+                          autofocus: true,
+                          decoration: const InputDecoration(hintText: '歌单名称'),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dctx),
+                            child: const Text('取消'),
+                          ),
+                          FilledButton(
+                            onPressed: () =>
+                                Navigator.pop(dctx, controller.text.trim()),
+                            child: const Text('创建'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (name == null || name.isEmpty) return;
+                    final p = notifier.createPlaylist(name);
+                    notifier.addSongToPlaylist(p.id, song);
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('已创建并加入「$name」')),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
         ),
       );
     },

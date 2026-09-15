@@ -202,31 +202,83 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       ),
                     );
                   }
-                  return SizedBox(
-                    height: 52,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      itemCount: categories.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 8),
-                      itemBuilder: (context, i) {
-                        final c = categories[i];
-                        return _CatChip(
-                          label: switch (i) {
-                            0 => '♥ ${c.label}',
-                            1 => '⬇ ${c.label}',
-                            _ when i == categories.length - 1 =>
-                              '＋ ${c.label}',
-                            _ => c.label,
+                  // 窄屏:固定入口 + 新建歌单保持在同一行芯片里(位置不变);
+                  // 歌单本身改为**左右两列网格** —— 此前所有歌单挤在一条横向
+                  // 滚动芯片里,歌单一多就得左右划,用户反馈「排列不合理」。
+                  // 固定入口是前两项,最后一项是「新建歌单」;中间都是歌单
+                  // (按位置取,避免用名字匹配导致同名歌单被误剔除)。
+                  final fixed = <_Category>[
+                    categories.first,
+                    categories[1],
+                    categories.last,
+                  ];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 52,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          itemCount: fixed.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (context, i) {
+                            final c = fixed[i];
+                            return _CatChip(
+                              label: switch (c.label) {
+                                '我喜欢的' => '♥ ${c.label}',
+                                _ when c.label.startsWith('下载音乐') =>
+                                  '⬇ ${c.label}',
+                                '新建歌单' => '＋ ${c.label}',
+                                _ => c.label,
+                              },
+                              selected: c.selected,
+                              onTap: c.onTap,
+                            );
                           },
-                          selected: c.selected,
-                          onTap: c.onTap,
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                      if (lib.playlists.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                          child: Text(
+                            '歌单 (${lib.playlists.length})',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisExtent: 64,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                ),
+                            itemCount: lib.playlists.length,
+                            itemBuilder: (context, i) {
+                              final pl = lib.playlists[i];
+                              return _PlaylistCard(
+                                name: pl.name,
+                                count: pl.songs.length,
+                                selected: _selected == pl.id,
+                                onTap: () => setState(() => _selected = pl.id),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
                   );
                 },
               ),
@@ -323,6 +375,82 @@ class _Category {
 }
 
 /// 宽屏(桌面)竖排分类行:图标 + 名称,选中行高亮。
+/// 歌单卡片(两列网格用):名称 + 歌曲数,选中高亮。
+class _PlaylistCard extends StatelessWidget {
+  const _PlaylistCard({
+    required this.name,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String name;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: selected
+          ? scheme.primaryContainer.withValues(alpha: .55)
+          : scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? scheme.primary
+                      : scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.queue_music_rounded,
+                  size: 18,
+                  color: selected ? Colors.white : scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '$count 首',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CategoryTile extends StatelessWidget {
   const _CategoryTile({required this.category});
 

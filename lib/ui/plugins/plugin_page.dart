@@ -267,9 +267,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     );
     if (pending.isEmpty) {
       await _syncBundledPending();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('音源已是最新,无需重复安装')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('音源已是最新,无需重复安装')));
       return;
     }
 
@@ -760,7 +758,17 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: wide ? 760 : 640),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    // 底部留出导航栏高度:此前「通用」分组(检查更新/关于)
+                    // 被底部导航遮住(真机截图发现)。
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      8,
+                      20,
+                      // 导航栏高度 + 安全区:最后一个分组不再贴着底部
+                      24 +
+                          88 +
+                          MediaQuery.of(context).viewPadding.bottom,
+                    ),
                     children: [
                       _ProfileCard(
                         pluginCount: plugins.length,
@@ -886,11 +894,10 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Ink(
-      decoration: BoxDecoration(
-        gradient: AppTheme.softGradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: widget.onInstall,
         borderRadius: BorderRadius.circular(16),
@@ -902,12 +909,12 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .18),
+                  color: scheme.primary.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.music_note_rounded,
-                  color: Colors.white,
+                  color: scheme.primary,
                   size: 22,
                 ),
               ),
@@ -916,10 +923,10 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'MusicX',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: scheme.onSurface,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -928,7 +935,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                     Text(
                       _version == null ? '插件化音乐播放器' : 'v$_version',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: .85),
+                        color: scheme.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
@@ -938,15 +945,14 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
               Text(
                 '${widget.pluginCount} 个音源',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: .9),
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 4),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: .8),
+                color: scheme.outline,
                 size: 18,
               ),
             ],
@@ -1009,11 +1015,7 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: scheme.primary,
-              ),
+              Icon(Icons.info_outline_rounded, size: 18, color: scheme.primary),
               const SizedBox(width: 6),
               Text(
                 '关于 MusicX',
@@ -1032,12 +1034,11 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            '播放器本体不含任何音源,搜索与播放全部由第三方 JS 插件提供。\n安装音源:点右上角 + 在线安装,或导入订阅源。',
+            '插件协议兼容 MusicFree · 播放器本体不含音源',
             style: textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
-              height: 1.6,
             ),
           ),
         ],
@@ -1512,21 +1513,27 @@ class _FilterCoversRow extends ConsumerWidget {
     final hide = ref.watch(hideCoversProvider);
     return Row(
       children: [
-        Icon(Icons.verified_rounded,
-            size: 20, color: Theme.of(context).colorScheme.primary),
+        Icon(
+          Icons.verified_rounded,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('过滤翻唱',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                '过滤翻唱',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 2),
-              Text('隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
-                  style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                '隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
           ),
         ),
@@ -1627,6 +1634,16 @@ class _SidebarItem extends StatelessWidget {
 }
 
 /// 设置分组容器:标题 + 卡片式分组。
+/// 分组内是否在某两行之间画分隔线:跳过 SizedBox 占位与空态卡片。
+bool _needsDivider(List<Widget> children, int i) {
+  if (i == 0) return false;
+  final prev = children[i - 1];
+  final cur = children[i];
+  if (prev is SizedBox || cur is SizedBox) return false;
+  if (prev is _EmptyPlugins || cur is _EmptyPlugins) return false;
+  return true;
+}
+
 class _SettingsGroup extends StatelessWidget {
   const _SettingsGroup({required this.title, required this.children});
 
@@ -1645,10 +1662,27 @@ class _SettingsGroup extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
-          padding: const EdgeInsets.all(12),
-          child: Column(children: children),
+          // 统一布局:组内不再靠零散的 SizedBox 撑间距,而是「行 + 细分隔线」,
+          // 行高由各行自己保证(min 56),视觉更整齐(用户反馈设置页看着乱)。
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          child: Column(
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (_needsDivider(children, i))
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 48,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: .4),
+                  ),
+                children[i],
+              ],
+            ],
+          ),
         ),
       ],
     );
@@ -1679,39 +1713,50 @@ class _MenuItemRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: scheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 18, color: scheme.primary),
                 ),
-              ),
-              if (trailing != null)
-                Text(
-                  trailing!,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: scheme.outline,
-              ),
-            ],
+                if (trailing != null)
+                  Text(
+                    trailing!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: scheme.outline,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1833,7 +1878,9 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
                       TextButton.icon(
                         onPressed: widget.onInstallUrl,
                         style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
                         icon: const Icon(Icons.add_rounded, size: 18),
