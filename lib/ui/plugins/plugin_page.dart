@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ import 'package:musicx/core/plugins/bundled_plugins.dart';
 import 'package:musicx/ui/desktop_lyrics/desktop_lyrics_service.dart';
 import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
 import 'package:musicx/ui/plugins/lyrics_settings_page.dart';
+import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/ui/plugins/update_row.dart';
 
@@ -674,6 +677,16 @@ class _PluginPageState extends ConsumerState<PluginPage> {
             title: '通用',
             children: [
               const UpdateRow(),
+              const SizedBox(height: 8),
+              if (Platform.isAndroid) ...[
+                const SizedBox(height: 8),
+                _MenuItemRow(
+                  icon: Icons.restart_alt_rounded,
+                  title: '重启应用',
+                  trailing: '安装新版本后点这里',
+                  onTap: () => ApkInstaller.restartApp(),
+                ),
+              ],
               const SizedBox(height: 8),
               const _AboutCard(),
             ],

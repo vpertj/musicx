@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/core/updater/update_service.dart';
@@ -93,6 +94,9 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
   /// 在安卓恒为 0.0.0,此前导致「应用里看不到版本号」)。
   String? _version;
 
+  /// 已装应用的 versionCode:升级问题排查的关键数字(可与 Release 包对比)。
+  int? _versionCode;
+
   @override
   void initState() {
     super.initState();
@@ -102,6 +106,10 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
   Future<void> _loadVersion() async {
     final v = await ref.read(updateServiceProvider).resolveCurrentVersion();
     if (mounted && v.isNotEmpty && v != '0.0.0') setState(() => _version = v);
+    final code = await ApkInstaller.versionCode();
+    if (mounted && code != null && code > 0) {
+      setState(() => _versionCode = code);
+    }
   }
 
   @override
@@ -111,7 +119,8 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
     final textTheme = Theme.of(context).textTheme;
 
     final hasUpdate = state.info != null && state.info!.hasUpdate;
-    final current = state.info?.currentVersion ??
+    final current =
+        state.info?.currentVersion ??
         _version ??
         UpdateService.knownVersion() ??
         UpdateService.currentVersion();
@@ -149,9 +158,13 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
                     ),
                     const SizedBox(height: 2),
                     Text(
+                      // 带上 versionCode:升级排查时可直接与 Release 包内数字对比
                       hasUpdate
-                          ? '当前 v$current · 点击${UpdateService.canAutoInstall ? '立即更新' : '前往下载'}'
-                          : '当前版本 v$current',
+                          ? '当前 v$current'
+                                '${_versionCode == null ? '' : ' (code $_versionCode)'}'
+                                ' · 点击${UpdateService.canAutoInstall ? '立即更新' : '前往下载'}'
+                          : '当前版本 v$current'
+                                '${_versionCode == null ? '' : ' (code $_versionCode)'}',
                       style: textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -259,7 +272,7 @@ class _UpdateProgressDialog extends ConsumerWidget {
             Text(
               Platform.isAndroid
                   ? '已下载完成,正在打开系统安装器…\n'
-                      '首次需在系统提示中允许安装,装好后应用即为新版本。'
+                        '首次需在系统提示中允许安装,装好后应用即为新版本。'
                   : '正在替换应用,完成后将自动重启…',
               textAlign: TextAlign.center,
               style: textTheme.bodySmall?.copyWith(
