@@ -1,0 +1,9 @@
+# 测试配置。
+#
+# 带 @Tags(['network']) 的用例需要真实网络(访问 GitHub / 各音源站点),
+# 在并发跑全量或 CI 环境里会因限流/超时偶发失败 —— 这类环境性失败不该
+# 阻断测试流水线,故默认跳过;需要时显式运行:
+#   flutter test --tags network
+tags:
+  network:
+    skip: "需要真实网络,默认跳过(flutter test --tags network 可运行)"

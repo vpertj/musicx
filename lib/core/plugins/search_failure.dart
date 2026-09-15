@@ -4,6 +4,8 @@
 /// 否则真机上的问题(例如 Android 9+ 禁止明文 http)只能靠猜。
 library;
 
+import 'package:flutter/foundation.dart';
+
 /// 单个音源的失败记录。
 class SearchFailure {
   const SearchFailure({required this.platform, required this.error});
@@ -12,8 +14,8 @@ class SearchFailure {
   final Object error;
 }
 
-/// 把失败列表压成一行可读文案。
-String describeSearchFailures(List<SearchFailure> failures) {
+/// 详细失败原因(含各音源名,供日志/排查使用,**不要直接展示给用户**)。
+String describeSearchFailuresDetailed(List<SearchFailure> failures) {
   if (failures.isEmpty) return '没有可用音源';
   final parts = failures.map((f) {
     var msg = f.error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -21,4 +23,12 @@ String describeSearchFailures(List<SearchFailure> failures) {
     return '${f.platform}($msg)';
   });
   return '所有音源均失败:${parts.join('、')}';
+}
+
+/// 用户可见的失败文案:**不出现任何音源名称**(用户要求 App 内不出现
+/// 具体音源字样);详细原因写日志,便于真机排查。
+String describeSearchFailures(List<SearchFailure> failures) {
+  if (failures.isEmpty) return '没有可用音源';
+  debugPrint('MusicX 搜索失败详情: ${describeSearchFailuresDetailed(failures)}');
+  return '搜索失败,请稍后重试或检查网络';
 }

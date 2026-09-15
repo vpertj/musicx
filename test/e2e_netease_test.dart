@@ -39,7 +39,16 @@ void main() {
       var found = false;
       try {
         for (final song in data.take(8)) {
-          final media = await manager.resolveMediaSource(song);
+          // 单首解析失败(如只找到 VIP 试听片段)应跳过继续试下一首 ——
+          // 本用例的意图是「前几首里至少有一首能拿到完整曲」,而不是
+          // 「第一首必须可播」(上游排序会变,实测首位出现过 Live 试听片段)。
+          final Map<String, dynamic> media;
+          try {
+            media = await manager.resolveMediaSource(song);
+          } catch (e) {
+            print('NCM ${song['title']}: 解析失败($e),跳过');
+            continue;
+          }
           final url = media['url'] as String;
           if (url.contains('/404')) {
             print('NCM ${song['title']}: 仍不可播(404),跳过');

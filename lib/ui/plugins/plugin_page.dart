@@ -703,7 +703,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 child: ListTile(
                   leading: Icon(Icons.widgets_rounded),
                   title: Text('下载音源'),
-                  subtitle: Text('酷我 / 网易云,随 App 内置,一键安装'),
+                  subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -1817,7 +1817,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
                 child: ListTile(
                   leading: Icon(Icons.widgets_rounded),
                   title: Text('下载音源'),
-                  subtitle: Text('酷我 / 网易云,随 App 内置,一键安装'),
+                  subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
