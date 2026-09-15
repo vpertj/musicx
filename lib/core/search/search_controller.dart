@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/providers.dart';
 import 'package:musicx/core/search/original_filter.dart';
@@ -83,8 +85,22 @@ class SearchController extends Notifier<SearchState> {
         // 第一页就空说明没有更多了
         isEnd: items.isEmpty,
       );
+      // 搜索完成后台预热前两首的播放地址:用户点第一首时基本命中缓存
+      // (实测未预热的首次切歌在模拟器上要 10~16 秒)。
+      _warmUpFirstResults(items);
     } catch (e) {
       state = SearchState(query: keyword, error: e.toString(), source: source);
+    }
+  }
+
+
+  /// 后台预热前两首的媒体地址;失败静默(不影响搜索结果)。
+  void _warmUpFirstResults(List<MusicItem> items) {
+    final manager = ref.read(pluginManagerProvider);
+    for (final item in items.take(2)) {
+      unawaited(
+        manager.resolveMediaSource(item.toJson()).catchError((_) => <String, dynamic>{}),
+      );
     }
   }
 

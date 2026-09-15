@@ -704,13 +704,28 @@ class PluginManager {
   /// - 仅用「小于 256KB」会漏掉 20 秒试听(128kbps ≈ 320KB);
   /// - 这些 CDN 对 HEAD 请求返回 0/-1(或 403),所以必须用
   ///   `GET + Range: bytes=0-0` 读 `Content-Range` 里的总长度。
+  /// 体积探测缓存:同一 URL 重复解析(重试/跨源回退/预取)不再发 Range 请求。
+  /// 实测切歌慢的一条重要开销就是每个候选都探测一次。
+  static final Map<String, (DateTime, int)> _sizeProbeCache = {};
+  static const Duration _sizeProbeTtl = Duration(minutes: 15);
+
+  Future<int> _probeSizeCached(String url) async {
+    final hit = _sizeProbeCache[url];
+    if (hit != null && DateTime.now().difference(hit.$1) < _sizeProbeTtl) {
+      return hit.$2;
+    }
+    final bytes = audioTotalBytesProbe != null
+        ? await audioTotalBytesProbe!(url)
+        : await _audioTotalBytes(url);
+    _sizeProbeCache[url] = (DateTime.now(), bytes);
+    return bytes;
+  }
+
   Future<bool> _isPreviewAudio(
     String url,
     Map<String, dynamic> musicItem,
   ) async {
-    final bytes = audioTotalBytesProbe != null
-        ? await audioTotalBytesProbe!(url)
-        : await _audioTotalBytes(url);
+    final bytes = await _probeSizeCached(url);
     final durationMs = (musicItem['duration'] as num?)?.toInt();
     final verdict = bytes <= 0
         ? false

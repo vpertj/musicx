@@ -289,6 +289,8 @@ class PlayerController extends Notifier<PlayerState> {
       // 避免旧歌在解析完成后覆盖/打断当前曲目。
       if (token != _playToken) return;
       final url = media['url'] as String;
+      // 先发下一首预取(与播放器初始化并行),再起播 —— 缩短下一首的切换时间
+      _prefetchNext();
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
       if (token != _playToken) return;
@@ -300,8 +302,6 @@ class PlayerController extends Notifier<PlayerState> {
         clearError: true,
         lyric: const [],
       );
-      // 后台预取下一首的播放地址:真正切歌时命中缓存,接近瞬时。
-      _prefetchNext();
       // 歌词后台加载:完成后再校验 token,避免旧请求写入新请求的歌词。
       unawaited(_loadLyric(current, token));
     } catch (e) {
