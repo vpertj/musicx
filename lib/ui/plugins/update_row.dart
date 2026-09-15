@@ -207,6 +207,12 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
         messenger.showSnackBar(
           SnackBar(
             content: Text(newState.error!),
+            // 必须显式 `persist: false`:Material 的规则是
+            // `persist = persist ?? action != null` —— 只要带了 action,
+            // 光给 duration 也没用,定时器到点后会因 persist 直接 return,
+            // 提示条永远停在屏幕底部(用户实测就是这个现象)。
+            persist: false,
+            duration: const Duration(seconds: 6),
             action: SnackBarAction(
               label: '诊断',
               onPressed: () => showUpdateDiagnostics(context),
@@ -219,6 +225,8 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
         messenger.showSnackBar(
           SnackBar(
             content: const Text('当前已是最新版本'),
+            persist: false,
+            duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: '诊断',
               onPressed: () => showUpdateDiagnostics(context),

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:musicx/core/updater/install_decision.dart';
 import 'package:musicx/core/updater/update_service.dart';
@@ -57,6 +58,9 @@ class UpdateDiagnostics {
 
 /// 诊断信息展示对话框(可滚动 + 可选中复制)。
 Future<void> showUpdateDiagnostics(BuildContext context) async {
+  // 只采集一次:复制按钮复用同一份文本,避免再跑一次网络检查
+  // (既慢又可能拿到不一致的结果)。
+  final future = UpdateDiagnostics.collect();
   await showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -64,7 +68,7 @@ Future<void> showUpdateDiagnostics(BuildContext context) async {
       content: SizedBox(
         width: double.maxFinite,
         child: FutureBuilder<String>(
-          future: UpdateDiagnostics.collect(),
+          future: future,
           builder: (c, snap) {
             if (!snap.hasData) {
               return const SizedBox(
@@ -82,6 +86,22 @@ Future<void> showUpdateDiagnostics(BuildContext context) async {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () async {
+            // 一键复制:真机排查时用户不方便逐行念,直接粘贴发回来最快。
+            final text = await future;
+            await Clipboard.setData(ClipboardData(text: text));
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(
+                  content: Text('诊断信息已复制,可直接粘贴发送'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          },
+          child: const Text('复制'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(ctx),
           child: const Text('关闭'),
