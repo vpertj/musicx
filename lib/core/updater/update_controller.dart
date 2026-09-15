@@ -180,7 +180,10 @@ class UpdateController extends Notifier<UpdateState> {
     try {
       final pkg = await service.download(
         info.dmgUrl,
-        onProgress: (p) => state = state.copyWith(progress: p),
+        // 换源重试时下载侧会回调负数,表示"进度归零重新开始";
+        // 直接写进 state 会让进度条倒着走,这里夹到 0。
+        onProgress: (p) =>
+            state = state.copyWith(progress: p < 0 ? 0 : p),
         expectedSha256: info.dmgSha256,
         version: info.latestVersion,
       );

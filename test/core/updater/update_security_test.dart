@@ -46,7 +46,9 @@ void main() {
           expectedSha256: wrongHash,
         ),
         throwsA(
-          isA<HttpException>().having(
+          // 用 FatalUpdateException(而非普通 HttpException):多源回退遇到它
+          // 必须立即终止,不再换源重下(见 download_fallback_test.dart)。
+          isA<FatalUpdateException>().having(
             (e) => e.message,
             'message',
             contains('完整性校验失败'),

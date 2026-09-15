@@ -109,12 +109,42 @@ jobs:
             "${{ secrets.ANDROID_KEY_PASSWORD }}" \
             "${{ secrets.ANDROID_KEY_ALIAS }}" > android/key.properties
 
+      - name: Verify tag matches pubspec version
+        shell: bash
+        run: |
+          set -e
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1)"
+          PUBSPEC_CODE="$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f2)"
+          echo "tag=$TAG_VERSION pubspec=$PUBSPEC_VERSION+$PUBSPEC_CODE"
+          if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "::error::tag ($TAG_VERSION) 与 pubspec.yaml ($PUBSPEC_VERSION) 不一致。" \
+                 "打错 tag 会让发布包文件名带上错误版本号,用户端会看到版本对不上。"
+            exit 1
+          fi
+          if [ -z "$PUBSPEC_CODE" ]; then
+            echo "::error::pubspec.yaml 缺少 versionCode(应形如 1.7.42+61)。" \
+                 "缺了它安卓无法判断版本高低,升级会被系统拒绝。"
+            exit 1
+          fi
+
       - name: Build signed APK
         shell: bash
         run: |
           set -e
           flutter build apk --release
           VERSION="${GITHUB_REF_NAME#v}"
+          # 关键:发布包的 versionName/versionCode 必须真的等于本次 tag,
+          # 否则会出现「文件名是 v1.7.42、包内却是旧版本」这种最难查的问题。
+          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | tail -1)"
+          BADGING="$("$AAPT" dump badging build/app/outputs/flutter-apk/app-release.apk | head -1)"
+          APK_VERSION="$(echo "$BADGING" | sed -E "s/.*versionName='([^']*)'.*/\1/")"
+          APK_CODE="$(echo "$BADGING" | sed -E "s/.*versionCode='([^']*)'.*/\1/")"
+          echo "APK 实际: versionName=$APK_VERSION versionCode=$APK_CODE"
+          if [ "$APK_VERSION" != "$VERSION" ]; then
+            echo "::error::构建出的 APK 版本($APK_VERSION)与 tag($VERSION)不一致,拒绝发布。"
+            exit 1
+          fi
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/MusicX-${VERSION}.apk"
           echo "APK_PATH=dist/MusicX-${VERSION}.apk" >> "$GITHUB_ENV"

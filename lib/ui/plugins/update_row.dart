@@ -5,6 +5,7 @@ import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
 import 'package:musicx/core/updater/update_service.dart';
+import 'package:musicx/ui/plugins/update_diagnostics.dart';
 
 /// 弹出"发现新版本"对话框(启动自动提示与设置页共用)。
 /// 用户可选择「立即更新」(下载→安装→重启)或「稍后」。
@@ -40,6 +41,13 @@ Future<void> showUpdatePrompt(BuildContext context, UpdateInfo info) async {
         ],
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            showUpdateDiagnostics(context);
+          },
+          child: const Text('诊断'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(ctx),
           child: const Text('稍后'),
@@ -196,11 +204,27 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
       final newState = ref.read(updateControllerProvider);
       if (!context.mounted) return;
       if (newState.error != null) {
-        messenger.showSnackBar(SnackBar(content: Text(newState.error!)));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(newState.error!),
+            action: SnackBarAction(
+              label: '诊断',
+              onPressed: () => showUpdateDiagnostics(context),
+            ),
+          ),
+        );
         return;
       }
       if (newState.info == null || !newState.info!.hasUpdate) {
-        messenger.showSnackBar(const SnackBar(content: Text('当前已是最新版本')));
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('当前已是最新版本'),
+            action: SnackBarAction(
+              label: '诊断',
+              onPressed: () => showUpdateDiagnostics(context),
+            ),
+          ),
+        );
         return;
       }
     }
@@ -265,10 +289,17 @@ class _UpdateProgressDialog extends ConsumerWidget {
           ] else if (failed) ...[
             Icon(Icons.error_outline_rounded, size: 40, color: scheme.error),
             const SizedBox(height: 12),
-            Text(
-              state.error ?? '未知错误',
-              textAlign: TextAlign.center,
-              style: textTheme.bodySmall?.copyWith(color: scheme.error),
+            // 诊断信息可能较长(含版本号/versionCode/签名指纹),
+            // 限高可滚动 + 可选中,方便用户复制数字反馈问题。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  state.error ?? '未知错误',
+                  textAlign: TextAlign.start,
+                  style: textTheme.bodySmall?.copyWith(color: scheme.error),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Text(

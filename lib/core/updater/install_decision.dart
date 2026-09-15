@@ -19,6 +19,70 @@ enum InstallDecision {
 
   /// 校验失败(读不到版本号/文件不完整)→ 明确报错,不要交给安装器。
   invalid,
+
+  /// 签名与已装应用不一致 → 系统必然拒绝安装,必须重新下载官方包。
+  ///
+  /// 这是**独立于版本号**的一类失败:版本号再新,签名不同也装不上。
+  /// 此前没有这一项,签名问题被系统含糊的失败提示吞掉,用户只能看到
+  /// 「更新失败」而无法得知真正原因。
+  signatureMismatch,
+}
+
+/// 安装前校验的完整证据(用于生成可读、可排查的失败原因)。
+///
+/// 抽成数据类是因为**报错必须能自证**:用户截图里的几个数字
+/// (已装 code / 包内 code / 签名是否一致)就是定位问题所需要的一切。
+class InstallFacts {
+  /// 下载到的 APK 自身的信息。
+  final int? apkVersionCode;
+  final String? apkVersionName;
+  final String? apkPackageName;
+  final String? apkSignatureSha256;
+
+  /// 系统里已安装应用的信息。
+  final int? installedVersionCode;
+  final String? installedSignatureSha256;
+
+  /// 本次要更新到的版本名(如 1.7.40)。
+  final String expectedVersion;
+
+  const InstallFacts({
+    required this.apkVersionCode,
+    required this.apkVersionName,
+    required this.apkPackageName,
+    required this.apkSignatureSha256,
+    required this.installedVersionCode,
+    required this.installedSignatureSha256,
+    required this.expectedVersion,
+  });
+
+  /// 比较用的短指纹(前 8 位即可区分,完整值太长不适合展示)。
+  static String? shortSha(String? sha) {
+    if (sha == null || sha.isEmpty) return null;
+    return sha.length <= 8 ? sha : sha.substring(0, 8);
+  }
+
+  /// 签名是否一致。任一方读不到时返回 null(未知),而不是 false ——
+  /// 「读不到」与「确实不一致」是两种不同的处置。
+  bool? get signatureMatches {
+    final a = apkSignatureSha256;
+    final b = installedSignatureSha256;
+    if (a == null || a.isEmpty || b == null || b.isEmpty) return null;
+    return a.toLowerCase() == b.toLowerCase();
+  }
+
+  /// 一行式诊断信息:直接展示给用户,便于截图反馈。
+  String describe() {
+    final apkSig = shortSha(apkSignatureSha256) ?? '读不到';
+    final insSig = shortSha(installedSignatureSha256) ?? '读不到';
+    final match = signatureMatches;
+    final sigText = match == null
+        ? '签名无法比对(包内=$apkSig 已装=$insSig)'
+        : (match ? '签名一致($apkSig)' : '签名不一致(包内=$apkSig 已装=$insSig)');
+    return '安装包:${apkPackageName ?? "?"} '
+        'v${apkVersionName ?? "?"}(code ${apkVersionCode ?? -1}) · '
+        '已安装:code ${installedVersionCode ?? -1} · $sigText';
+  }
 }
 
 /// 决策:给出安装包与已装应用的信息,返回该怎么做。
@@ -26,6 +90,9 @@ enum InstallDecision {
 /// - [apkVersionCode] / [apkVersionName]:下载到的 APK 自身信息(null 表示读取失败)
 /// - [installedVersionCode]:系统里已安装的 versionCode(null 表示读取失败)
 /// - [expectedVersion]:本次要更新到的版本号(如 1.7.29)
+/// - [apkSignatureSha256] / [installedSignatureSha256]:签名指纹;
+///   两边都读到且不一致时直接判 [InstallDecision.signatureMismatch],
+///   因为这种情况系统安装器必然拒绝,再往下比版本号没有意义。
 InstallDecision decideInstall({
   required int? apkVersionCode,
   required String? apkVersionName,
@@ -33,12 +100,25 @@ InstallDecision decideInstall({
   required String expectedVersion,
   String? apkPackageName,
   String expectedPackageName = '',
+  String? apkSignatureSha256,
+  String? installedSignatureSha256,
 }) {
   // 包名必须是我们自己:下到别的应用(或构造的包)一律不装。
   if (apkPackageName != null &&
       expectedPackageName.isNotEmpty &&
       apkPackageName != expectedPackageName) {
     return InstallDecision.invalid;
+  }
+  // 签名必须先查:签名不同时,版本号再新系统也不会装。
+  // 只有**两边都读到且确实不同**才判签名不符;读不到时继续往下走,
+  // 由 fail-closed 的版本校验兜底,避免因 ROM 读不到签名而误拦正常升级。
+  if (apkSignatureSha256 != null &&
+      apkSignatureSha256.isNotEmpty &&
+      installedSignatureSha256 != null &&
+      installedSignatureSha256.isNotEmpty &&
+      apkSignatureSha256.toLowerCase() !=
+          installedSignatureSha256.toLowerCase()) {
+    return InstallDecision.signatureMismatch;
   }
   // 读不到任何一方信息:不冒险交给安装器(fail-closed)
   if (apkVersionCode == null ||
@@ -54,7 +134,9 @@ InstallDecision decideInstall({
       name != expectedVersion) {
     return InstallDecision.mismatchRetry;
   }
-  // 安装包不高于已装版本:其实已是最新,别再调起系统安装器
+  // 安装包不高于已装版本:其实已是最新,别再调起系统安装器。
+  // 注意这**正是系统 INSTALL_FAILED_VERSION_DOWNGRADE 的本地等价判断** ——
+  // 提前拦下并给出数字,好过让系统安装器回一句含糊的「已安装最新版本」。
   if (apkVersionCode <= installedVersionCode) {
     return InstallDecision.alreadyLatest;
   }

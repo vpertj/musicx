@@ -11,12 +11,33 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:musicx/core/updater/apk_installer.dart';
+import 'package:musicx/core/updater/download_source.dart';
 
 /// GitHub 仓库信息:更新检查与下载均基于此仓库的 Releases。
 const kGitHubRepo = 'vpertj/musicx';
 
+/// 更新流程中**不可换源重试**的失败(内容被篡改 / 文件校验不过)。
+///
+/// 为什么需要单独的类型:多源回退遇到普通错误(超时、5xx)应当换下一个源;
+/// 但遇到 SHA256 不匹配这类**安全性失败**,继续换源就会拿 60MB 反复重下,
+/// 既浪费流量又掩盖了真正的问题。用类型把两者区分开。
+class FatalUpdateException implements Exception {
+  final String message;
+  const FatalUpdateException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// 安卓安装包 MIME 类型(交给系统安装器时必须带)。
 const kApkMimeType = 'application/vnd.android.package-archive';
+
+/// 下载过程中「多久没收到任何数据」就判为本源卡死并换源(秒)。
+///
+/// 免费公共代理实测会出现连上后传输停滞的情况(30 秒 0 字节)。
+/// 按「停滞时长」而非「总时长」判断:国内慢速下载 60MB 可能要几分钟,
+/// 按总时长杀会误伤正常下载;但只要持续有数据就不该中断。
+const kDownloadStallTimeoutSeconds = 45;
 
 /// 是否支持「下载后应用内安装」:macOS 用 DMG 替换,Android 调系统安装器。
 /// Windows/Linux 仍走打开 Release 页手动下载。
@@ -86,6 +107,44 @@ String parseMacVersionFromPlist(String plistText) {
     '<key>CFBundleShortVersionString</key>\\s*<string>([^<]+)</string>',
   ).firstMatch(plistText);
   return m == null ? '' : m.group(1)!.trim();
+}
+
+/// 解析 GitHub `releases/latest` 的 JSON 响应(纯函数,便于单测)。
+///
+/// 抽出来是因为**直连与被代理的 API 响应结构完全相同**:国内直连失败时
+/// 我们改走代理拿同一份 JSON,从而保住 SHA256 digest 这个关键字段 ——
+/// 少了它,第三方下载代理就等于在无校验的情况下过境。
+UpdateInfo parseReleaseJson(
+  String body, {
+  required String assetSuffix,
+  String releaseUrlFallback = '',
+}) {
+  final json = jsonDecode(body) as Map<String, dynamic>;
+  final tag = (json['tag_name'] as String?) ?? '';
+  final latest = tag.startsWith('v') ? tag.substring(1) : tag;
+  final assets = (json['assets'] as List?) ?? const [];
+  String assetUrl = '';
+  String? assetSha256;
+  for (final a in assets) {
+    final name = a['name'] as String? ?? '';
+    if (name.endsWith(assetSuffix)) {
+      assetUrl = a['browser_download_url'] as String? ?? '';
+      // GitHub asset digest 形如 "sha256:<64位hex>";提取 hex 部分。
+      final digest = a['digest'] as String? ?? '';
+      assetSha256 = digest.startsWith('sha256:')
+          ? digest.substring('sha256:'.length).trim()
+          : null;
+      break;
+    }
+  }
+  return UpdateInfo(
+    latestVersion: latest,
+    currentVersion: '',
+    dmgUrl: assetUrl,
+    releaseUrl: (json['html_url'] as String?) ?? releaseUrlFallback,
+    releaseNotes: json['body'] as String?,
+    dmgSha256: assetSha256,
+  );
 }
 
 /// 更新检查结果。
@@ -180,7 +239,10 @@ class UpdateService {
   /// 实测问题:旧进程在启动时把「1.7.11」缓存住了,应用内装上 1.7.13 后仍按
   /// 缓存判断「有新版本」,再点更新就会拿同版本 APK 去装,被系统安装器以
   /// 「已安装了更高版本」拒绝。清缓存后重读 PackageManager 即为新版本。
-  static void invalidateVersionCache() => _cachedVersion = null;
+  static void invalidateVersionCache() {
+    _cachedVersion = null;
+    _cachedVersionCode = null;
+  }
 
   /// 已知的当前版本号(同步):优先返回解析缓存;安卓未解析过时返回 null,
   /// 避免把 macOS 专用的 0.0.0 当作真实版本显示出来。
@@ -194,17 +256,34 @@ class UpdateService {
   /// 其它平台沿用 Info.plist 解析。读取结果缓存,避免重复过通道。
   static String? _cachedVersion;
 
+  /// 缓存对应的 versionCode(仅安卓)。用于识别「应用已被新版本替换」:
+  /// versionName 可能没变(比如只改了 versionCode),只比字符串会漏判。
+  static int? _cachedVersionCode;
+
+  /// 读取当前版本号。
+  ///
+  /// 安卓上**每次都用 versionCode 校验缓存是否仍然有效**:用户中途取消安装、
+  /// 或安装完成后旧进程没退出时,进程内缓存会一直停留在旧版本号,导致
+  /// 「明明装过了还一直提示有新版本」→ 再点更新就被系统以
+  /// 「已安装更高版本」拒绝。这里发现 versionCode 变了就自动作废缓存,
+  /// 不依赖调用方记得手动清。
   Future<String> resolveCurrentVersion() async {
-    if (_cachedVersion != null) return _cachedVersion!;
     if (Platform.isAndroid) {
       try {
+        final code = await ApkInstaller.versionCode();
+        if (_cachedVersion != null &&
+            (code == null || code == _cachedVersionCode)) {
+          return _cachedVersion!;
+        }
         final v = await ApkInstaller.versionName();
         if (v != null && v.isNotEmpty) {
           _cachedVersion = v;
+          _cachedVersionCode = code;
           return v;
         }
       } catch (_) {}
     }
+    if (_cachedVersion != null) return _cachedVersion!;
     final v = currentVersion();
     // macOS 之外读不到 bundle 版本时不要缓存 '0.0.0',否则永远提示有新版本。
     if (v != '0.0.0') _cachedVersion = v;
@@ -213,58 +292,62 @@ class UpdateService {
 
   /// 检查最新版本。失败时抛出异常。
   ///
-  /// 优先走 GitHub API;若触发未认证限流(403),降级为直接访问 releases/latest
-  /// 网页并解析其中的版本号与 DMG 下载链接。
+  /// 三级取数,逐级降级(**顺序体现可靠性优先级**):
+  ///   ① 直连 api.github.com(信息最全,含 SHA256 digest);
+  ///   ② 经免费加速代理访问 api.github.com(国内直连被污染时的出路,
+  ///      同样能拿到 digest → 仍可做完整性校验);
+  ///   ③ 抓 releases 网页(最后的兜底,拿不到 digest)。
+  ///
+  /// ②③ 的存在是因为国内访问 api.github.com 经常超时/被污染。
+  /// ② 优先于 ③,因为它能保留 **SHA256 完整性校验能力** ——
+  /// 少了它,引入第三方下载代理就等于让安装包在无校验的情况下过境。
   Future<UpdateInfo> checkForUpdate() async {
     try {
       return await _checkViaApi();
     } on HttpException {
+      // ③ 之前先试代理版 API:能拿到 digest 就不要退到无校验的网页路径。
+      // 只使用**实测能透传 api.github.com** 的代理(另一些对 API 返回 403)。
+      for (final prefix in kApiCapableProxyPrefixes) {
+        try {
+          return await _checkViaApi(
+            apiBase: proxyWrap(prefix, 'https://api.github.com'),
+          );
+        } on HttpException {
+          continue;
+        }
+      }
       return await _checkViaWebPage();
     }
   }
 
-  Future<UpdateInfo> _checkViaApi() async {
-    final uri = Uri.https(
-      'api.github.com',
-      '/repos/$kGitHubRepo/releases/latest',
-    );
-    final resp = await _client.get(
-      uri,
-      headers: const {'Accept': 'application/vnd.github+json'},
-    );
+  /// 读取 releases/latest 的 JSON 并解析成 [UpdateInfo]。
+  ///
+  /// [apiBase] 允许把请求指向加速代理(代理会把 `/<path>` 透传给
+  /// api.github.com)。默认直连。
+  Future<UpdateInfo> _checkViaApi({String? apiBase}) async {
+    final base = apiBase ?? 'https://api.github.com';
+    final uri = Uri.parse('$base/repos/$kGitHubRepo/releases/latest');
+    final resp = await _client
+        .get(uri, headers: const {'Accept': 'application/vnd.github+json'})
+        .timeout(const Duration(seconds: 20));
     if (resp.statusCode != 200) {
       throw HttpException('检查更新失败 (HTTP ${resp.statusCode})');
     }
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    final tag = (json['tag_name'] as String?) ?? '';
-    final latest = tag.startsWith('v') ? tag.substring(1) : tag;
-    final assets = (json['assets'] as List?) ?? const [];
-    String assetUrl = '';
-    String? assetSha256;
-    final suffix = _assetSuffix;
-    for (final a in assets) {
-      final name = a['name'] as String? ?? '';
-      if (name.endsWith(suffix)) {
-        assetUrl = a['browser_download_url'] as String? ?? '';
-        // GitHub asset digest 形如 "sha256:<64位hex>";提取 hex 部分。
-        final digest = a['digest'] as String? ?? '';
-        assetSha256 = digest.startsWith('sha256:')
-            ? digest.substring('sha256:'.length).trim()
-            : null;
-        break;
-      }
-    }
-    // macOS 必须找到 DMG 才能自动安装;其他平台仅需 Release 页链接(手动下载)。
-    if (assetUrl.isEmpty && canAutoInstall) {
+    final info = parseReleaseJson(
+      resp.body,
+      assetSuffix: _assetSuffix,
+      releaseUrlFallback: 'https://github.com/$kGitHubRepo/releases/latest',
+    );
+    if (info.dmgUrl.isEmpty && canAutoInstall) {
       throw HttpException('最新 Release 中没有找到可自动安装的更新包');
     }
     return UpdateInfo(
-      latestVersion: latest,
+      latestVersion: info.latestVersion,
       currentVersion: await resolveCurrentVersion(),
-      dmgUrl: assetUrl,
-      releaseUrl: json['html_url'] as String? ?? '',
-      releaseNotes: json['body'] as String?,
-      dmgSha256: assetSha256,
+      dmgUrl: info.dmgUrl,
+      releaseUrl: info.releaseUrl,
+      releaseNotes: info.releaseNotes,
+      dmgSha256: info.dmgSha256,
     );
   }
 
@@ -313,14 +396,25 @@ class UpdateService {
     );
   }
 
-  /// 下载 DMG 到临时文件,返回本地路径。
-  /// [onProgress] 回调下载进度(0.0 ~ 1.0)。
-  /// [expectedSha256] 若提供,下载后校验文件 SHA256;不匹配则删除文件并抛异常。
+  /// 下载安装包到临时文件,返回本地路径。
+  ///
+  /// **多源回退**:先直连 GitHub;失败(超时/连接失败/5xx/限流)则依次尝试
+  /// 免费公共加速代理。国内访问 release 资产所在的
+  /// `release-assets.githubusercontent.com` 经常只有几十 KB/s 甚至断流,
+  /// 走代理是零成本且实测有效的出路。
+  ///
+  /// 安全性:无论走哪个源,下载后都会做 Content-Length 完整性校验、
+  /// 魔数格式校验与 SHA256 校验([expectedSha256]),被篡改的包会被拒。
+  ///
+  /// [onProgress] 回调下载进度(0.0 ~ 1.0);换源时会回调一次负数表示重来
+  /// (UI 据此重置进度条),调用方需容忍 progress < 0。
+  /// [sources] 允许注入自定义源列表(测试用)。
   Future<File> download(
     String url, {
     void Function(double)? onProgress,
     String? expectedSha256,
     String? version,
+    List<DownloadSource>? sources,
   }) async {
     // 安卓必须落在应用私有目录(cache),否则 FileProvider 无法把 APK 交给
     // 系统安装器;桌面沿用系统临时目录。
@@ -348,39 +442,135 @@ class UpdateService {
     } catch (_) {}
     if (file.existsSync()) file.deleteSync();
 
+    // 只对 GitHub 域名做代理改写:自建 OSS/CDN 等直链不应被叠加代理。
+    final candidates = (sources ??
+            (isRewritableGitHubUrl(url)
+                ? buildDownloadSources()
+                : const [DownloadSource.direct]))
+        .toList();
+
+    final failures = <String>[];
+    for (var i = 0; i < candidates.length; i++) {
+      final source = candidates[i];
+      final target = source.rewrite(url);
+      try {
+        debugPrint(
+          'MusicX 更新下载: 尝试来源「${source.label}」'
+          '(${i + 1}/${candidates.length})',
+        );
+        return await _downloadFrom(
+          target,
+          file: file,
+          onProgress: onProgress,
+          expectedSha256: expectedSha256,
+          label: source.label,
+        );
+      } on FatalUpdateException {
+        // 安全性失败(SHA256 不符):**立即终止**。
+        // 换下一个源只会再下 60MB 去撞同样的结果,而且真正的问题是
+        // 「拿到的内容不对」,不该被"重试"掩盖。
+        try {
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
+        rethrow;
+      } on HttpException catch (e) {
+        // 换源前把半成品清掉,避免下一次续写/误判
+        try {
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
+        failures.add('${source.label}: ${_shortReason(e.message)}');
+        debugPrint('MusicX 更新下载: 来源「${source.label}」失败 → $e');
+        // 换源重来:通知 UI 重置进度
+        if (onProgress != null && i + 1 < candidates.length) onProgress(-1);
+      }
+    }
+    throw HttpException(
+      '所有下载源都失败了(${failures.length} 个):\n${failures.join('\n')}\n'
+      '请检查网络后重试,或到 GitHub Releases 手动下载。',
+    );
+  }
+
+  /// 把异常信息压成一行,便于在"所有源都失败"的汇总里展示。
+  String _shortReason(String message) {
+    final oneLine = message.replaceAll('\n', ' ').trim();
+    return oneLine.length > 80 ? '${oneLine.substring(0, 80)}…' : oneLine;
+  }
+
+  /// 从**单个** URL 下载并完成全部校验;失败抛 [HttpException]。
+  Future<File> _downloadFrom(
+    String url, {
+    required File file,
+    void Function(double)? onProgress,
+    String? expectedSha256,
+    required String label,
+  }) async {
     final req = http.Request('GET', Uri.parse(url));
     // GitHub 下载需要 UA,否则部分 CDN 拒绝
     req.headers['User-Agent'] = 'MusicX/${currentVersion()}';
-    final resp = await _client.send(req).timeout(const Duration(seconds: 30));
+    final http.StreamedResponse resp;
+    try {
+      resp = await _client.send(req).timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw HttpException('连接超时(30 秒无响应)');
+    } catch (e) {
+      throw HttpException('连接失败:$e');
+    }
     if (resp.statusCode != 200) {
       await resp.stream.drain<void>();
-      throw HttpException('下载失败 (HTTP ${resp.statusCode})\n请检查网络后重试');
+      throw HttpException('HTTP ${resp.statusCode}');
     }
     final total = resp.contentLength;
     var received = 0;
     final sink = file.openWrite();
+    // sink 必须**只关闭一次**:catch 里关过之后,finally 再 flush/close
+    // 一个已关闭的 IOSink 会永久挂起(实测:外层 Future 永不完成,
+    // 应用卡死在「下载中」)。用一个标志位保证唯一一次关闭。
+    var sinkClosed = false;
+    Future<void> closeSink() async {
+      if (sinkClosed) return;
+      sinkClosed = true;
+      try {
+        await sink.flush();
+      } catch (_) {}
+      try {
+        await sink.close();
+      } catch (_) {}
+    }
+
     try {
-      await for (final chunk in resp.stream) {
+      // **停滞检测**:免费公共代理实测会出现「连上了但传输卡死」
+      // (30 秒零字节),而 `_client.send()` 的 timeout 只覆盖建立连接,
+      // 对传输过程无效 —— 没有这层保护,应用会永久卡在「下载中」。
+      //
+      // 判定:只要在 [kDownloadStallTimeoutSeconds] 内一个字节都没收到,
+      // 就判为本源卡死并换下一个源;只要持续有数据进来,总耗时不受限制
+      // (国内慢速下载 60MB 可能要好几分钟,不能按总时长杀)。
+      final stall = Duration(seconds: kDownloadStallTimeoutSeconds);
+      final stream = resp.stream.timeout(
+        stall,
+        onTimeout: (s) => s.addError(
+          TimeoutException('传输停滞 ${stall.inSeconds} 秒无数据'),
+        ),
+      );
+      await for (final chunk in stream) {
         sink.add(chunk);
         received += chunk.length;
         if (total != null && total > 0 && onProgress != null) {
           onProgress(received / total);
         }
       }
-    } finally {
-      await sink.flush();
-      await sink.close();
+      await closeSink();
+    } catch (e) {
+      // 传输中断/停滞(代理断流常见):换源重试,不要留下半截文件
+      await closeSink();
+      throw HttpException(
+        received > 0 ? '传输中断(已收到 $received 字节):$e' : '传输停滞:$e',
+      );
     }
 
-    // ① 完整性:声明了 Content-Length 就必须下满,否则是断流(此前只用于进度,
-    //    截断的包会被交给系统并报出难以理解的错误)。
+    // ① 完整性:声明了 Content-Length 就必须下满,否则是断流。
     if (total != null && total > 0 && received != total) {
-      try {
-        file.deleteSync();
-      } catch (_) {}
-      throw HttpException(
-        '下载不完整($received/$total 字节),已作废,请重新下载',
-      );
+      throw HttpException('下载不完整($received/$total 字节)');
     }
     // ② 格式:**按平台各自的魔数**校验(APK=PK 开头 / Windows=MZ 开头 /
     //    macOS DMG=结尾 koly trailer)。
@@ -426,14 +616,20 @@ class UpdateService {
     }
 
     // SHA256 完整性校验:不匹配说明下载被篡改/损坏,拒绝安装并清理。
+    //
+    // **这里刻意不当作"换源重试"的理由**:SHA256 不符意味着内容被篡改
+    // (或下载源返回了错误的文件),属于安全性失败,直接终止并告知用户
+    // 比默默换下一个代理更安全、也更容易定位问题。
     if (expectedSha256 != null && expectedSha256.isNotEmpty) {
       final actual = await _sha256Of(file);
       if (actual.toLowerCase() != expectedSha256.toLowerCase()) {
         try {
           file.deleteSync();
         } catch (_) {}
-        throw HttpException(
-          '更新包完整性校验失败(SHA256 不匹配),已拒绝安装。\n'
+        throw FatalUpdateException(
+          '更新包完整性校验失败(SHA256 不匹配),已拒绝安装。'
+          '(来源: $label)\n'
+          '这份安装包与 GitHub 官方发布的不一致,可能被篡改或下载损坏。\n'
           '请检查网络后重试,或手动从 GitHub Release 下载。',
         );
       }
@@ -474,6 +670,7 @@ class UpdateService {
       String? apkVersion,
       String? apkPackageName,
       int? installedVersion,
+      InstallFacts facts,
     })
   >
   verifyPackageForInstall({
@@ -483,7 +680,18 @@ class UpdateService {
     final apkCode = await ApkInstaller.versionCodeOf(path);
     final apkName = await ApkInstaller.versionNameOf(path);
     final apkPkg = await ApkInstaller.packageNameOf(path);
+    final apkSig = await ApkInstaller.signatureSha256Of(path);
     final installedCode = await ApkInstaller.versionCode();
+    final installedSig = await ApkInstaller.installedSignatureSha256();
+    final facts = InstallFacts(
+      apkVersionCode: apkCode,
+      apkVersionName: apkName,
+      apkPackageName: apkPkg,
+      apkSignatureSha256: apkSig,
+      installedVersionCode: installedCode,
+      installedSignatureSha256: installedSig,
+      expectedVersion: expectedVersion,
+    );
     final decision = decideInstall(
       apkVersionCode: apkCode,
       apkVersionName: apkName,
@@ -491,17 +699,21 @@ class UpdateService {
       expectedVersion: expectedVersion,
       apkPackageName: apkPkg,
       expectedPackageName: ApkInstaller.androidPackageName,
+      apkSignatureSha256: apkSig,
+      installedSignatureSha256: installedSig,
     );
     debugPrint(
       'MusicX 更新校验: 安装包=$apkPkg v${apkName ?? "?"}($apkCode) '
       '已装=$installedCode 目标=v$expectedVersion → ${decision.name}',
     );
+    debugPrint('MusicX 更新校验详情: ${facts.describe()}');
     return (
       decision: decision,
       apkCode: apkCode,
       apkVersion: apkName,
       apkPackageName: apkPkg,
       installedVersion: installedCode,
+      facts: facts,
     );
   }
 
@@ -514,10 +726,13 @@ class UpdateService {
     // 安装器接管后本进程不需要退出,系统会在安装完成时替换并重启应用。
     if (Platform.isAndroid) {
       // 交给安装器前**严格核对**(用户反复遇到「提示有新版却报已安装相同版本」):
-      //   ① 必须能读出安装包与已装应用的版本号(fail-closed,读不到就不装);
-      //   ② 安装包的 versionName 必须等于本次要更新的目标版本;
-      //   ③ 安装包 versionCode 必须严格大于已装版本。
-      // 任一不满足都给出可读原因,绝不再把含糊的「已安装相同版本」留给系统提示。
+      //   ① 包名必须是我们自己;
+      //   ② 签名必须与已装应用一致(不一致系统必然拒绝);
+      //   ③ 必须能读出安装包与已装应用的版本号(fail-closed,读不到就不装);
+      //   ④ 安装包的 versionName 必须等于本次要更新的目标版本;
+      //   ⑤ 安装包 versionCode 必须严格大于已装版本。
+      // 任一不满足都给出可读原因 + 具体数字,绝不再把含糊的
+      // 「已安装相同版本 / 更新失败」留给系统提示。
       final result = await verifyPackageForInstall(
         path: package.path,
         expectedVersion: version ?? '',
@@ -525,26 +740,33 @@ class UpdateService {
       switch (result.decision) {
         case InstallDecision.install:
           break;
+        // 签名不符:系统必然拒绝(INSTALL_FAILED_UPDATE_INCOMPATIBLE)。
+        // 给用户可执行的出路,而不是含糊的「更新失败」。
+        case InstallDecision.signatureMismatch:
+          throw HttpException(
+            '安装包签名与当前应用不一致,系统会拒绝安装。\n'
+            '${result.facts.describe()}\n'
+            '这个包不是用同一个签名密钥发布的,无法覆盖安装。'
+            '请从官方 Release 重新下载;若当前应用是早期用别的密钥签的,'
+            '需要卸载后重装(会清除本地歌曲与设置,请先备份)。',
+          );
         case InstallDecision.alreadyLatest:
           UpdateService.invalidateVersionCache();
           throw HttpException(
-            '当前已是最新版本 v${result.installedVersion}'
-            '(已装 versionCode=${result.installedVersion}, '
-            '安装包 v${result.apkVersion} code=${result.apkCode}),无需重复安装',
+            '当前已是最新版本(code ${result.installedVersion}),'
+            '安装包 code=${result.apkCode} 不高于它,'
+            '系统会以「已安装更高版本」拒绝。\n'
+            '${result.facts.describe()}',
           );
         case InstallDecision.mismatchRetry:
           unawaited(package.delete().catchError((_) => package));
           throw HttpException(
             '下载到的安装包是 v${result.apkVersion}'
             '(code=${result.apkCode}),与目标版本 v$version 不一致,已作废,'
-            '请重新点击更新',
+            '请重新点击更新。\n${result.facts.describe()}',
           );
         case InstallDecision.invalid:
-          throw HttpException(
-            '安装包校验失败(包名=${result.apkPackageName ?? "?"} '
-            'v${result.apkVersion ?? "?"} code=${result.apkCode ?? -1},'
-            '已装 code=${result.installedVersion ?? -1}),请重新下载',
-          );
+          throw HttpException('安装包校验失败,请重新下载。\n${result.facts.describe()}');
       }
       debugPrint(
         'MusicX 更新: 交给系统安装器 包名=${result.apkPackageName} '

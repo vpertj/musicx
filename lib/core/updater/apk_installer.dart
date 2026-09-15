@@ -89,6 +89,40 @@ class ApkInstaller {
   /// 本应用包名(与 AndroidManifest 一致)。
   static const String androidPackageName = 'com.musicx.musicx';
 
+  /// 已安装应用的签名证书 SHA-256 指纹(小写十六进制);失败返回 null。
+  ///
+  /// 签名是升级能否成功的**硬前提**:新包签名与已装包不一致时,系统安装器
+  /// 会直接拒绝,且提示含糊(用户只会看到「更新失败」)。
+  static Future<String?> installedSignatureSha256() async {
+    try {
+      return await channel.invokeMethod<String>('installedSignatureSha256');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 读取某个 APK 文件的签名证书 SHA-256 指纹(小写十六进制);失败返回 null。
+  static Future<String?> signatureSha256Of(String path) async {
+    try {
+      return await channel.invokeMethod<String>('apkSignatureSha256', {
+        'path': path,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 本应用已安装 APK 的路径(applicationInfo.sourceDir);失败返回 null。
+  ///
+  /// 用途:自检「文件侧签名读取」链路(把自己当作待装包),以及排查升级问题。
+  static Future<String?> installedApkPath() async {
+    try {
+      return await channel.invokeMethod<String>('installedApkPath');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 把下载好的 APK 交给系统安装器。返回是否成功调起。
   static Future<bool> installApk(String path) async {
     final ok = await channel.invokeMethod<bool>('installApk', {'path': path});

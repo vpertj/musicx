@@ -12,6 +12,8 @@ void main() {
     int? installed = 47,
     String expected = '1.7.29',
     String? apkPkg = 'com.musicx.musicx',
+    String? apkSig,
+    String? installedSig,
   }) => decideInstall(
     apkVersionCode: apkCode,
     apkVersionName: apkName,
@@ -19,7 +21,15 @@ void main() {
     expectedVersion: expected,
     apkPackageName: apkPkg,
     expectedPackageName: 'com.musicx.musicx',
+    apkSignatureSha256: apkSig,
+    installedSignatureSha256: installedSig,
   );
+
+  // 真实指纹(取自本仓库 keystore 与 Android debug key),用于比对逻辑测试。
+  const releaseSig =
+      '5a373d38652c2c6b10c96c2e2451063b7db79b9796b1b11d66572bdddd46db18';
+  const debugSig =
+      'd09458a3f524f17118edf559df0f1195053faf951a46d9da2c9a594f0bb85a7d';
 
   test('确实更新 → 交给安装器', () {
     expect(decide(), InstallDecision.install);
@@ -52,5 +62,104 @@ void main() {
 
   test('版本名缺失但 versionCode 确凿更新 → 仍可安装', () {
     expect(decide(apkName: ''), InstallDecision.install);
+  });
+
+  group('签名校验(系统升级的硬前提)', () {
+    test('签名一致 + 版本更新 → 交给安装器', () {
+      expect(
+        decide(apkSig: releaseSig, installedSig: releaseSig),
+        InstallDecision.install,
+      );
+    });
+
+    test('签名不一致 → 直接判签名不符(版本号再新也装不上)', () {
+      // debug 包覆盖 release 包:versionCode 更大,但系统必然拒绝。
+      // 必须在本地拦下,否则用户只看到系统那句含糊的「更新失败」。
+      expect(
+        decide(
+          apkCode: 999,
+          apkName: '9.9.9',
+          expected: '9.9.9',
+          apkSig: debugSig,
+          installedSig: releaseSig,
+        ),
+        InstallDecision.signatureMismatch,
+        reason: '签名不符必须优先于版本比较给出结论',
+      );
+    });
+
+    test('大小写不同的同一指纹 → 仍视为一致', () {
+      expect(
+        decide(
+          apkSig: releaseSig.toUpperCase(),
+          installedSig: releaseSig.toLowerCase(),
+        ),
+        InstallDecision.install,
+      );
+    });
+
+    test('读不到签名 → 不据此拦截(交给版本校验兜底)', () {
+      expect(decide(apkSig: null, installedSig: releaseSig),
+          InstallDecision.install);
+      expect(decide(apkSig: releaseSig, installedSig: null),
+          InstallDecision.install);
+      expect(decide(apkSig: '', installedSig: ''),
+          InstallDecision.install);
+    });
+  });
+
+  group('InstallFacts.describe(失败原因必须能自证)', () {
+    const facts = InstallFacts(
+      apkVersionCode: 55,
+      apkVersionName: '1.7.36',
+      apkPackageName: 'com.musicx.musicx',
+      apkSignatureSha256: releaseSig,
+      installedVersionCode: 59,
+      installedSignatureSha256: releaseSig,
+      expectedVersion: '1.7.40',
+    );
+
+    test('包含版本号、versionCode 与签名结论', () {
+      final text = facts.describe();
+      expect(text, contains('1.7.36'));
+      expect(text, contains('code 55'));
+      expect(text, contains('code 59'));
+      expect(text, contains('签名一致'));
+      expect(text, contains('5a373d38'), reason: '展示短指纹便于比对');
+    });
+
+    test('签名不一致时明确指出两边指纹', () {
+      const mismatch = InstallFacts(
+        apkVersionCode: 60,
+        apkVersionName: '1.7.41',
+        apkPackageName: 'com.musicx.musicx',
+        apkSignatureSha256: debugSig,
+        installedVersionCode: 59,
+        installedSignatureSha256: releaseSig,
+        expectedVersion: '1.7.41',
+      );
+      expect(mismatch.describe(), contains('签名不一致'));
+      expect(mismatch.describe(), contains('d09458a3'));
+    });
+
+    test('读不到签名时说明无法比对,而不是谎报一致', () {
+      const unknown = InstallFacts(
+        apkVersionCode: null,
+        apkVersionName: null,
+        apkPackageName: null,
+        apkSignatureSha256: null,
+        installedVersionCode: null,
+        installedSignatureSha256: null,
+        expectedVersion: '1.7.40',
+      );
+      expect(unknown.signatureMatches, isNull);
+      expect(unknown.describe(), contains('无法比对'));
+    });
+
+    test('signatureMatches 对读不到的情况返回 null', () {
+      expect(facts.signatureMatches, isTrue);
+      expect(InstallFacts.shortSha(null), isNull);
+      expect(InstallFacts.shortSha(releaseSig), '5a373d38');
+    });
   });
 }

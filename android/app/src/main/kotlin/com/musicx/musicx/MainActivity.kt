@@ -1,6 +1,9 @@
 package com.musicx.musicx
 
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -12,6 +15,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * 应用内更新所需的两个原生能力:
@@ -76,6 +80,21 @@ class MainActivity : FlutterActivity() {
                     // 是否允许安装未知来源应用(Android 8+ 必需,否则安装静默失败)
                     "canInstallPackages" -> {
                         result.success(canInstallPackages())
+                    }
+                    // 签名指纹:升级的硬前提,交接前自检用
+                    "installedSignatureSha256" -> {
+                        result.success(installedSignatureSha256())
+                    }
+                    "apkSignatureSha256" -> {
+                        val path = call.argument<String>("path")
+                        result.success(
+                            if (path.isNullOrEmpty()) null else apkSignatureSha256(path)
+                        )
+                    }
+                    // 本应用已安装 APK 的路径:用于自检(把自己当作「下载到的包」
+                    // 验证签名读取链路),也是排查升级问题的有用信息。
+                    "installedApkPath" -> {
+                        result.success(installedApkPath())
                     }
                     // 跳到「安装未知应用」授权页
                     "openInstallPermissionSettings" -> {
@@ -165,6 +184,49 @@ class MainActivity : FlutterActivity() {
     private fun apkVersionName(path: String): String? = try {
         val info = packageManager.getPackageArchiveInfo(path, 0)
         info?.versionName
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * 已安装应用的签名证书 SHA-256 指纹(小写十六进制)。
+     *
+     * 为什么必须比对:系统安装器在「签名不一致」时给出的是含糊的失败提示,
+     * 用户与应用都无法区分「签名不一致」和「已是最新版本」。签名是升级能否
+     * 成功的**硬前提**,必须在交接前自检并给出可读原因。
+     */
+    private fun installedSignatureSha256(): String? = try {
+        @Suppress("DEPRECATION")
+        val info: PackageInfo = packageManager.getPackageInfo(
+            packageName,
+            PackageManager.GET_SIGNATURES,
+        )
+        info.signatures?.firstOrNull()?.let { sha256OfSignature(it) }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** 读取 APK 文件的签名证书 SHA-256 指纹(小写十六进制)。 */
+    private fun apkSignatureSha256(path: String): String? = try {
+        @Suppress("DEPRECATION")
+        val info: PackageInfo? = packageManager.getPackageArchiveInfo(
+            path,
+            PackageManager.GET_SIGNATURES,
+        )
+        info?.signatures?.firstOrNull()?.let { sha256OfSignature(it) }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** 证书字节的 SHA-256,输出小写十六进制(与 apksigner 的 SHA-256 digest 同口径)。 */
+    private fun sha256OfSignature(sig: Signature): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(sig.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    /** 本应用已安装 APK 的绝对路径(applicationInfo.sourceDir)。 */
+    private fun installedApkPath(): String? = try {
+        packageManager.getApplicationInfo(packageName, 0).sourceDir
     } catch (_: Exception) {
         null
     }

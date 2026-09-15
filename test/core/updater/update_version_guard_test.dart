@@ -26,4 +26,12 @@ void main() {
     expect(compareVersions('1.7.11', '1.7.13') <= 0, isTrue);
     expect(compareVersions('1.7.14', '1.7.13') > 0, isTrue);
   });
+
+  test('invalidateVersionCache 幂等:连清两次仍能正常解析版本', () async {
+    // 缓存被清空后 knownVersion 必须回落到真实解析结果,而不是把
+    // 「清空状态」当成 0.0.0 —— 否则又会退回到「永远提示有新版本」。
+    UpdateService.invalidateVersionCache();
+    UpdateService.invalidateVersionCache();
+    expect(UpdateService.knownVersion(), isNot('0.0.0'));
+  });
 }
