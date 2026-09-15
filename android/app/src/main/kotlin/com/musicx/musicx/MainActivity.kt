@@ -2,7 +2,10 @@ package com.musicx.musicx
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.Build
+import kotlin.system.exitProcess
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -180,6 +183,17 @@ class MainActivity : FlutterActivity() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(intent)
+        // 关键:启动安装器后**主动退出应用**。
+        // 参考成熟应用的做法:安装期间本进程不该继续占着前台与文件句柄,
+        // 否则部分 ROM(以及旧进程仍显示旧界面)会让用户以为更新失败。
+        // 装完后用户重新打开应用即为新版本。
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                finishAffinity()
+            } catch (_: Exception) {
+            }
+            exitProcess(0)
+        }, 900)
         true
     } catch (e: Exception) {
         // 未授权「安装未知应用」时部分 ROM 会抛异常,这里回落去设置页引导用户。

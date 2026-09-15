@@ -9,7 +9,18 @@ import 'package:musicx/core/updater/update_service.dart';
 import 'package:musicx/core/utils/open_external.dart';
 
 /// 更新流程状态。
-enum UpdatePhase { idle, checking, ready, downloading, installing, error }
+enum UpdatePhase {
+  idle,
+  checking,
+  ready,
+  downloading,
+  installing,
+
+  /// 安装包已交给系统安装器(成功交接,不是失败)——
+  /// 此前误用 error 承载,导致界面显示「更新失败」(用户实测反馈)。
+  handedOff,
+  error,
+}
 
 class UpdateState {
   final UpdatePhase phase;
@@ -155,7 +166,7 @@ class UpdateController extends Notifier<UpdateState> {
       );
       if (pre2 == PreDownloadDecision.staleCheck) {
         state = state.copyWith(
-          phase: UpdatePhase.error,
+          phase: UpdatePhase.handedOff,
           clearInfo: true,
           error: '更新包版本(${versionFromAssetUrl(retry.dmgUrl) ?? "未知"})'
               '不高于当前版本(v$installed),无需更新。'
@@ -182,14 +193,15 @@ class UpdateController extends Notifier<UpdateState> {
         // 会继续提示「有新版本」,再点更新就会拿同版本 APK 去装并被系统拒绝
         // (实测:1.7.11 装完 1.7.13 后仍提示更新,安装器回「已安装更高版本」)。
         UpdateService.invalidateVersionCache();
+        // 安卓:安装器已调起,原生侧会**主动退出应用**(参考成熟应用做法,
+        // 避免旧进程占着前台让用户以为更新失败)。用户接下来看到系统安装界面,
+        // 点「安装」、装完重新打开应用即为新版本。
         state = state.copyWith(
-          phase: UpdatePhase.error,
+          phase: UpdatePhase.handedOff,
           clearInfo: true,
-          error: '已把 v${info.latestVersion} 的安装包交给系统安装器'
-              '(文件 ${pkg.path.split('/').last})。'
-              '若系统界面显示的版本号不是 v${info.latestVersion},'
-              '说明它装的是别的旧文件,请改用应用内更新重试。'
-              '安装完成后请重新打开应用。',
+          error: '已把 v${info.latestVersion} 交给系统安装器'
+              '(${pkg.path.split('/').last}),应用将退出以便安装。'
+              '请在系统界面点「安装」,装完重新打开应用即为新版本。',
         );
       }
     } catch (e) {

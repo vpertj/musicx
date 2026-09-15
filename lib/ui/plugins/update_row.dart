@@ -223,10 +223,15 @@ class _UpdateProgressDialog extends ConsumerWidget {
     final installing = state.phase == UpdatePhase.installing;
     final downloading = state.phase == UpdatePhase.downloading;
     final failed = state.phase == UpdatePhase.error && state.error != null;
+    // 「已交给系统安装器」是**成功交接**,不能当失败展示(用户实测:看到
+    // 「更新失败」以为出错了)。
+    final handedOff = state.phase == UpdatePhase.handedOff;
 
     return AlertDialog(
       title: Text(
-        installing
+        handedOff
+            ? '安装包已就绪'
+            : installing
             ? '正在安装更新…'
             : failed
             ? '更新失败'
@@ -235,7 +240,29 @@ class _UpdateProgressDialog extends ConsumerWidget {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (failed) ...[
+          if (handedOff) ...[
+            Icon(
+              Icons.check_circle_outline_rounded,
+              size: 40,
+              color: scheme.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              state.error ?? '',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              Platform.isAndroid
+                  ? '请在系统安装界面点「安装」;装好后回到应用会自动重启加载新版本。'
+                  : '替换完成后应用会自动重启。',
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ] else if (failed) ...[
             Icon(Icons.error_outline_rounded, size: 40, color: scheme.error),
             const SizedBox(height: 12),
             Text(
@@ -288,11 +315,11 @@ class _UpdateProgressDialog extends ConsumerWidget {
             ),
         ],
       ),
-      actions: failed
+      actions: (failed || handedOff)
           ? [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
+                child: Text(handedOff ? '知道了' : '关闭'),
               ),
             ]
           : null,
