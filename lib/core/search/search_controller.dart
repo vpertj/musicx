@@ -94,13 +94,21 @@ class SearchController extends Notifier<SearchState> {
   }
 
 
-  /// 后台预热前两首的媒体地址;失败静默(不影响搜索结果)。
+  /// 后台预热前几首的媒体地址与歌词;失败静默(不影响搜索结果)。
+  ///
+  /// 用户点列表里任意一首时,命中预热的概率越高,「切换很慢」的体感越弱 ——
+  /// 因此预热前 3 首的取流 + 前 2 首的歌词。
   void _warmUpFirstResults(List<MusicItem> items) {
     final manager = ref.read(pluginManagerProvider);
-    for (final item in items.take(2)) {
+    for (final item in items.take(3)) {
       unawaited(
-        manager.resolveMediaSource(item.toJson()).catchError((_) => <String, dynamic>{}),
+        manager
+            .resolveMediaSource(item.toJson())
+            .catchError((_) => <String, dynamic>{}),
       );
+    }
+    for (final item in items.take(2)) {
+      unawaited(manager.resolveLyric(item.toJson()).catchError((_) => ''));
     }
   }
 

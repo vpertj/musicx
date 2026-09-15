@@ -7,6 +7,7 @@ import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/auto_source_order.dart';
 import 'package:musicx/core/plugins/plugin_store.dart';
 import 'package:musicx/core/plugins/preview_detector.dart';
+import 'package:musicx/core/plugins/stream_matching.dart';
 import 'package:musicx/core/search/original_filter.dart';
 import 'package:musicx/core/plugins/result_normalizer.dart';
 import 'package:musicx/core/plugins/search_failure.dart';
@@ -522,6 +523,78 @@ class PluginManager {
     return result;
   }
 
+  /// 取流慢的源(实测:腾讯经第三方中转约 2s)。
+  bool _isSlowStreamSource(String? platform) {
+    if (platform == null) return false;
+    final p = platform.toLowerCase();
+    return p.contains('腾讯') || p.contains('qq');
+  }
+
+  /// 在快源上找同一首歌的播放地址(严格校验,绝不串歌)。
+  Future<Map<String, dynamic>?> _fastStreamFromOtherSources(
+    Map<String, dynamic> musicItem, {
+    required List<PluginInfo> plugins,
+    required String quality,
+    required Duration timeout,
+  }) async {
+    final wantPlatform = musicItem['platform'] as String?;
+    final title = '${musicItem['title'] ?? ''}';
+    final artist = '${musicItem['artist'] ?? ''}';
+    final durationMs = musicItem['duration'] as num?;
+    if (title.isEmpty || artist.isEmpty) return null;
+
+    final candidates =
+        plugins.where((p) => p.platform != wantPlatform).toList()..sort(
+          (a, b) => streamSpeedScore(
+            a.platform,
+          ).compareTo(streamSpeedScore(b.platform)),
+        );
+
+    for (final plugin in candidates.take(2)) {
+      // 只有快源参与(慢源没有意义)
+      if (streamSpeedScore(plugin.platform) > 2) continue;
+      try {
+        final source = await File(plugin.path).readAsString();
+        final found = await _sandbox.callPlugin(source, 'search', [
+          '$title $artist',
+          1,
+          'music',
+        ], timeout: timeout);
+        _normalizeResults(found, platform: plugin.platform);
+        final data = (found['data'] as List?) ?? const [];
+        for (final raw in data.take(6)) {
+          if (raw is! Map) continue;
+          final candidate = Map<String, dynamic>.from(raw);
+          _normalizeResults({'data': [candidate]}, platform: plugin.platform);
+          if (!isSameSongStrict(
+            title: title,
+            artist: artist,
+            durationMs: durationMs,
+            otherTitle: '${candidate['title'] ?? ''}',
+            otherArtist: '${candidate['artist'] ?? ''}',
+            otherDurationMs: candidate['duration'] as num?,
+          )) {
+            continue;
+          }
+          final media = await _callGetMediaSource(
+            plugin,
+            candidate,
+            quality,
+            timeout,
+          );
+          final url = media['url'] as String?;
+          if (url == null || url.isEmpty) continue;
+          // 与正常流程同口径:试听片段不接受
+          if (await _isPreviewAudio(url, musicItem)) continue;
+          return {...media, 'crossSource': plugin.platform};
+        }
+      } catch (_) {
+        // 换下一个快源
+      }
+    }
+    return null;
+  }
+
   /// 预取播放地址(只预热缓存,不抛错 —— 供切歌提速,失败不影响播放)。
   Future<void> prefetchMediaSource(
     Map<String, dynamic> musicItem, {
@@ -541,6 +614,19 @@ class PluginManager {
   }) async {
     final plugins = await listPlugins();
     final wantPlatform = musicItem['platform'] as String?;
+
+    // 第零轮(提速):慢源(实测腾讯取流 ~2s)先尝试在**快源**上取同一首歌的
+    // 地址(念心 ~28ms / 网易 ~159ms)。匹配用严格校验(歌名规范化相等 +
+    // 主歌手一致 + 时长差 ≤3s),任何一项不满足就回退正常流程 —— 宁慢不串歌。
+    if (_isSlowStreamSource(wantPlatform)) {
+      final fast = await _fastStreamFromOtherSources(
+        musicItem,
+        plugins: plugins,
+        quality: quality,
+        timeout: timeout,
+      );
+      if (fast != null) return fast;
+    }
 
     // 第一轮:精确匹配指定插件
     for (final plugin in plugins) {
