@@ -89,9 +89,14 @@ class PlayerController extends Notifier<PlayerState> {
   PlayerState build() {
     final service = ref.read(playerServiceProvider);
     _subs.add(
-      service.positionStream.listen(
-        (pos) => state = state.copyWith(position: pos),
-      ),
+      service.positionStream.listen((pos) {
+        // 播完兜底:我们的音频都经第三方中转(如念心),这类流的
+        // processingState 往往不会变成 completed → 控制器收不到「播完」事件,
+        // 结果一首放完就停在原地(用户反馈)。这里用「播放位置到达时长」判定,
+        // 逻辑上等价于播完;next() 自身遵守循环/随机模式。
+        if (_maybeAutoAdvance(pos)) return;
+        state = state.copyWith(position: pos);
+      }),
     );
     _subs.add(
       service.playingStream.listen((playing) {
@@ -114,6 +119,24 @@ class PlayerController extends Notifier<PlayerState> {
       _subs.clear();
     });
     return const PlayerState();
+  }
+
+  /// 已判定「播完」并触发过自动切歌的播放令牌(避免同一次播放重复触发)。
+  final Set<int> _autoAdvancedTokens = <int>{};
+
+  /// 位置到达时长 → 视为播完并切下一首。返回 true 表示已处理(调用方别再用该位置)。
+  bool _maybeAutoAdvance(Duration pos) {
+    final total = state.duration;
+    if (total <= Duration.zero) return false;
+    // 留 900ms 余量:部分流的最后一段位置更新早于真正结束
+    if (pos < total - const Duration(milliseconds: 900)) return false;
+    final token = _playToken;
+    if (!_autoAdvancedTokens.add(token)) return true;
+    if (_autoAdvancedTokens.length > 32) {
+      _autoAdvancedTokens.remove(_autoAdvancedTokens.first);
+    }
+    unawaited(next());
+    return true;
   }
 
   Future<void> playFromList(List<MusicItem> songs, int index) async {

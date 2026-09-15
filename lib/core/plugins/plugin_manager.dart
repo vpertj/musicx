@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:musicx/core/plugins/lyric_quality.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/plugins/plugin_sandbox.dart';
 import 'package:musicx/core/plugins/auto_source_order.dart';
@@ -960,8 +961,10 @@ class PluginManager {
           ], timeout: timeout);
           // MusicFree 协议:插件可返回 `rawLrc`(歌词纯文本)或 `url`(歌词源地址)
           final rawLrc = result['rawLrc'];
-          if (rawLrc is String && rawLrc.isNotEmpty) {
-            return rawLrc;
+          // 只有「真的可用」的歌词才接受:占位文案(暂无歌词/纯音乐)或没有
+          // 时间戳行的内容视为没有歌词,继续找其它源(用户诉求)。
+          if (hasUsableLyric(rawLrc)) {
+            return rawLrc as String;
           }
           final url = result['url'];
           if (url is String && url.isNotEmpty) {
@@ -983,12 +986,12 @@ class PluginManager {
                   final map = jsonDecode(body);
                   if (map is Map && map['lrc'] is Map) {
                     final lrc = (map['lrc'] as Map)['lyric'];
-                    if (lrc is String && lrc.isNotEmpty) return lrc;
+                    if (hasUsableLyric(lrc)) return lrc as String;
                   }
                 } catch (_) {
                   // 非 JSON(如直接 LRC 文本),原样返回
                 }
-                return body;
+                if (hasUsableLyric(body)) return body;
               }
             } finally {
               client.close();
@@ -1012,7 +1015,7 @@ class PluginManager {
       timeout: timeout,
       excludePlatform: wantPlatform,
     );
-    if (cross != null && cross.isNotEmpty) return cross;
+    if (hasUsableLyric(cross)) return cross!;
 
     debugPrint(
       'MusicX 歌词: 未获取到 "${musicItem['title']}" '
