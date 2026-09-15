@@ -520,20 +520,29 @@ class UpdateService {
         case InstallDecision.alreadyLatest:
           UpdateService.invalidateVersionCache();
           throw HttpException(
-            '当前已是最新版本 v${result.installedVersion}(安装包 '
-            'v${result.apkVersion}),无需重复安装',
+            '当前已是最新版本 v${result.installedVersion}'
+            '(已装 versionCode=${result.installedVersion}, '
+            '安装包 v${result.apkVersion} code=${result.apkCode}),无需重复安装',
           );
         case InstallDecision.mismatchRetry:
           unawaited(package.delete().catchError((_) => package));
           throw HttpException(
-            '下载到的安装包是 v${result.apkVersion},与目标版本 v$version 不一致,'
-            '已作废,请重新点击更新',
+            '下载到的安装包是 v${result.apkVersion}'
+            '(code=${result.apkCode}),与目标版本 v$version 不一致,已作废,'
+            '请重新点击更新',
           );
         case InstallDecision.invalid:
           throw HttpException(
-            '安装包校验失败(无法读取版本信息,可能下载不完整),请重新下载',
+            '安装包校验失败(包名=${result.apkPackageName ?? "?"} '
+            'v${result.apkVersion ?? "?"} code=${result.apkCode ?? -1},'
+            '已装 code=${result.installedVersion ?? -1}),请重新下载',
           );
       }
+      debugPrint(
+        'MusicX 更新: 交给系统安装器 包名=${result.apkPackageName} '
+        'v${result.apkVersion}(code=${result.apkCode}) '
+        '已装 code=${result.installedVersion}',
+      );
       final ok = await ApkInstaller.installApk(package.path);
       if (!ok) {
         throw HttpException('未能调起系统安装器,请到「设置 → 应用 → 未知来源」授权后重试');
