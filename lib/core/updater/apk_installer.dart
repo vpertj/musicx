@@ -15,6 +15,22 @@ class ApkInstaller {
     return v;
   }
 
+  /// 是否允许安装未知来源应用(Android 8+ 必须,否则安装会静默失败)。
+  static Future<bool> canInstallPackages() async {
+    try {
+      return await channel.invokeMethod<bool>('canInstallPackages') ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// 打开「安装未知应用」授权页。
+  static Future<void> openInstallPermissionSettings() async {
+    try {
+      await channel.invokeMethod<bool>('openInstallPermissionSettings');
+    } catch (_) {}
+  }
+
   /// 监听「回到前台」:用于检测应用是否已被新版本替换,进而自动重启。
   static void listenResume(void Function() onResume) {
     channel.setMethodCallHandler((call) async {

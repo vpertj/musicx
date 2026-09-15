@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:musicx/core/updater/update_service.dart';
 import 'package:musicx/core/utils/open_external.dart';
 
@@ -110,6 +111,20 @@ class UpdateController extends Notifier<UpdateState> {
         error: '当前已是最新版本 v$installed',
       );
       return;
+    }
+    // 安卓 8+ 必须先获得「安装未知应用」权限,否则安装会被系统静默拒绝,
+    // 用户只看到「更新失败」(实测:装 1.7.20 后升级,系统弹窗提示不允许
+    // 从此来源安装应用)。这里在**下载前**检查并引导授权,避免白下载 60MB。
+    if (Platform.isAndroid) {
+      final allowed = await ApkInstaller.canInstallPackages();
+      if (!allowed) {
+        await ApkInstaller.openInstallPermissionSettings();
+        state = state.copyWith(
+          phase: UpdatePhase.error,
+          error: '请先在系统设置里允许「MusicX 安装应用」,然后返回重新点击更新',
+        );
+        return;
+      }
     }
     state = state.copyWith(phase: UpdatePhase.downloading, progress: 0);
     try {

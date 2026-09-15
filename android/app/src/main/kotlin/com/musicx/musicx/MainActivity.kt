@@ -58,6 +58,15 @@ class MainActivity : FlutterActivity() {
                             if (path.isNullOrEmpty()) null else apkVersionCode(path)
                         )
                     }
+                    // 是否允许安装未知来源应用(Android 8+ 必需,否则安装静默失败)
+                    "canInstallPackages" -> {
+                        result.success(canInstallPackages())
+                    }
+                    // 跳到「安装未知应用」授权页
+                    "openInstallPermissionSettings" -> {
+                        openInstallPermissionSettings()
+                        result.success(true)
+                    }
                     // 回到前台:Flutter 侧据此检测「应用是否已被新版本替换」
                     "restartApp" -> {
                         restartApp()
@@ -104,6 +113,30 @@ class MainActivity : FlutterActivity() {
         }
     } catch (e: Exception) {
         -1
+    }
+
+    /** 是否允许本应用安装 APK(API 26+ 需要用户在设置里单独授权)。 */
+    private fun canInstallPackages(): Boolean = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    } catch (_: Exception) {
+        true
+    }
+
+    /** 打开「安装未知应用」授权页,让用户一步到位授予权限。 */
+    private fun openInstallPermissionSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                    .setData(Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun installApk(path: String): Boolean = try {
