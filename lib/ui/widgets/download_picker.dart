@@ -47,13 +47,25 @@ Future<void> showDownloadPicker(
                 ),
               ),
             ),
+            // 档位取值必须与音源插件的映射一致(内置酷我念心音源:
+            // low→128k / standard→320k / high→flac / super→flac)。
+            // 此前「标准」传 standard 实际拿到 320k、「高品」传 high 实际拿到
+            // FLAC —— 标注与实际不符,用户以为选了无损其实选的是 320k。
             _QualityTile(
               label: '标准音质',
               sub: '128kbps · 体积小',
+              value: 'low',
+            ),
+            _QualityTile(
+              label: '高品质',
+              sub: '320kbps · 推荐',
               value: 'standard',
             ),
-            _QualityTile(label: '高品音质', sub: '320kbps · 推荐', value: 'high'),
-            _QualityTile(label: '无损音质', sub: 'FLAC · 需要会员支持', value: 'super'),
+            _QualityTile(
+              label: '无损音质',
+              sub: 'FLAC · 部分歌曲需要会员',
+              value: 'super',
+            ),
             const SizedBox(height: 8),
           ],
         ),
