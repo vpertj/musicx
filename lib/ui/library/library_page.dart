@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
@@ -312,13 +313,41 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         itemBuilder: (context, i) {
                           final song = songs[i];
                           final isFav = _selected == null;
+                          // 歌单内歌曲此前没有下载入口(明显缺漏):与搜索结果行一致
+                          final alreadyDownloaded = ref
+                              .watch(downloadControllerProvider)
+                              .any(
+                                (d) =>
+                                    d.song.id == song.id &&
+                                    d.song.platform == song.platform,
+                              );
                           return SongTile(
                             song: song,
-                                                        onTap: () => ref
+                            onTap: () => ref
                                 .read(playerControllerProvider.notifier)
                                 .playFromList(songs, i),
-                            trailing: isFav
-                                ? IconButton(
+                            // 注意:SongTile 的 trailing 会覆盖内置的 onAdd/onDownload,
+                            // 所以下载按钮要自己放进 trailing 行里(实测踩过)。
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!alreadyDownloaded)
+                                  IconButton(
+                                    tooltip: '下载',
+                                    iconSize: 20,
+                                    visualDensity: VisualDensity.compact,
+                                    icon: Icon(
+                                      Icons.download_rounded,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                    onPressed: () => showDownloadPicker(
+                                      context,
+                                      ref,
+                                      song,
+                                    ),
+                                  ),
+                                if (isFav)
+                                  IconButton(
                                     tooltip: '取消喜欢',
                                     icon: Icon(
                                       Icons.favorite_rounded,
@@ -331,7 +360,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                         )
                                         .toggleFavorite(song),
                                   )
-                                : IconButton(
+                                else
+                                  IconButton(
                                     tooltip: '移出歌单',
                                     icon: Icon(
                                       Icons.remove_circle_outline_rounded,
@@ -347,6 +377,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                           song,
                                         ),
                                   ),
+                              ],
+                            ),
                           );
                         },
                       ),

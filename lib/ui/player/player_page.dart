@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:musicx/core/download/download_controller.dart';
+import 'package:musicx/core/library/library_controller.dart';
+import 'package:musicx/ui/widgets/download_picker.dart';
+import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/utils/format.dart';
@@ -276,6 +280,9 @@ class _BottomConsole extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // 进度条上方的操作条:左侧下载当前播放的这首歌(用户诉求),
+              // 右侧是播放中同样高频的收藏与加入歌单。
+              _NowPlayingActions(song: state.current),
               // 进度条 + 时间
               SeekBar(
                 position: state.position,
@@ -982,6 +989,76 @@ class _TimeText extends StatelessWidget {
 }
 
 /// 播放队列底部弹层:跟随播放状态实时高亮当前曲目。
+/// 播放页进度条上方的操作条:下载 / 收藏 / 加入歌单。
+class _NowPlayingActions extends ConsumerWidget {
+  const _NowPlayingActions({required this.song});
+
+  final MusicItem? song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = song;
+    if (s == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final downloaded = ref
+        .watch(downloadControllerProvider)
+        .any((d) => d.song.id == s.id && d.song.platform == s.platform);
+    final isFav = ref
+        .watch(libraryControllerProvider.notifier)
+        .isFavorite(s);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        children: [
+          // 下载:已下载时显示勾选态,避免重复下载
+          TextButton.icon(
+            onPressed: downloaded
+                ? () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('这首歌已下载')),
+                  )
+                : () => showDownloadPicker(context, ref, s),
+            icon: Icon(
+              downloaded
+                  ? Icons.check_circle_rounded
+                  : Icons.download_rounded,
+              size: 18,
+            ),
+            label: Text(downloaded ? '已下载' : '下载'),
+            style: TextButton.styleFrom(
+              foregroundColor: scheme.onSurfaceVariant,
+              textStyle: textTheme.labelMedium,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: isFav ? '取消喜欢' : '喜欢',
+            iconSize: 20,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: isFav ? scheme.primary : scheme.onSurfaceVariant,
+            ),
+            onPressed: () =>
+                ref.read(libraryControllerProvider.notifier).toggleFavorite(s),
+          ),
+          IconButton(
+            tooltip: '加入歌单',
+            iconSize: 20,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              Icons.playlist_add_rounded,
+              color: scheme.onSurfaceVariant,
+            ),
+            onPressed: () => showPlaylistPicker(context, ref, s),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QueueSheet extends ConsumerWidget {
   const _QueueSheet();
 
@@ -1037,10 +1114,20 @@ class _QueueSheet extends ConsumerWidget {
                     itemBuilder: (context, i) {
                       final s = state.queue[i];
                       final isCurrent = i == state.currentIndex;
+                      final queuedDownloaded = ref
+                          .watch(downloadControllerProvider)
+                          .any(
+                            (d) =>
+                                d.song.id == s.id && d.song.platform == s.platform,
+                          );
                       return SongTile(
                         song: s,
                         highlighted: isCurrent,
                         onTap: () => ctrl.playAt(i),
+                        // 在队列里切歌时想下载同一首很自然(用户诉求)
+                        onDownload: queuedDownloaded
+                            ? null
+                            : () => showDownloadPicker(context, ref, s),
                         trailing: isCurrent
                             ? Icon(
                                 Icons.volume_up_rounded,

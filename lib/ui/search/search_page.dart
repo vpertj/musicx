@@ -12,6 +12,7 @@ import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
+import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/models/music_item.dart';
 
 /// 发现页:渐变品牌头部 + 搜索框 + 热门推荐/历史 + 插件引导。
@@ -316,6 +317,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                           .take(3))
                                     if (_safeItem(e) != null) _safeItem(e)!,
                                 ],
+                                onDownloadRecent: (i) => showDownloadPicker(
+                                  context,
+                                  ref,
+                                  [
+                                    for (final e
+                                        in ref
+                                            .read(playHistoryProvider)
+                                            .take(3))
+                                      if (_safeItem(e) != null) _safeItem(e)!,
+                                  ][i],
+                                ),
+                                onDownloadSong: (song) =>
+                                    showDownloadPicker(context, ref, song),
+                                onAddSong: (song) =>
+                                    showPlaylistPicker(context, ref, song),
                                 onPlayRecent: (i) => _playRecommended(
                                   [
                                     for (final e
@@ -540,6 +556,9 @@ class _IdleView extends StatelessWidget {
     this.onPickTopList,
     this.recentPlays = const [],
     this.onPlayRecent,
+    this.onDownloadRecent,
+    this.onDownloadSong,
+    this.onAddSong,
   });
 
   final List<String> history;
@@ -558,6 +577,11 @@ class _IdleView extends StatelessWidget {
   /// 最近播放(原「音乐由插件驱动」卡片的替代,用户诉求)。
   final List<MusicItem> recentPlays;
   final ValueChanged<int>? onPlayRecent;
+  final ValueChanged<int>? onDownloadRecent;
+
+  /// 下载指定歌曲(榜单卡片长按菜单用)。
+  final ValueChanged<MusicItem>? onDownloadSong;
+  final ValueChanged<MusicItem>? onAddSong;
   final ValueChanged<String> onPick;
   final VoidCallback onClearHistory;
   final VoidCallback? onOpenPlugins;
@@ -601,13 +625,23 @@ class _IdleView extends StatelessWidget {
         ],
         if (hotSongs.isNotEmpty) ...[
           // 两排、每排三个(用户诉求)
-          _SongCardGrid(songs: hotSongs.take(6).toList(), onPlay: onPlayHot),
+          _SongCardGrid(
+            songs: hotSongs.take(6).toList(),
+            onPlay: onPlayHot,
+            onDownloadSong: onDownloadSong,
+            onAddSong: onAddSong,
+          ),
           const SizedBox(height: 24),
         ],
         if (guessSongs.isNotEmpty) ...[
           _SectionTitle('猜你喜欢', icon: Icons.auto_awesome_rounded),
           const SizedBox(height: 12),
-          _SongCardGrid(songs: guessSongs.take(6).toList(), onPlay: onPlayGuess),
+          _SongCardGrid(
+            songs: guessSongs.take(6).toList(),
+            onPlay: onPlayGuess,
+            onDownloadSong: onDownloadSong,
+            onAddSong: onAddSong,
+          ),
           const SizedBox(height: 24),
         ],
         if (hotSongs.isEmpty && recLoading)
@@ -683,6 +717,7 @@ class _IdleView extends StatelessWidget {
             _RecentPlayRow(
               song: recentPlays[i],
               onTap: () => onPlayRecent?.call(i),
+              onDownload: () => onDownloadRecent?.call(i),
             ),
         ] else if (onOpenPlugins != null) ...[
           const SizedBox(height: 28),
@@ -783,16 +818,24 @@ class _TopListChip extends StatelessWidget {
 }
 
 /// 最近播放行:替代原「音乐由插件驱动」卡片(用户诉求)。
-class _RecentPlayRow extends StatelessWidget {
-  const _RecentPlayRow({required this.song, required this.onTap});
+class _RecentPlayRow extends ConsumerWidget {
+  const _RecentPlayRow({
+    required this.song,
+    required this.onTap,
+    required this.onDownload,
+  });
 
   final MusicItem song;
   final VoidCallback onTap;
+  final VoidCallback onDownload;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final downloaded = ref
+        .watch(downloadControllerProvider)
+        .any((d) => d.song.id == song.id && d.song.platform == song.platform);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -847,6 +890,19 @@ class _RecentPlayRow extends StatelessWidget {
                 ],
               ),
             ),
+            // 最近播放也支持下载(刚听完想存下来的场景很常见)
+            IconButton(
+              tooltip: downloaded ? '已下载' : '下载',
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                downloaded
+                    ? Icons.check_circle_rounded
+                    : Icons.download_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
+              onPressed: onDownload,
+            ),
             Icon(
               Icons.play_arrow_rounded,
               size: 20,
@@ -861,10 +917,62 @@ class _RecentPlayRow extends StatelessWidget {
 
 /// 推荐卡片网格:两排、每排三个。
 class _SongCardGrid extends StatelessWidget {
-  const _SongCardGrid({required this.songs, required this.onPlay});
+  const _SongCardGrid({
+    required this.songs,
+    required this.onPlay,
+    this.onDownloadSong,
+    this.onAddSong,
+  });
 
   final List<MusicItem> songs;
   final ValueChanged<int>? onPlay;
+  final ValueChanged<MusicItem>? onDownloadSong;
+  final ValueChanged<MusicItem>? onAddSong;
+
+  /// 卡片空间小,下载/收藏等动作放长按菜单里。
+  Future<void> _showSongMenu(BuildContext context, MusicItem song) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_rounded),
+              title: const Text('下载'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onDownloadSong?.call(song);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded),
+              title: const Text('加入歌单'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onAddSong?.call(song);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -882,6 +990,9 @@ class _SongCardGrid extends StatelessWidget {
       itemBuilder: (context, i) => _SongCard(
         song: songs[i],
         onTap: onPlay == null ? null : () => onPlay!(i),
+        onLongPress: onDownloadSong == null && onAddSong == null
+            ? null
+            : () => _showSongMenu(context, songs[i]),
       ),
     );
   }
@@ -889,10 +1000,15 @@ class _SongCardGrid extends StatelessWidget {
 
 /// 单个歌曲卡:封面 + 歌名 + 歌手。
 class _SongCard extends StatelessWidget {
-  const _SongCard({required this.song, required this.onTap});
+  const _SongCard({
+    required this.song,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   final MusicItem song;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -900,6 +1016,7 @@ class _SongCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
