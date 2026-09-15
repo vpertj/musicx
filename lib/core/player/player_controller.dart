@@ -15,6 +15,9 @@ class PlayerState {
   final List<MusicItem> queue;
   final int currentIndex;
   final bool isPlaying;
+
+  /// 正在解析/起播(切歌中的加载反馈,让用户知道已经响应了点击)。
+  final bool isLoading;
   final String? error;
   final Duration position;
   final Duration duration;
@@ -28,6 +31,7 @@ class PlayerState {
     this.queue = const [],
     this.currentIndex = -1,
     this.isPlaying = false,
+    this.isLoading = false,
     this.error,
     this.position = Duration.zero,
     this.duration = Duration.zero,
@@ -44,6 +48,7 @@ class PlayerState {
     List<MusicItem>? queue,
     int? currentIndex,
     bool? isPlaying,
+    bool? isLoading,
     String? error,
     bool clearError = false,
     Duration? position,
@@ -55,6 +60,7 @@ class PlayerState {
     return PlayerState(
       queue: queue ?? this.queue,
       currentIndex: currentIndex ?? this.currentIndex,
+      isLoading: isLoading ?? this.isLoading,
       isPlaying: isPlaying ?? this.isPlaying,
       error: clearError ? null : (error ?? this.error),
       position: position ?? this.position,
@@ -244,7 +250,7 @@ class PlayerController extends Notifier<PlayerState> {
       await _playCurrentLocal();
     } catch (e) {
       if (e.toString().contains('Loading interrupted')) return;
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -282,6 +288,9 @@ class PlayerController extends Notifier<PlayerState> {
       ref.read(playHistoryProvider.notifier).record(current.toJson());
     } catch (_) {}
     final token = ++_playToken;
+    // 点击即刻给出「加载中」反馈:否则用户点完列表到出声之间毫无反应,
+    // 体感就是「切歌很慢」(实测取流+起播要 0.4~2s)。
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final manager = ref.read(pluginManagerProvider);
       final media = await manager.resolveMediaSource(current.toJson());
@@ -299,6 +308,7 @@ class PlayerController extends Notifier<PlayerState> {
       // (要再发搜索请求),于是列表点击切歌要等歌词才生效 —— 用户体感「非常慢」。
       state = state.copyWith(
         isPlaying: true,
+        isLoading: false,
         clearError: true,
         lyric: const [],
       );

@@ -116,18 +116,30 @@ class MiniPlayerBar extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: state.isPlaying ? '暂停' : '播放',
-                    iconSize: 28,
-                    icon: Icon(
-                      state.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
+                  // 切歌中显示转圈:让用户立刻知道「点到了、正在加载」,
+                  // 而不是看起来卡住(取流+起播本身要 0.4~2s)。
+                  if (state.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      tooltip: state.isPlaying ? '暂停' : '播放',
+                      iconSize: 28,
+                      icon: Icon(
+                        state.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                      onPressed: () => ref
+                          .read(playerControllerProvider.notifier)
+                          .togglePlay(),
                     ),
-                    onPressed: () => ref
-                        .read(playerControllerProvider.notifier)
-                        .togglePlay(),
-                  ),
                   // 循环模式切换:顺序 / 列表循环 / 单曲循环
                   IconButton(
                     tooltip: switch (state.repeatMode) {

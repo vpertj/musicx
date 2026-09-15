@@ -100,6 +100,16 @@ void main() {
     });
   });
 
+  group('isTrustedFastRelay', () {
+    test('念心等中转源可信(跳过体积探测),官方源不可信', () {
+      expect(isTrustedFastRelay('酷我(念心音源)'), isTrue);
+      expect(isTrustedFastRelay('念心'), isTrue);
+      expect(isTrustedFastRelay('腾讯音乐'), isFalse);
+      expect(isTrustedFastRelay('网yi'), isFalse);
+      expect(isTrustedFastRelay(null), isFalse);
+    });
+  });
+
   group('streamSpeedScore', () {
     test('快源优先:念心 < 网易 < 其它酷我 < 未知', () {
       expect(streamSpeedScore('酷我(念心音源)'), 0);

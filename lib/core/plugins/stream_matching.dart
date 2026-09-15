@@ -59,6 +59,16 @@ bool isSameSongStrict({
   return durationMatches(durationMs, otherDurationMs, toleranceMs: toleranceMs);
 }
 
+/// 是否可信的快速中转源(实测返回完整音频、且取流极快)。
+///
+/// 这类源可以跳过「体积探测」以节省 0.5~2s:探测的目的是识别官方源的
+/// VIP 试听片段,而念心等中转源返回的是完整音频(真机验证过完整播放)。
+bool isTrustedFastRelay(String? platform) {
+  if (platform == null) return false;
+  final p = platform.toLowerCase();
+  return p.contains('念心') || p.contains('nxinxz') || p.contains('met音源');
+}
+
 /// 快源优先顺序:取流实测最快的排前面(纯函数,便于单测)。
 int streamSpeedScore(String platform) {
   final p = platform.toLowerCase();

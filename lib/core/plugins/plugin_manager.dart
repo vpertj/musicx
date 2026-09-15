@@ -585,7 +585,13 @@ class PluginManager {
           final url = media['url'] as String?;
           if (url == null || url.isEmpty) continue;
           // 与正常流程同口径:试听片段不接受
-          if (await _isPreviewAudio(url, musicItem)) continue;
+          if (await _isPreviewAudio(
+            url,
+            musicItem,
+            sourcePlatform: plugin.platform,
+          )) {
+            continue;
+          }
           return {...media, 'crossSource': plugin.platform};
         }
       } catch (_) {
@@ -641,7 +647,11 @@ class PluginManager {
         if (result['url'] != null && (result['url'] as String).isNotEmpty) {
           // 第一轮同样做试听检测:网易/腾讯对 VIP 歌返回 20~45 秒试听,
           // 命中则落入后续轮次换完整版(与二/三轮判定口径一致)。
-          if (await _isPreviewAudio(result['url'] as String, musicItem)) {
+          if (await _isPreviewAudio(
+            result['url'] as String,
+            musicItem,
+            sourcePlatform: plugin.platform,
+          )) {
             continue;
           }
           return result;
@@ -676,7 +686,13 @@ class PluginManager {
             final url = result['url'] as String?;
             if (url == null || url.isEmpty) continue;
             // 试听片段/提示音检测:结合歌曲时长判断,跳过并继续换源
-            if (await _isPreviewAudio(url, musicItem)) continue;
+            if (await _isPreviewAudio(
+              url,
+              musicItem,
+              sourcePlatform: plugin.platform,
+            )) {
+              continue;
+            }
             return result;
           } catch (_) {
             // 继续
@@ -744,7 +760,13 @@ class PluginManager {
           );
           final url = result['url'] as String?;
           if (url == null || url.isEmpty) continue;
-          if (await _isPreviewAudio(url, candidate)) continue;
+          if (await _isPreviewAudio(
+            url,
+            candidate,
+            sourcePlatform: plugin.platform,
+          )) {
+            continue;
+          }
           return result;
         }
       } catch (_) {
@@ -809,8 +831,19 @@ class PluginManager {
 
   Future<bool> _isPreviewAudio(
     String url,
-    Map<String, dynamic> musicItem,
-  ) async {
+    Map<String, dynamic> musicItem, {
+    String? sourcePlatform,
+  }) async {
+    // 可信快源(念心等中转)直接放行:省掉一次 0.5~2s 的体积探测。
+    // 安全网:真正播放失败时 player_controller 会清缓存并强制重解析(带探测)。
+    final durationMsHint = (musicItem['duration'] as num?)?.toInt() ?? 0;
+    if (isTrustedFastRelay(sourcePlatform) && durationMsHint >= 60000) {
+      debugPrint(
+        'MusicX 试听检测: 可信快源跳过探测 source=$sourcePlatform '
+        'host=${Uri.tryParse(url)?.host}',
+      );
+      return false;
+    }
     final bytes = await _probeSizeCached(url);
     final durationMs = (musicItem['duration'] as num?)?.toInt();
     final verdict = bytes <= 0

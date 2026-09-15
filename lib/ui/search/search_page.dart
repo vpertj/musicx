@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
@@ -106,6 +108,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         try {
           guessItems.add(MusicItem.fromJson(raw));
         } catch (_) {}
+      }
+      // 进首页即预热榜单前 2 首:用户直接点首页卡片时也能接近瞬时
+      // (此前只有搜索后才预热,冷启动首点仍要等取流)。
+      for (final item in hot.take(2)) {
+        unawaited(
+          manager
+              .resolveMediaSource(item.toJson())
+              .catchError((_) => <String, dynamic>{}),
+        );
       }
       _recCache.put('home', [
         for (final m in hot) {'__kind': 'hot', ...m.toJson()},

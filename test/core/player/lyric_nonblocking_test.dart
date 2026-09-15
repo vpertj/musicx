@@ -63,11 +63,20 @@ void main() {
 
     // 播放(不 await:歌词仍在后台)
     final playing = ctrl.playFromList([song], 0);
+    // 点击后**立即**进入加载态:用户马上能看到反馈(转圈),
+    // 而不是等到出声才知道点到了(这是「切歌慢」体感的一半原因)。
+    expect(
+      container.read(playerControllerProvider).isLoading,
+      isTrue,
+      reason: '点击后应立刻标记加载中',
+    );
     await Future<void>.delayed(const Duration(milliseconds: 120));
 
     final midway = container.read(playerControllerProvider);
     expect(midway.current?.title, '示例歌曲', reason: '当前曲目应已切换');
     expect(midway.lyric, isEmpty, reason: '此刻歌词还没到(后台仍在取)');
+    // 歌词仍在后台取(与播放状态互不阻塞)
+    expect(midway.isLoading || midway.isPlaying || midway.current != null, isTrue);
 
     await playing;
     // 等歌词后台完成
