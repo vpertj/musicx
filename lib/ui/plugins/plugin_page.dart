@@ -1125,21 +1125,27 @@ class _BlessingCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.9),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  _line1,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    height: 1.7,
-                    fontWeight: FontWeight.w600,
-                    shadows: [
-                      Shadow(
-                        color: Color(0x33000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
+                // 用 SizedBox(width: double.infinity) 让 Text 撑满卡片宽度。
+                // 只写 textAlign: center 是不够的:Text 默认按内容宽度收缩,
+                // textAlign 只在自身宽度内居中,实测文案会明显偏左。
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    _line1,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      height: 1.7,
+                      fontWeight: FontWeight.w600,
+                      shadows: [
+                        Shadow(
+                          color: Color(0x33000000),
+                          blurRadius: 6,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

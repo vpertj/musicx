@@ -44,6 +44,30 @@ class PlayHistoryController extends Notifier<List<Map<String, dynamic>>> {
     _persist();
   }
 
+  /// 移除单条播放记录(按 platform+songId+title 定位,与去重口径一致)。
+  ///
+  /// 用于「最近播放」列表里删掉某一首(用户诉求:不想留记录的歌可以单独清掉,
+  /// 而不是只能整个列表清空)。
+  void removeEntry(Map<String, dynamic> song) {
+    final key = _keyOf(song);
+    if (key.isEmpty) return;
+    final next = [
+      for (final s in state)
+        if (_keyOf(s) != key) s,
+    ];
+    if (next.length == state.length) return; // 没变化就不写盘
+    state = next;
+    _persist();
+  }
+
+  /// 按索引移除(UI 列表按下标回调时更直接)。
+  void removeAt(int index) {
+    if (index < 0 || index >= state.length) return;
+    final next = [...state]..removeAt(index);
+    state = next;
+    _persist();
+  }
+
   void _persist() {
     try {
       AppPaths.file('play_history.json')

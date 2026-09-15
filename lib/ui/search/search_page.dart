@@ -187,6 +187,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
+  /// 「最近播放」展示用的列表(最多 3 条)。
+  ///
+  /// 供各回调(播放/下载/删除)按 UI 下标取歌 —— 与展示用的是同一套规则,
+  /// 避免"显示 3 条、按下标却删到别的歌"。
+  List<MusicItem> _recentPlaysOf(WidgetRef ref) => [
+    for (final e in ref.read(playHistoryProvider).take(3))
+      if (_safeItem(e) != null) _safeItem(e)!,
+  ];
+
   /// 播放首页推荐里的第 index 首。
   void _playRecommended(List<MusicItem> songs, int index) {
     ref.read(playerControllerProvider.notifier).playFromList(songs, index);
@@ -311,38 +320,43 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 topLists: _topLists,
                                 topListIndex: _topListIndex,
                                 onPickTopList: _switchTopList,
+                                // 用 watch 的值作数据源:清空/删除「最近播放」
+                                // 后本页会重建,列表随之更新(只 read 不会刷新)。
                                 recentPlays: [
                                   for (final e
-                                      in ref
-                                          .watch(playHistoryProvider)
-                                          .take(3))
+                                      in ref.watch(playHistoryProvider).take(3))
                                     if (_safeItem(e) != null) _safeItem(e)!,
                                 ],
-                                onDownloadRecent: (i) => showDownloadPicker(
-                                  context,
-                                  ref,
-                                  [
-                                    for (final e
-                                        in ref
-                                            .read(playHistoryProvider)
-                                            .take(3))
-                                      if (_safeItem(e) != null) _safeItem(e)!,
-                                  ][i],
-                                ),
+                                onDownloadRecent: (i) {
+                                  final list = _recentPlaysOf(ref);
+                                  if (i < 0 || i >= list.length) return;
+                                  showDownloadPicker(context, ref, list[i]);
+                                },
                                 onDownloadSong: (song) =>
                                     showDownloadPicker(context, ref, song),
                                 onAddSong: (song) =>
                                     showPlaylistPicker(context, ref, song),
-                                onPlayRecent: (i) => _playRecommended(
-                                  [
-                                    for (final e
-                                        in ref
-                                            .read(playHistoryProvider)
-                                            .take(3))
-                                      if (_safeItem(e) != null) _safeItem(e)!,
-                                  ],
-                                  i,
-                                ),
+                                onPlayRecent: (i) =>
+                                    _playRecommended(_recentPlaysOf(ref), i),
+                                // 清空整个「最近播放」(用户诉求)
+                                onClearRecentPlays: () => ref
+                                    .read(playHistoryProvider.notifier)
+                                    .clear(),
+                                // 移除单首:UI 下标只针对**展示出来的那几条**,
+                                // 这里统一用同一个取值函数换算,避免删错歌。
+                                onRemoveRecent: (i) {
+                                  final shown = _recentPlaysOf(ref);
+                                  if (i < 0 || i >= shown.length) return;
+                                  final t = shown[i];
+                                  ref
+                                      .read(playHistoryProvider.notifier)
+                                      .removeEntry({
+                                    'id': t.id,
+                                    'platform': t.platform,
+                                    'songId': t.songId,
+                                    'title': t.title,
+                                  });
+                                },
                                 onPlayHot: (i) => _playRecommended(_hotSongs, i),
                                 onPlayGuess: (i) =>
                                     _playRecommended(_guessSongs, i),
@@ -558,6 +572,8 @@ class _IdleView extends StatelessWidget {
     this.recentPlays = const [],
     this.onPlayRecent,
     this.onDownloadRecent,
+    this.onClearRecentPlays,
+    this.onRemoveRecent,
     this.onDownloadSong,
     this.onAddSong,
   });
@@ -579,6 +595,12 @@ class _IdleView extends StatelessWidget {
   final List<MusicItem> recentPlays;
   final ValueChanged<int>? onPlayRecent;
   final ValueChanged<int>? onDownloadRecent;
+
+  /// 清空整个「最近播放」列表。
+  final VoidCallback? onClearRecentPlays;
+
+  /// 移除「最近播放」里的单首(按下标)。
+  final ValueChanged<int>? onRemoveRecent;
 
   /// 下载指定歌曲(榜单卡片长按菜单用)。
   final ValueChanged<MusicItem>? onDownloadSong;
@@ -712,13 +734,32 @@ class _IdleView extends StatelessWidget {
         ],
         if (recentPlays.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _SectionTitle('最近播放', icon: Icons.history_rounded),
+          Row(
+            children: [
+              _SectionTitle('最近播放', icon: Icons.history_rounded),
+              const Spacer(),
+              // 与「最近搜索」保持一致:整个列表可一键清空(用户诉求)。
+              InkWell(
+                onTap: onClearRecentPlays,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Text(
+                    '清空',
+                    style: textTheme.bodySmall?.copyWith(color: scheme.outline),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           for (var i = 0; i < recentPlays.length; i++)
             _RecentPlayRow(
               song: recentPlays[i],
               onTap: () => onPlayRecent?.call(i),
               onDownload: () => onDownloadRecent?.call(i),
+              // 单首移除
+              onRemove: () => onRemoveRecent?.call(i),
             ),
         ] else if (onOpenPlugins != null) ...[
           const SizedBox(height: 28),
@@ -824,11 +865,15 @@ class _RecentPlayRow extends ConsumerWidget {
     required this.song,
     required this.onTap,
     required this.onDownload,
+    this.onRemove,
   });
 
   final MusicItem song;
   final VoidCallback onTap;
   final VoidCallback onDownload;
+
+  /// 从「最近播放」移除这一首;为 null 时不显示删除按钮。
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -904,6 +949,18 @@ class _RecentPlayRow extends ConsumerWidget {
               ),
               onPressed: onDownload,
             ),
+            // 单首移除(用户诉求:不想要的记录可以单独删掉)
+            if (onRemove != null)
+              IconButton(
+                tooltip: '从最近播放中移除',
+                iconSize: 18,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: scheme.outline,
+                ),
+                onPressed: onRemove,
+              ),
             Icon(
               Icons.play_arrow_rounded,
               size: 20,

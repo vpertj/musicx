@@ -56,6 +56,30 @@ void main() {
     );
   });
 
+  testWidgets('卡片文案在卡片内水平居中', (tester) async {
+    // 用户实测:文案明显偏左。原因是只给了 textAlign: center,
+    // 而 Text 默认按内容宽度收缩,textAlign 只在自身宽度内生效。
+    // 必须让 Text 撑满卡片宽度(SizedBox width: double.infinity)。
+    await pumpSettings(tester, dark: false);
+    await scrollToBottom(tester);
+
+    final textFinder = find.text('玫风入怀,静享喜乐,日日有甜。');
+    expect(textFinder, findsOneWidget);
+
+    // 找到渐变卡片本体(文案的祖先 Container)
+    final cardRect = tester.getRect(
+      find.ancestor(of: textFinder, matching: find.byType(Container)).first,
+    );
+    final textRect = tester.getRect(textFinder);
+
+    expect(
+      (textRect.center.dx - cardRect.center.dx).abs(),
+      lessThan(1.0),
+      reason: '文案中心应与卡片中心重合(实测偏差为 0px);'
+          '偏差大说明 Text 没有撑满宽度,textAlign 失效',
+    );
+  });
+
   testWidgets('窄屏(320dp)下卡片不溢出', (tester) async {
     await pumpSettings(tester, dark: false, size: const Size(320, 640));
     await scrollToBottom(tester);
