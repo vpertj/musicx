@@ -256,6 +256,11 @@ class PlayerController extends Notifier<PlayerState> {
     final paths = _localPaths;
     if (current == null || paths == null) return;
     if (state.currentIndex >= paths.length) return;
+    // 本地(已下载)播放同样计入播放历史,否则只播下载歌曲的用户首页永远
+    // 没有「最近播放」(实测缺口)。
+    try {
+      ref.read(playHistoryProvider.notifier).record(current.toJson());
+    } catch (_) {}
     final service = ref.read(playerServiceProvider);
     await service.playUrl('file://${paths[state.currentIndex]}');
     state = state.copyWith(isPlaying: true, clearError: true);

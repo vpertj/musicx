@@ -45,9 +45,15 @@ void main() {
     await tester.runAsync(() async {
       await tester.enterText(find.byType(TextField), '示例');
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      // 轮询等待结果:固定延时在并发跑测试时不稳定;
+      // 也不能用 pumpAndSettle —— 首页推荐加载中的动画会让它永不结束。
+      for (var i = 0; i < 50; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await tester.pump();
+        if (find.text('示例歌曲').evaluate().isNotEmpty) break;
+      }
     });
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('示例歌曲'), findsOneWidget);
     expect(find.text('歌手'), findsOneWidget);
