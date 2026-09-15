@@ -9,6 +9,7 @@ import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
+import 'package:musicx/ui/search/song_card_layout.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
@@ -976,24 +977,31 @@ class _SongCardGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(right: 20),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        mainAxisExtent: 158,
-      ),
-      itemCount: songs.length,
-      itemBuilder: (context, i) => _SongCard(
-        song: songs[i],
-        onTap: onPlay == null ? null : () => onPlay!(i),
-        onLongPress: onDownloadSong == null && onAddSong == null
-            ? null
-            : () => _showSongMenu(context, songs[i]),
-      ),
+    // 列数与行高由可用宽度推导:封面是正方形,行高必须跟着单元格宽度走,
+    // 否则桌面宽屏下方图会超出固定行高、盖住下面的区块(实测现象)。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = songCardLayoutFor(constraints.maxWidth);
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(right: songCardTrailingPadding),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: layout.columns,
+            mainAxisSpacing: songCardSpacing,
+            crossAxisSpacing: songCardSpacing,
+            mainAxisExtent: layout.extent,
+          ),
+          itemCount: songs.length,
+          itemBuilder: (context, i) => _SongCard(
+            song: songs[i],
+            onTap: onPlay == null ? null : () => onPlay!(i),
+            onLongPress: onDownloadSong == null && onAddSong == null
+                ? null
+                : () => _showSongMenu(context, songs[i]),
+          ),
+        );
+      },
     );
   }
 }
