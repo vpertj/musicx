@@ -689,6 +689,8 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ],
               const SizedBox(height: 8),
               const _AboutCard(),
+              const SizedBox(height: 8),
+              const _BlessingCard(),
             ],
           ),
         ];
@@ -1052,6 +1054,95 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
             '插件协议兼容 MusicFree · 播放器本体不含音源',
             style: textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 设置页底部的寄语卡片。
+///
+/// 设计要点:
+/// - 品牌红渐变 + 柔和高光,作为整页唯一的"装饰性"元素;
+/// - 深浅色两套配色都保证对比度(渐变上统一用白字);
+/// - 纯展示、不可点,避免用户误以为能交互。
+class _BlessingCard extends StatelessWidget {
+  const _BlessingCard();
+
+  static const String _line1 = '玫风入怀,静享喜乐,日日有甜。';
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 深色模式整体压暗一档,避免在深色页面上过亮刺眼。
+    final gradient = LinearGradient(
+      colors: isDark
+          ? const [Color(0xFF8E2A38), Color(0xFFB93044)]
+          : const [Color(0xFFC4343F), Color(0xFFFA3B4D)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFA3B4D).withValues(
+              alpha: isDark ? 0.18 : 0.22,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // 右上角柔光,让纯色渐变不至于太平。
+          Positioned(
+            right: -30,
+            top: -40,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.favorite_rounded,
+                  size: 18,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _line1,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.7,
+                    fontWeight: FontWeight.w600,
+                    shadows: [
+                      Shadow(
+                        color: Color(0x33000000),
+                        blurRadius: 6,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],

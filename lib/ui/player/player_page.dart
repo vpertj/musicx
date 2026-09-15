@@ -1005,8 +1005,9 @@ class _NowPlayingActions extends ConsumerWidget {
         .watch(downloadControllerProvider)
         .any((d) => d.song.id == s.id && d.song.platform == s.platform);
     final isFav = ref
-        .watch(libraryControllerProvider.notifier)
-        .isFavorite(s);
+        .watch(libraryControllerProvider)
+        .favorites
+        .any((f) => f.id == s.id && f.platform == s.platform);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
