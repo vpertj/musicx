@@ -75,4 +75,15 @@ void main() {
     expect(file.existsSync(), isTrue);
     expect(file.readAsBytesSync(), hostValidPackage());
   });
+
+  test('文件名可带目标版本(便于区分残留旧包)', () {
+    expect(
+      updateDownloadFileNameFor(isAndroid: true, version: '1.7.39'),
+      'musicx_update_v1.7.39.apk',
+    );
+    expect(
+      updateDownloadFileNameFor(isAndroid: false, isMacOS: true, version: '1.7.39'),
+      'musicx_update_v1.7.39.dmg',
+    );
+  });
 }

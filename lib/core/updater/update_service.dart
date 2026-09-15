@@ -40,15 +40,21 @@ String updateAssetSuffixFor({
 
 /// 下载后的本地文件名(按平台)。Windows 用的是 setup.exe,
 /// 此前非安卓一律命名 .dmg,Windows 上会拿着 .dmg 去执行(错)。
+///
+/// [version] 传入目标版本时,文件名会带上版本号(如
+/// `musicx_update_v1.7.38.apk`)—— 用户/文件管理器里一眼能分辨文件身份,
+/// 避免把残留的旧包当成新包安装(实测踩过「安装界面显示旧版本号」)。
 String updateDownloadFileNameFor({
   required bool isAndroid,
   bool isWindows = false,
   bool isMacOS = false,
+  String? version,
 }) {
-  if (isAndroid) return 'musicx_update.apk';
-  if (isWindows) return 'musicx_update_setup.exe';
-  if (isMacOS) return 'musicx_update.dmg';
-  return 'musicx_update.pkg';
+  final tag = (version == null || version.isEmpty) ? '' : '_v$version';
+  if (isAndroid) return 'musicx_update$tag.apk';
+  if (isWindows) return 'musicx_update$tag.exe';
+  if (isMacOS) return 'musicx_update$tag.dmg';
+  return 'musicx_update$tag.pkg';
 }
 
 /// 从 GitHub `releases/expanded_assets/<tag>` 页面解析资产直链。
@@ -314,6 +320,7 @@ class UpdateService {
     String url, {
     void Function(double)? onProgress,
     String? expectedSha256,
+    String? version,
   }) async {
     // 安卓必须落在应用私有目录(cache),否则 FileProvider 无法把 APK 交给
     // 系统安装器;桌面沿用系统临时目录。
@@ -326,6 +333,7 @@ class UpdateService {
         isAndroid: Platform.isAndroid,
         isWindows: Platform.isWindows,
         isMacOS: Platform.isMacOS,
+        version: version,
       )}',
     );
     if (!dir.existsSync()) dir.createSync(recursive: true);

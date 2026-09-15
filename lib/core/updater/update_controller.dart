@@ -171,6 +171,7 @@ class UpdateController extends Notifier<UpdateState> {
         info.dmgUrl,
         onProgress: (p) => state = state.copyWith(progress: p),
         expectedSha256: info.dmgSha256,
+        version: info.latestVersion,
       );
       state = state.copyWith(phase: UpdatePhase.installing);
       // 把目标版本一并交给校验:安装包的 versionName 必须等于它
@@ -184,8 +185,11 @@ class UpdateController extends Notifier<UpdateState> {
         state = state.copyWith(
           phase: UpdatePhase.error,
           clearInfo: true,
-          error: '安装包已交给系统安装器。完成安装后请重新打开应用,'
-              '新版本才会生效。',
+          error: '已把 v${info.latestVersion} 的安装包交给系统安装器'
+              '(文件 ${pkg.path.split('/').last})。'
+              '若系统界面显示的版本号不是 v${info.latestVersion},'
+              '说明它装的是别的旧文件,请改用应用内更新重试。'
+              '安装完成后请重新打开应用。',
         );
       }
     } catch (e) {
