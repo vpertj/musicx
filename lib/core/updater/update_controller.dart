@@ -79,6 +79,12 @@ class UpdateController extends Notifier<UpdateState> {
   /// 执行更新:macOS/Android 应用内下载并安装(Android 会拉起系统安装器);
   /// Windows/Linux 打开 Release 页手动下载。
   Future<void> update() async {
+    // 并发守卫:下载/安装进行中时忽略重复触发(启动弹窗 + 设置页按钮
+    // 可能同时被点到,重复下载会白耗流量并互相覆盖文件)。
+    if (state.phase == UpdatePhase.downloading ||
+        state.phase == UpdatePhase.installing) {
+      return;
+    }
     var info = state.info;
     if (info == null) {
       // info 缺失(如直接调用),重新检查一次

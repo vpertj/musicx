@@ -61,13 +61,16 @@ void main() {
     addTearDown(() {
       if (tmp.existsSync()) tmp.deleteSync(recursive: true);
     });
-    final client = MockClient((req) async => http.Response.bytes([1, 2, 3], 200));
+    // 需要 ZIP 魔数:非 ZIP 内容会被判为无效安装包并删除(新契约)
+    final client = MockClient(
+      (req) async => http.Response.bytes([0x50, 0x4B, 0x03, 0x04, 1, 2, 3], 200),
+    );
     final service = UpdateService(client: client, downloadDir: tmp);
 
     final file = await service.download('https://example.com/musicx.apk');
 
     expect(file.parent.path, tmp.path);
     expect(file.existsSync(), isTrue);
-    expect(file.readAsBytesSync(), [1, 2, 3]);
+    expect(file.readAsBytesSync(), [0x50, 0x4B, 0x03, 0x04, 1, 2, 3]);
   });
 }

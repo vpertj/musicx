@@ -344,6 +344,37 @@ class UpdateService {
       await sink.close();
     }
 
+    // ① 完整性:声明了 Content-Length 就必须下满,否则是断流(此前只用于进度,
+    //    截断的包会被交给系统并报出难以理解的错误)。
+    if (total != null && total > 0 && received != total) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+      throw HttpException(
+        '下载不完整($received/$total 字节),已作废,请重新下载',
+      );
+    }
+    // ② 格式:APK 是 ZIP,必须以 PK 魔数开头;HTML 错误页/坏文件在这里就拦下。
+    try {
+      final head = await file.openRead(0, 4).fold<List<int>>(
+        <int>[],
+        (a, b) => a..addAll(b),
+      );
+      final isZip = head.length >= 2 && head[0] == 0x50 && head[1] == 0x4B;
+      if (!isZip) {
+        file.deleteSync();
+        throw HttpException('下载到的文件不是有效的安装包,已作废,请重新下载');
+      }
+    } on HttpException {
+      rethrow;
+    } catch (_) {
+      // 读取失败按无效处理(宁可不装)
+      try {
+        file.deleteSync();
+      } catch (_) {}
+      throw HttpException('安装包校验失败(无法读取文件),请重新下载');
+    }
+
     // SHA256 完整性校验:不匹配说明下载被篡改/损坏,拒绝安装并清理。
     if (expectedSha256 != null && expectedSha256.isNotEmpty) {
       final actual = await _sha256Of(file);
@@ -375,6 +406,7 @@ class UpdateService {
       InstallDecision decision,
       int? apkCode,
       String? apkVersion,
+      String? apkPackageName,
       int? installedVersion,
     })
   >
@@ -384,21 +416,25 @@ class UpdateService {
   }) async {
     final apkCode = await ApkInstaller.versionCodeOf(path);
     final apkName = await ApkInstaller.versionNameOf(path);
+    final apkPkg = await ApkInstaller.packageNameOf(path);
     final installedCode = await ApkInstaller.versionCode();
     final decision = decideInstall(
       apkVersionCode: apkCode,
       apkVersionName: apkName,
       installedVersionCode: installedCode,
       expectedVersion: expectedVersion,
+      apkPackageName: apkPkg,
+      expectedPackageName: ApkInstaller.androidPackageName,
     );
     debugPrint(
-      'MusicX 更新校验: 安装包=v${apkName ?? "?"}($apkCode) '
+      'MusicX 更新校验: 安装包=$apkPkg v${apkName ?? "?"}($apkCode) '
       '已装=$installedCode 目标=v$expectedVersion → ${decision.name}',
     );
     return (
       decision: decision,
       apkCode: apkCode,
       apkVersion: apkName,
+      apkPackageName: apkPkg,
       installedVersion: installedCode,
     );
   }

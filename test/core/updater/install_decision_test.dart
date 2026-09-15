@@ -11,11 +11,14 @@ void main() {
     String? apkName = '1.7.29',
     int? installed = 47,
     String expected = '1.7.29',
+    String? apkPkg = 'com.musicx.musicx',
   }) => decideInstall(
     apkVersionCode: apkCode,
     apkVersionName: apkName,
     installedVersionCode: installed,
     expectedVersion: expected,
+    apkPackageName: apkPkg,
+    expectedPackageName: 'com.musicx.musicx',
   );
 
   test('确实更新 → 交给安装器', () {
@@ -39,6 +42,12 @@ void main() {
     expect(decide(apkCode: -1), InstallDecision.invalid);
     expect(decide(installed: null), InstallDecision.invalid);
     expect(decide(installed: -1), InstallDecision.invalid);
+  });
+
+  test('包名不是本应用 → 判为无效(防装错应用)', () {
+    expect(decide(apkPkg: 'com.evil.app'), InstallDecision.invalid);
+    expect(decide(apkPkg: null), InstallDecision.install,
+        reason: '读不到包名时不额外拦截(Android 安装器还会校验签名)');
   });
 
   test('版本名缺失但 versionCode 确凿更新 → 仍可安装', () {

@@ -75,6 +75,20 @@ class ApkInstaller {
     }
   }
 
+  /// 读取 APK 文件的包名(核对是否本应用);失败返回 null。
+  static Future<String?> packageNameOf(String path) async {
+    try {
+      return await channel.invokeMethod<String>('apkPackageName', {
+        'path': path,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 本应用包名(与 AndroidManifest 一致)。
+  static const String androidPackageName = 'com.musicx.musicx';
+
   /// 把下载好的 APK 交给系统安装器。返回是否成功调起。
   static Future<bool> installApk(String path) async {
     final ok = await channel.invokeMethod<bool>('installApk', {'path': path});

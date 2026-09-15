@@ -31,7 +31,15 @@ InstallDecision decideInstall({
   required String? apkVersionName,
   required int? installedVersionCode,
   required String expectedVersion,
+  String? apkPackageName,
+  String expectedPackageName = '',
 }) {
+  // 包名必须是我们自己:下到别的应用(或构造的包)一律不装。
+  if (apkPackageName != null &&
+      expectedPackageName.isNotEmpty &&
+      apkPackageName != expectedPackageName) {
+    return InstallDecision.invalid;
+  }
   // 读不到任何一方信息:不冒险交给安装器(fail-closed)
   if (apkVersionCode == null ||
       apkVersionCode <= 0 ||

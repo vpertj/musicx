@@ -52,6 +52,12 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "getVersionName" -> result.success(versionName())
                     "getVersionCode" -> result.success(versionCode())
+                    "apkPackageName" -> {
+                        val path = call.argument<String>("path")
+                        result.success(
+                            if (path.isNullOrEmpty()) null else apkPackageName(path)
+                        )
+                    }
                     "apkVersionName" -> {
                         val path = call.argument<String>("path")
                         result.success(
@@ -143,6 +149,13 @@ class MainActivity : FlutterActivity() {
             }
         } catch (_: Exception) {
         }
+    }
+
+    /** 读取 APK 文件的包名(核对「下到的是不是本应用」)。 */
+    private fun apkPackageName(path: String): String? = try {
+        packageManager.getPackageArchiveInfo(path, 0)?.packageName
+    } catch (_: Exception) {
+        null
     }
 
     /** 读取 APK 文件的 versionName(核对「下到的是不是目标版本」)。 */
