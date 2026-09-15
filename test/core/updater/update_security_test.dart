@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '_pkg_fixture.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:musicx/core/updater/update_service.dart';
@@ -10,11 +12,10 @@ import 'package:musicx/core/updater/update_service.dart';
 void main() {
   group('UpdateService.download SHA256 校验', () {
     // 固定一段测试内容,计算其 sha256
-    // 新契约:下载内容必须是 ZIP/APK(以 PK 魔数开头),否则视为无效安装包。
-    final content = <int>[
-      0x50, 0x4B, 0x03, 0x04,
-      ...utf8.encode('fake apk bytes for musicx update test'),
-    ];
+    // 按宿主平台构造合法安装包(DMG 用 koly trailer,APK 用 PK 等)
+    final content = hostValidPackage(
+      utf8.encode('fake package bytes for musicx update test'),
+    );
     final hash = sha256.convert(content).toString();
 
     test('download 下载后 SHA256 匹配则返回文件', () async {

@@ -4,6 +4,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import '_pkg_fixture.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:musicx/core/updater/update_service.dart';
@@ -63,7 +65,7 @@ void main() {
     });
     // 需要 ZIP 魔数:非 ZIP 内容会被判为无效安装包并删除(新契约)
     final client = MockClient(
-      (req) async => http.Response.bytes([0x50, 0x4B, 0x03, 0x04, 1, 2, 3], 200),
+      (req) async => http.Response.bytes(hostValidPackage(), 200),
     );
     final service = UpdateService(client: client, downloadDir: tmp);
 
@@ -71,6 +73,6 @@ void main() {
 
     expect(file.parent.path, tmp.path);
     expect(file.existsSync(), isTrue);
-    expect(file.readAsBytesSync(), [0x50, 0x4B, 0x03, 0x04, 1, 2, 3]);
+    expect(file.readAsBytesSync(), hostValidPackage());
   });
 }

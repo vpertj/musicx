@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import 'package:musicx/core/updater/install_decision.dart';
+import 'package:musicx/core/updater/package_magic.dart';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -373,14 +374,36 @@ class UpdateService {
         '下载不完整($received/$total 字节),已作废,请重新下载',
       );
     }
-    // ② 格式:APK 是 ZIP,必须以 PK 魔数开头;HTML 错误页/坏文件在这里就拦下。
+    // ② 格式:**按平台各自的魔数**校验(APK=PK 开头 / Windows=MZ 开头 /
+    //    macOS DMG=结尾 koly trailer)。
+    //    上一版这里写死「必须以 PK 开头」,而 DMG 不是 ZIP → macOS 必然报
+    //    「不是有效的安装包」,安卓端也一并误拦(用户实测截图)。
     try {
-      final head = await file.openRead(0, 4).fold<List<int>>(
+      final kind = packageKindFor(
+        isAndroid: Platform.isAndroid,
+        isMacOS: Platform.isMacOS,
+        isWindows: Platform.isWindows,
+      );
+      final head = await file.openRead(0, 8).fold<List<int>>(
         <int>[],
         (a, b) => a..addAll(b),
       );
-      final isZip = head.length >= 2 && head[0] == 0x50 && head[1] == 0x4B;
-      if (!isZip) {
+      List<int>? tail;
+      if (kind == PackageKind.dmg) {
+        final len = await file.length();
+        if (len >= 512) {
+          tail = await file.openRead(len - 512, len - 508).fold<List<int>>(
+            <int>[],
+            (a, b) => a..addAll(b),
+          );
+        }
+      }
+      final ok = looksLikePackage(kind: kind, head: head, tail: tail);
+      debugPrint(
+        'MusicX 更新校验: 格式=${kind.name} head=${head.take(2).toList()} '
+        'ok=$ok size=${await file.length()}',
+      );
+      if (!ok) {
         file.deleteSync();
         throw HttpException('下载到的文件不是有效的安装包,已作废,请重新下载');
       }
