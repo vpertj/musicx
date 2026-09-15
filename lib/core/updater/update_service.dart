@@ -19,8 +19,11 @@ const kApkMimeType = 'application/vnd.android.package-archive';
 
 /// 是否支持「下载后应用内安装」:macOS 用 DMG 替换,Android 调系统安装器。
 /// Windows/Linux 仍走打开 Release 页手动下载。
-bool canAutoInstallFor({required bool isMacOS, required bool isAndroid}) =>
-    isMacOS || isAndroid;
+bool canAutoInstallFor({
+  required bool isMacOS,
+  required bool isAndroid,
+  bool isWindows = false,
+}) => isMacOS || isAndroid || isWindows;
 
 /// 各平台对应的安装包后缀(用于在 Release 资产里挑包)。
 String updateAssetSuffixFor({
@@ -34,9 +37,18 @@ String updateAssetSuffixFor({
   return '.tar.gz';
 }
 
-/// 下载后的本地文件名。
-String updateDownloadFileNameFor({required bool isAndroid}) =>
-    isAndroid ? 'musicx_update.apk' : 'musicx_update.dmg';
+/// 下载后的本地文件名(按平台)。Windows 用的是 setup.exe,
+/// 此前非安卓一律命名 .dmg,Windows 上会拿着 .dmg 去执行(错)。
+String updateDownloadFileNameFor({
+  required bool isAndroid,
+  bool isWindows = false,
+  bool isMacOS = false,
+}) {
+  if (isAndroid) return 'musicx_update.apk';
+  if (isWindows) return 'musicx_update_setup.exe';
+  if (isMacOS) return 'musicx_update.dmg';
+  return 'musicx_update.pkg';
+}
 
 /// 从 GitHub `releases/expanded_assets/<tag>` 页面解析资产直链。
 ///
@@ -141,10 +153,13 @@ class UpdateService {
   }
 
   /// 当前平台是否支持"下载后应用内安装"。
-  /// macOS:DMG 挂载替换;Android:下载 APK 后调系统安装器。
-  /// Windows/Linux:打开 Release 页手动下载。
-  static bool get canAutoInstall =>
-      canAutoInstallFor(isMacOS: Platform.isMacOS, isAndroid: Platform.isAndroid);
+  /// 支持应用内自动安装的平台:macOS(DMG 挂载替换)、Android(系统安装器)、
+  /// Windows(Inno Setup 静默安装)。其余平台打开 Release 页手动下载。
+  static bool get canAutoInstall => canAutoInstallFor(
+    isMacOS: Platform.isMacOS,
+    isAndroid: Platform.isAndroid,
+    isWindows: Platform.isWindows,
+  );
 
   /// 当前平台期望的安装包后缀(用于在 Release 资产中挑选)。
   static String get _assetSuffix => updateAssetSuffixFor(
@@ -306,7 +321,11 @@ class UpdateService {
             ? await getTemporaryDirectory()
             : Directory.systemTemp);
     final file = File(
-      '${dir.path}/${updateDownloadFileNameFor(isAndroid: Platform.isAndroid)}',
+      '${dir.path}/${updateDownloadFileNameFor(
+        isAndroid: Platform.isAndroid,
+        isWindows: Platform.isWindows,
+        isMacOS: Platform.isMacOS,
+      )}',
     );
     if (!dir.existsSync()) dir.createSync(recursive: true);
     // 清掉所有历史更新包:万一有旧版本残留(musicx_update*.apk),
@@ -397,6 +416,22 @@ class UpdateService {
     return sha256.convert(bytes).toString();
   }
 
+  /// 读取 .app 内 Info.plist 的 CFBundleShortVersionString(失败返回 null)。
+  Future<String?> _bundleVersion(String plistPath) async {
+    try {
+      final r = await Process.run('/usr/libexec/PlistBuddy', [
+        '-c',
+        'Print :CFBundleShortVersionString',
+        plistPath,
+      ]);
+      if (r.exitCode != 0) return null;
+      final v = r.stdout.toString().trim();
+      return v.isEmpty ? null : v;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 安装包校验结果(供 UI/日志展示)。
   ///
   /// 抽成独立方法是为了**可测试**:真机上「下载到的包版本不对」这类问题
@@ -482,6 +517,34 @@ class UpdateService {
       }
       return;
     }
+    // Windows:交给 Inno Setup 安装包静默安装。
+    //
+    // 参数含义(Inno Setup 官方约定):
+    //   /SILENT            显示进度但不需交互
+    //   /SUPPRESSMSGBOXES  不弹消息框
+    //   /CLOSEAPPLICATIONS 用 Restart Manager 关闭正在运行的旧版本(否则文件被占用)
+    //   /RESTARTAPPLICATIONS 安装完成后自动重新启动应用
+    //   /NORESTART         不重启系统
+    // 安装到 Program Files 时需要管理员权限,UAC 会由系统弹一次(用户确认即可)。
+    if (Platform.isWindows) {
+      final p = await Process.start(
+        package.path,
+        [
+          '/SILENT',
+          '/SUPPRESSMSGBOXES',
+          '/CLOSEAPPLICATIONS',
+          '/RESTARTAPPLICATIONS',
+          '/NORESTART',
+        ],
+        runInShell: false,
+      );
+      debugPrint('MusicX 更新: 已启动 Windows 安装包 pid=${p.pid}');
+      // 给安装器一点时间接管(Restart Manager 会关闭本进程),随后主动退出,
+      // 避免旧进程占用文件导致替换失败。
+      await Future<void>.delayed(const Duration(seconds: 2));
+      exit(0);
+    }
+
     // macOS:DMG 挂载替换;其余平台应走"打开 Release 页"。
     if (!Platform.isMacOS) {
       throw HttpException('当前平台不支持自动安装,请从 GitHub Release 手动下载');
@@ -515,6 +578,19 @@ class UpdateService {
     }
     if (newApp == null) throw HttpException('更新包中没有找到应用');
 
+    // 校验新 .app 的版本号:与安卓同样坚持「下载到的必须就是目标版本」,
+    // 防止拿到旧包/错包后把好端端的应用替换成旧版本。
+    final plistPath = '${newApp.path}/Contents/Info.plist';
+    final newVersion = await _bundleVersion(plistPath);
+    if (version != null &&
+        version.isNotEmpty &&
+        newVersion != null &&
+        newVersion != version) {
+      await Process.run('hdiutil', ['detach', mountPoint.path, '-force']);
+      throw HttpException('更新包版本($newVersion)与目标版本($version)不一致,已取消安装');
+    }
+    debugPrint('MusicX 更新校验(macOS): 包内版本=${newVersion ?? "?"} 目标=v$version');
+
     // 3. 覆盖当前应用
     //    先复制到临时位置再原子替换,避免运行中的 .app 被占用导致失败
     final exe = Platform.resolvedExecutable;
@@ -536,6 +612,14 @@ class UpdateService {
       }
       throw HttpException('替换应用失败: ${copy.stderr}');
     }
+    // 去掉来自 DMG 的隔离属性:否则新版本首次启动可能被 Gatekeeper 拦住
+    // (「无法验证开发者」/「已损坏」)。这是自更新应用的常规处理。
+    await Process.run('xattr', [
+      '-dr',
+      'com.apple.quarantine',
+      currentApp.path,
+    ]);
+
     // 清理备份
     if (backup.existsSync()) backup.deleteSync(recursive: true);
 

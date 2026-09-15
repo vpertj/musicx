@@ -31,7 +31,7 @@ void main() {
   group('updateDownloadFileNameFor', () {
     test('安卓下载 .apk,桌面下载 .dmg', () {
       expect(updateDownloadFileNameFor(isAndroid: true), 'musicx_update.apk');
-      expect(updateDownloadFileNameFor(isAndroid: false), 'musicx_update.dmg');
+      expect(updateDownloadFileNameFor(isAndroid: false, isMacOS: true), 'musicx_update.dmg');
     });
   });
 

@@ -63,4 +63,32 @@ void main() {
       );
     });
   });
+
+  test('Windows 也支持应用内自动安装,且安装包后缀为 .exe', () {
+    expect(
+      canAutoInstallFor(isMacOS: false, isAndroid: false, isWindows: true),
+      isTrue,
+    );
+    expect(
+      updateAssetSuffixFor(isMacOS: false, isWindows: true, isAndroid: false),
+      '.exe',
+    );
+    // Linux 等仍走手动下载
+    expect(
+      canAutoInstallFor(isMacOS: false, isAndroid: false, isWindows: false),
+      isFalse,
+    );
+  });
+
+  test('下载文件名按平台区分(Windows 不能叫 .dmg)', () {
+    expect(updateDownloadFileNameFor(isAndroid: true), 'musicx_update.apk');
+    expect(
+      updateDownloadFileNameFor(isAndroid: false, isWindows: true),
+      'musicx_update_setup.exe',
+    );
+    expect(
+      updateDownloadFileNameFor(isAndroid: false, isMacOS: true),
+      'musicx_update.dmg',
+    );
+  });
 }
