@@ -11,6 +11,7 @@
 // 平台规则本身另有专门用例覆盖(不依赖宿主平台)。
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:musicx/core/updater/app_flavor.dart';
 import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
 
@@ -38,10 +39,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('展示平台规则', () {
-    test('仅安卓显示', () {
-      expect(BlessingCard.isVisibleOn(isAndroid: true), isTrue);
-      expect(BlessingCard.isVisibleOn(isAndroid: false), isFalse);
+  group('展示变体规则', () {
+    test('仅吴玫静版显示,标准版不显示', () {
+      expect(BlessingCard.isVisibleIn(AppFlavor.blessing), isTrue);
+      expect(BlessingCard.isVisibleIn(AppFlavor.standard), isFalse);
     });
 
     testWidgets('visibleOverride=false 时不渲染任何内容', (tester) async {

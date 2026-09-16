@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:musicx/core/updater/app_flavor.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/providers.dart'
@@ -1061,24 +1062,25 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
   }
 }
 
-/// 设置页底部的寄语卡片。
+/// 设置页底部的寄语卡片(吴玫静版专属)。
 ///
 /// 设计要点:
 /// - 品牌红渐变 + 柔和高光,作为整页唯一的"装饰性"元素;
 /// - 深浅色两套配色都保证对比度(渐变上统一用白字);
 /// - 纯展示、不可点,避免用户误以为能交互;
-/// - **仅在安卓端展示**(用户指定),macOS / Windows / Linux 不出现。
+/// - **只在吴玫静版展示**,标准版设置页不出现该卡片。
 ///
-/// 平台判断放在组件内部,并用 [visibleOverride] 允许测试覆盖:
-/// 单元测试跑在 macOS 上,否则永远渲染不出该卡片、无法断言。
+/// 展示规则由**构建变体**决定(见 app_flavor.dart),与运行平台无关。
+/// 保留 [visibleOverride] 供测试覆盖:测试宿主的变体未必是吴玫静版,
+/// 否则渲染类断言永远无法执行。
 class BlessingCard extends StatelessWidget {
   const BlessingCard({super.key, this.visibleOverride});
 
-  /// 仅供测试:强制显示/隐藏,绕过平台判断。
+  /// 仅供测试:强制显示/隐藏,绕过变体判断。
   final bool? visibleOverride;
 
-  /// 展示规则:仅安卓。
-  static bool isVisibleOn({required bool isAndroid}) => isAndroid;
+  /// 展示规则:仅吴玫静版。
+  static bool isVisibleIn(AppFlavor flavor) => flavor.showsBlessingCard;
 
   static const String line1 = '玫风入怀,静享喜乐,日日有甜。';
 
@@ -1087,8 +1089,7 @@ class BlessingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible =
-        visibleOverride ?? isVisibleOn(isAndroid: Platform.isAndroid);
+    final visible = visibleOverride ?? isVisibleIn(currentFlavor);
     if (!visible) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // 深色模式整体压暗一档,避免在深色页面上过亮刺眼。

@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:musicx/core/updater/apk_installer.dart';
+import 'package:musicx/core/updater/app_flavor.dart';
 import 'package:musicx/core/updater/download_source.dart';
 
 /// GitHub 仓库信息:更新检查与下载均基于此仓库的 Releases。
@@ -114,18 +115,43 @@ String parseMacVersionFromPlist(String plistText) {
 /// 抽出来是因为**直连与被代理的 API 响应结构完全相同**:国内直连失败时
 /// 我们改走代理拿同一份 JSON,从而保住 SHA256 digest 这个关键字段 ——
 /// 少了它,第三方下载代理就等于在无校验的情况下过境。
-UpdateInfo parseReleaseJson(
+///
+/// [flavor] 决定如何从 tag 里剥离前缀(吴玫静版 `v1.7.46`,
+/// 标准版 `std-v1.7.46`)。**不属于本变体时返回 null**,由调用方跳过 ——
+/// 这是防止「串版」的关键:标准版绝不能把吴玫静版的 release 当成自己的更新。
+UpdateInfo? parseReleaseJson(
   String body, {
   required String assetSuffix,
   String releaseUrlFallback = '',
+  AppFlavor? flavor,
 }) {
   final json = jsonDecode(body) as Map<String, dynamic>;
+  return parseReleaseEntry(
+    json,
+    assetSuffix: assetSuffix,
+    releaseUrlFallback: releaseUrlFallback,
+    flavor: flavor ?? currentFlavor,
+  );
+}
+
+/// 解析单条 release JSON;不属于指定变体时返回 null。
+UpdateInfo? parseReleaseEntry(
+  Map<String, dynamic> json, {
+  required String assetSuffix,
+  String releaseUrlFallback = '',
+  required AppFlavor flavor,
+}) {
   final tag = (json['tag_name'] as String?) ?? '';
-  final latest = tag.startsWith('v') ? tag.substring(1) : tag;
+  // 只认自己的 tag 前缀 —— 不匹配说明这条 release 属于另一个版本。
+  final version = versionFromTag(tag, flavor);
+  if (version == null) return null;
+  // 草稿/预发布不作为更新来源
+  if (json['draft'] == true || json['prerelease'] == true) return null;
   final assets = (json['assets'] as List?) ?? const [];
   String assetUrl = '';
   String? assetSha256;
   for (final a in assets) {
+    if (a is! Map) continue;
     final name = a['name'] as String? ?? '';
     if (name.endsWith(assetSuffix)) {
       assetUrl = a['browser_download_url'] as String? ?? '';
@@ -138,13 +164,41 @@ UpdateInfo parseReleaseJson(
     }
   }
   return UpdateInfo(
-    latestVersion: latest,
+    latestVersion: version,
     currentVersion: '',
     dmgUrl: assetUrl,
     releaseUrl: (json['html_url'] as String?) ?? releaseUrlFallback,
     releaseNotes: json['body'] as String?,
     dmgSha256: assetSha256,
   );
+}
+
+/// 从 release 列表里挑出**本变体**的最新一条(纯函数,便于单测)。
+///
+/// 为什么不用 `/releases/latest`:它返回全仓库最新的 release,不区分变体。
+/// 两个版本并存时,标准版的用户会收到吴玫静版的更新提示(串版)。
+/// 因此改为拉取列表后按 tag 前缀筛选,再取版本号最大的一条。
+UpdateInfo? pickLatestForFlavor(
+  List<Map<String, dynamic>> releases, {
+  required String assetSuffix,
+  required AppFlavor flavor,
+  String releaseUrlFallback = '',
+}) {
+  UpdateInfo? best;
+  for (final r in releases) {
+    final info = parseReleaseEntry(
+      r,
+      assetSuffix: assetSuffix,
+      releaseUrlFallback: releaseUrlFallback,
+      flavor: flavor,
+    );
+    if (info == null) continue;
+    if (best == null ||
+        compareVersions(info.latestVersion, best.latestVersion) > 0) {
+      best = info;
+    }
+  }
+  return best;
 }
 
 /// 更新检查结果。
@@ -326,18 +380,35 @@ class UpdateService {
   /// api.github.com)。默认直连。
   Future<UpdateInfo> _checkViaApi({String? apiBase}) async {
     final base = apiBase ?? 'https://api.github.com';
-    final uri = Uri.parse('$base/repos/$kGitHubRepo/releases/latest');
+    // 用 /releases(列表)而非 /releases/latest:后者不区分变体,
+    // 会让标准版收到吴玫静版的更新(串版)。筛选靠 tag 前缀完成。
+    final uri = Uri.parse('$base/repos/$kGitHubRepo/releases?per_page=100');
     final resp = await _client
         .get(uri, headers: const {'Accept': 'application/vnd.github+json'})
         .timeout(const Duration(seconds: 20));
     if (resp.statusCode != 200) {
       throw HttpException('检查更新失败 (HTTP ${resp.statusCode})');
     }
-    final info = parseReleaseJson(
-      resp.body,
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! List) {
+      throw const HttpException('检查更新失败:返回格式异常');
+    }
+    final releases = [
+      for (final e in decoded)
+        if (e is Map) Map<String, dynamic>.from(e),
+    ];
+    final info = pickLatestForFlavor(
+      releases,
       assetSuffix: _assetSuffix,
-      releaseUrlFallback: 'https://github.com/$kGitHubRepo/releases/latest',
+      flavor: currentFlavor,
+      releaseUrlFallback: 'https://github.com/$kGitHubRepo/releases',
     );
+    if (info == null) {
+      throw HttpException(
+        '没有找到「${currentFlavor.displayName}」的发布版本'
+        '(tag 前缀应为 ${currentFlavor.tagPrefix})',
+      );
+    }
     if (info.dmgUrl.isEmpty && canAutoInstall) {
       throw HttpException('最新 Release 中没有找到可自动安装的更新包');
     }
@@ -351,19 +422,41 @@ class UpdateService {
     );
   }
 
-  /// 降级方案:抓取 releases/latest 页面解析版本号,
-  /// 再请求 expanded_assets 端点(HTML 片段)解析 DMG 直链。
+  /// 降级方案:抓取 releases 页面解析版本号,
+  /// 再请求 expanded_assets 端点(HTML 片段)解析安装包直链。
+  ///
+  /// 同样必须按变体筛选:直接抓 `/releases/latest` 会把另一个版本的
+  /// tag 当成自己的更新(串版)。这里改为抓 `/releases` 列表页,
+  /// 用本变体的 tag 前缀在所有 tag 中挑版本号最大的一个。
   Future<UpdateInfo> _checkViaWebPage() async {
-    final url = 'https://github.com/$kGitHubRepo/releases/latest';
+    final url = 'https://github.com/$kGitHubRepo/releases';
     final resp = await _client.get(Uri.parse(url));
     if (resp.statusCode != 200) {
       throw HttpException('检查更新失败 (HTTP ${resp.statusCode})');
     }
-    final tagRe = RegExp('releases/tag/(v[0-9][^"\\s]*)');
-    final tagMatch = tagRe.firstMatch(resp.body);
-    if (tagMatch == null) throw HttpException('无法解析最新版本号');
-    final tag = tagMatch.group(1)!;
-    final latest = tag.startsWith('v') ? tag.substring(1) : tag;
+    // 页面里会出现形如 releases/tag/<tag> 的链接;收集全部再去重。
+    final tagRe = RegExp(r'releases/tag/([^"\s?#]+)');
+    final seen = <String>{};
+    String? bestTag;
+    String? bestVersion;
+    for (final m in tagRe.allMatches(resp.body)) {
+      final tag = Uri.decodeComponent(m.group(1)!);
+      if (!seen.add(tag)) continue;
+      final v = versionFromTag(tag, currentFlavor);
+      if (v == null) continue;
+      if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
+        bestVersion = v;
+        bestTag = tag;
+      }
+    }
+    if (bestTag == null || bestVersion == null) {
+      throw HttpException(
+        '没有找到「${currentFlavor.displayName}」的发布版本'
+        '(tag 前缀应为 ${currentFlavor.tagPrefix})',
+      );
+    }
+    final tag = bestTag;
+    final latest = bestVersion;
 
     // 请求资产列表端点(返回 HTML 片段,含下载链接)
     final assetsUrl =
@@ -392,7 +485,7 @@ class UpdateService {
       latestVersion: latest,
       currentVersion: await resolveCurrentVersion(),
       dmgUrl: assetUrl,
-      releaseUrl: url,
+      releaseUrl: 'https://github.com/$kGitHubRepo/releases/tag/$tag',
     );
   }
 
