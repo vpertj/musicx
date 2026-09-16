@@ -689,8 +689,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ],
               const SizedBox(height: 8),
               const _AboutCard(),
-              const SizedBox(height: 8),
-              const _BlessingCard(),
+              const BlessingCard(),
             ],
           ),
         ];
@@ -1067,14 +1066,30 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
 /// 设计要点:
 /// - 品牌红渐变 + 柔和高光,作为整页唯一的"装饰性"元素;
 /// - 深浅色两套配色都保证对比度(渐变上统一用白字);
-/// - 纯展示、不可点,避免用户误以为能交互。
-class _BlessingCard extends StatelessWidget {
-  const _BlessingCard();
+/// - 纯展示、不可点,避免用户误以为能交互;
+/// - **仅在安卓端展示**(用户指定),macOS / Windows / Linux 不出现。
+///
+/// 平台判断放在组件内部,并用 [visibleOverride] 允许测试覆盖:
+/// 单元测试跑在 macOS 上,否则永远渲染不出该卡片、无法断言。
+class BlessingCard extends StatelessWidget {
+  const BlessingCard({super.key, this.visibleOverride});
 
-  static const String _line1 = '玫风入怀,静享喜乐,日日有甜。';
+  /// 仅供测试:强制显示/隐藏,绕过平台判断。
+  final bool? visibleOverride;
+
+  /// 展示规则:仅安卓。
+  static bool isVisibleOn({required bool isAndroid}) => isAndroid;
+
+  static const String line1 = '玫风入怀,静享喜乐,日日有甜。';
+
+  /// 右下角署名。
+  static const String signature = '---吴玫静';
 
   @override
   Widget build(BuildContext context) {
+    final visible =
+        visibleOverride ?? isVisibleOn(isAndroid: Platform.isAndroid);
+    if (!visible) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // 深色模式整体压暗一档,避免在深色页面上过亮刺眼。
     final gradient = LinearGradient(
@@ -1131,7 +1146,7 @@ class _BlessingCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: Text(
-                    _line1,
+                    line1,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
@@ -1142,6 +1157,30 @@ class _BlessingCard extends StatelessWidget {
                         Shadow(
                           color: Color(0x33000000),
                           blurRadius: 6,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 署名:右下角。用 width: double.infinity + 右对齐,
+                // 保证它始终贴着卡片右边缘(不随正文宽度浮动)。
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    signature,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12.5,
+                      height: 1.2,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.4,
+                      shadows: const [
+                        Shadow(
+                          color: Color(0x26000000),
+                          blurRadius: 4,
                           offset: Offset(0, 1),
                         ),
                       ],
