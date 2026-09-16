@@ -110,7 +110,7 @@ String parseMacVersionFromPlist(String plistText) {
   return m == null ? '' : m.group(1)!.trim();
 }
 
-/// 解析 GitHub `releases/latest` 的 JSON 响应(纯函数,便于单测)。
+/// 解析单条 release 的 JSON 响应(纯函数,便于单测)。
 ///
 /// 抽出来是因为**直连与被代理的 API 响应结构完全相同**:国内直连失败时
 /// 我们改走代理拿同一份 JSON,从而保住 SHA256 digest 这个关键字段 ——
@@ -374,7 +374,7 @@ class UpdateService {
     }
   }
 
-  /// 读取 releases/latest 的 JSON 并解析成 [UpdateInfo]。
+  /// 读取 release **列表**并挑出本变体的最新版本,解析成 [UpdateInfo]。
   ///
   /// [apiBase] 允许把请求指向加速代理(代理会把 `/<path>` 透传给
   /// api.github.com)。默认直连。
