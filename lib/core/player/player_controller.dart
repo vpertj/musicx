@@ -113,8 +113,9 @@ class PlayerController extends Notifier<PlayerState> {
         (d) => state = state.copyWith(duration: d ?? Duration.zero),
       ),
     );
-    // 一首播完自动切下一首(遵循循环/随机模式)
-    _subs.add(service.completedStream.listen((_) => next()));
+    // 一首播完自动切下一首(遵循循环/随机模式)。
+    // 用 _advanceAuto 而非 next():单曲循环下必须重播当前曲。
+    _subs.add(service.completedStream.listen((_) => _advanceAuto()));
     ref.onDispose(() {
       for (final s in _subs) {
         s.cancel();
@@ -138,7 +139,7 @@ class PlayerController extends Notifier<PlayerState> {
     if (_autoAdvancedTokens.length > 32) {
       _autoAdvancedTokens.remove(_autoAdvancedTokens.first);
     }
-    unawaited(next());
+    unawaited(_advanceAuto());
     return true;
   }
 
@@ -188,19 +189,27 @@ class PlayerController extends Notifier<PlayerState> {
   Future<void> next() async {
     final idx = _advance(forward: true);
     if (idx == null) return;
-    state = state.copyWith(
-      currentIndex: idx,
-      isPlaying: false,
-      clearError: true,
-      position: Duration.zero,
-      duration: Duration.zero,
-    );
-    await _playCurrent();
+    await _goTo(idx);
   }
 
   Future<void> previous() async {
     final idx = _advance(forward: false);
     if (idx == null) return;
+    await _goTo(idx);
+  }
+
+  /// **自动**推进到下一首(当前曲播完时触发)。
+  ///
+  /// 与 [next] 的区别:单曲循环下应重播当前曲,而不是跳到队列下一首。
+  /// 两条自动触发路径(completedStream 与位置兜底)都必须走这里。
+  Future<void> _advanceAuto() async {
+    final idx = _advance(forward: true, auto: true);
+    if (idx == null) return;
+    await _goTo(idx);
+  }
+
+  /// 切到指定下标并起播(手动切歌与自动推进共用)。
+  Future<void> _goTo(int idx) async {
     state = state.copyWith(
       currentIndex: idx,
       isPlaying: false,
@@ -229,10 +238,16 @@ class PlayerController extends Notifier<PlayerState> {
   void toggleShuffle() => state = state.copyWith(shuffle: !state.shuffle);
 
   /// 计算下一首/上一首的下标;无可用下一首时返回 null(停在原处)。
-  int? _advance({required bool forward}) {
+  ///
+  /// [auto] 区分两种调用场景,二者语义不同:
+  ///   - `auto: true`(一首**自动播完**):单曲循环应重播当前曲;
+  ///   - `auto: false`(用户**手动**点上一首/下一首):单曲循环不该拦住换歌,
+  ///     否则用户点下一首毫无反应(实测缺陷)。
+  int? _advance({required bool forward, bool auto = false}) {
     final n = state.queue.length;
     if (n == 0) return null;
-    if (state.repeatMode == LoopMode.one) return state.currentIndex;
+    // 仅"自动播完"时,单曲循环才重播同一首。
+    if (auto && state.repeatMode == LoopMode.one) return state.currentIndex;
     if (state.shuffle && n > 1) {
       var idx = _rand.nextInt(n);
       while (idx == state.currentIndex) {
@@ -242,7 +257,11 @@ class PlayerController extends Notifier<PlayerState> {
     }
     final nextIdx = state.currentIndex + (forward ? 1 : -1);
     if (nextIdx < 0 || nextIdx >= n) {
-      if (state.repeatMode == LoopMode.all) {
+      // 手动切歌时:单曲循环也视为"会循环"的模式,边界绕回另一端,
+      // 与列表循环一致 —— 否则在首/尾点上一首/下一首会毫无反应。
+      final loops = state.repeatMode == LoopMode.all ||
+          (state.repeatMode == LoopMode.one && !auto);
+      if (loops) {
         return forward ? 0 : n - 1;
       }
       return null;
@@ -370,8 +389,11 @@ class PlayerController extends Notifier<PlayerState> {
 
 
   /// 预取下一首播放地址(配合 PluginManager 的媒体缓存,切歌零等待)。
+  ///
+  /// 用 `auto: true`:这里预测的是**当前曲自动播完**后会播哪首,
+  /// 因此单曲循环下预取的应是当前曲自己(而不是队列里的下一首)。
   void _prefetchNext() {
-    final idx = _advance(forward: true);
+    final idx = _advance(forward: true, auto: true);
     if (idx == null) return;
     final upcoming = state.queue[idx];
     ref.read(pluginManagerProvider).prefetchMediaSource(upcoming.toJson());
