@@ -84,7 +84,27 @@ flutter build apk                    →  自己是 blessing,前缀 "v"
 
 ## 4. 发布流程
 
-### 只发吴玫静版
+### 推荐:用发布脚本
+
+```bash
+scripts/release.sh              # 一次发两个变体(自动保证顺序)
+scripts/release.sh --blessing   # 只发吴玫静版
+scripts/release.sh --standard   # 只发标准版
+scripts/release.sh --dry-run    # 只打印将执行的命令,不实际打 tag
+```
+
+脚本会读取 `pubspec.yaml` 的版本,自动生成两种 tag,并在发布前检查:
+
+- 工作区是否干净(有未提交改动则拒绝)
+- 本地 `main` 与 `origin/main` 是否一致(避免基于旧代码打 tag)
+- tag 是否已存在(避免重复发布)
+- `versionCode` 是否存在且为数字
+
+两个都发时,**脚本会先推标准版、再推吴玫静版** —— 顺序原因见下。
+
+### 手工发布
+
+#### 只发吴玫静版
 
 ```bash
 git tag -a v1.7.48 -m "..." && git push origin v1.7.48
@@ -141,6 +161,25 @@ CI 会校验 tag 与 pubspec 是否一致,不一致直接拒绝发布。
 | macOS | `MusicX-<v>.dmg` | `MusicX-<v>-standard.dmg` |
 | Windows 安装器 | `MusicX-<v>-setup.exe` | `MusicX-<v>-setup-standard.exe` |
 | Windows 便携版 | `MusicX-<v>-windows.zip` | `MusicX-<v>-windows-standard.zip` |
+
+**每个 release 只包含一个变体的包** —— 吴玫静版在 `v*` 那个 release,
+标准版在 `std-v*` 那个 release。因此在 GitHub 的 Releases 页面(默认只展开
+最新一个 release)通常只看到一个 APK,这是预期行为。
+
+### 为什么不把两个包放进同一个 release
+
+看似方便(用户一次下载两个),但会破坏两处机制:
+
+1. **tag 前缀分流会失效**。客户端只接受属于自己前缀的 release
+   (`std-v*` 的客户端不会解析 `v1.7.49`),把一个 release 同时当作两个
+   变体的来源,需要重做整套前缀机制。
+2. **选包逻辑会串版**。当前实现取「第一个以 `.apk` 结尾的资产」,而
+   `MusicX-1.7.49-standard.apk` 同样以 `.apk` 结尾,两者互相冲突;
+   GitHub 不保证资产顺序,谁在前就选谁。
+
+若将来确实要合并到同一 release,必须先改为**按变体精确匹配文件名**
+(吴玫静版只认 `MusicX-<v>.apk`,标准版只认 `MusicX-<v>-standard.apk`),
+并相应调整 tag 策略。
 
 ---
 
