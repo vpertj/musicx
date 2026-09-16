@@ -133,6 +133,45 @@ void main() {
       );
     });
 
+    test('两条线可以各自独立发版,版本号互不影响', () {
+      // 场景:吴玫静版发了 1.7.48,标准版仍停在 1.7.47。
+      // 标准版用户不应因为「吴玫静版发了新版」而收到更新提示。
+      final list = [_release('v1.7.48'), _release('std-v1.7.47')];
+      final b = pickLatestForFlavor(
+        list,
+        assetSuffix: '.apk',
+        flavor: AppFlavor.blessing,
+      );
+      final s = pickLatestForFlavor(
+        list,
+        assetSuffix: '.apk',
+        flavor: AppFlavor.standard,
+      );
+      expect(b!.latestVersion, '1.7.48');
+      expect(s!.latestVersion, '1.7.47');
+      expect(s.dmgUrl, contains('std-v1.7.47'));
+    });
+
+    test('当前已发布的两个真实 tag 组合:各取各的', () {
+      // 仓库里真实同时存在 v1.7.47 与 std-v1.7.47(同一版本号、不同线)。
+      // 若前缀解析有误会取到同一个包 —— 这里锁死必须各自命中。
+      final real = [_release('std-v1.7.47'), _release('v1.7.47')];
+      final b = pickLatestForFlavor(
+        real,
+        assetSuffix: '.apk',
+        flavor: AppFlavor.blessing,
+      );
+      final s = pickLatestForFlavor(
+        real,
+        assetSuffix: '.apk',
+        flavor: AppFlavor.standard,
+      );
+      expect(b!.dmgUrl, contains('/download/v1.7.47/'));
+      expect(b.dmgUrl, isNot(contains('std-')));
+      expect(s!.dmgUrl, contains('/download/std-v1.7.47/'));
+      expect(s.dmgUrl, isNot(contains('/download/v1.7.47/')));
+    });
+
     test('草稿与预发布不作为更新来源', () {
       final list = [
         _release('std-v2.0.0', draft: true),
