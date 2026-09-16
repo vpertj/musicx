@@ -3,7 +3,12 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'  # 推送 v1.0.0 等 tag 时触发
+      # 两条升级线各打各的 tag:
+      #   v1.7.47     → 吴玫静版
+      #   std-v1.7.47 → 标准版
+      # 必须显式列出 std-v*,否则标准版的 tag 不会触发发布。
+      - 'v*'
+      - 'std-v*'
   workflow_dispatch:  # 也可手动触发
 
 permissions:
