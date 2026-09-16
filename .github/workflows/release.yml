@@ -76,6 +76,29 @@ jobs:
           echo "DMG_PATH=dist/$DMG_NAME" >> "$GITHUB_ENV"
           echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
 
+      - name: Check publishing order (legacy clients rely on /releases/latest)
+        shell: bash
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+          # 背景:v1.7.46 及以前的旧客户端只会读 /releases/latest,
+          # 且用 `tag.startsWith('v')` 判断版本号。因此:
+          #   - 最新 release 必须是 v*(吴玫静版)，旧版才能解析出版本号；
+          #   - 若最新是 std-v*(标准版)，旧版会解析出 "std-vX.Y.Z"，
+          #     比较时被当作 0 → 误判「已是最新」，永远收不到更新。
+          #
+          # 这里对「这次发标准版会不会把 v* 挤下最新位」给出明确提醒。
+          if ! echo "$TAG" | grep -q '^v[0-9]'; then
+            echo "本次发布的是标准版($TAG)，不占用 v* 的升级线，跳过检查。"
+            exit 0
+          fi
+          LATEST="$(curl -sSL -o /dev/null -w '%{url_effective}' \
+            https://github.com/${{ github.repository }}/releases/latest \
+            | sed 's#.*/tag/##')"
+          echo "当前 /releases/latest = $LATEST"
+          echo "本次发布            = $TAG"
+          echo "::notice::发布完成后 $TAG 将成为最新 release，旧版客户端(v1.7.46 及以前)即可恢复在线升级。"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
