@@ -10,26 +10,30 @@ import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/theme/app_theme.dart';
-import 'package:musicx/ui/search/song_card_layout.dart';
+import 'package:musicx/ui/search/chart_detail_page.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/models/music_item.dart';
 
-/// 首页榜单卡展示的歌曲数量。
+/// 首页榜单区**预览**的歌曲数量。
 ///
-/// 此前只显示 6 首(两排),而榜单实际有 30 首 —— 前几名长期固定,
-/// 用户会觉得「热歌不太像热歌」。提到 9 首(三排)能看到更多差异,
-/// 同时不至于把首页拉得过长。
-const int kHomeChartSongs = 9;
+/// 榜单实际有 30 首;首页只放少量预览,完整列表走「查看全部」进入
+/// 独立页面(可上下滑动浏览选歌)。取 6 首:列表单行约 76px,
+/// 6 首约 456px,与旧卡片网格(2 排)相当而不显臃肿。
+const int kHomeChartPreview = 6;
 
 /// 发现页:渐变品牌头部 + 搜索框 + 热门推荐/历史 + 插件引导。
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key, this.onOpenPlugins});
+  const SearchPage({super.key, this.onOpenPlugins, this.recommendCache});
 
   /// 跳转到插件页(由 HomeShell 注入,用于安装插件引导)。
   final VoidCallback? onOpenPlugins;
+
+  /// 推荐缓存。默认使用进程级共享缓存(避免切回首页就重新打源站);
+  /// 测试可注入独立实例,避免用例之间互相污染。
+  final RecommendCache? recommendCache;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -49,7 +53,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _recLoading = false;
 
   /// 推荐缓存(10 分钟),避免每次回首页都打源站。
-  static final RecommendCache _recCache = RecommendCache();
+  /// 推荐缓存(10 分钟),避免每次回首页都打源站。
+  ///
+  /// 进程级共享:多个 SearchPage 实例复用同一份缓存。
+  /// 测试可通过 [SearchPage.recommendCache] 注入独立实例,避免用例互相污染。
+  static final RecommendCache _sharedRecCache = RecommendCache();
+
+  RecommendCache get _recCache => widget.recommendCache ?? _sharedRecCache;
 
   static const List<String> _suggestions = [
     'SoundHelix',
@@ -70,12 +80,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   /// 拉取热歌榜与猜你喜欢:都是真实音源数据,失败则回退静态卡。
-  Future<void> _loadRecommendations() async {
+  ///
+  /// [force] 为 true 时**忽略缓存**重新拉取(供下拉刷新使用)——
+  /// 否则下拉后拿到的还是缓存内容,用户会以为刷新没生效。
+  Future<void> _loadRecommendations({bool force = false}) async {
     if (_recLoading) return;
-    final cached = _recCache.get('home');
-    if (cached != null) {
-      if (mounted) setState(() => _applyRecommendRaw(cached));
-      return;
+    if (force) {
+      _recCache.clear();
+    } else {
+      final cached = _recCache.get('home');
+      if (cached != null) {
+        if (mounted) setState(() => _applyRecommendRaw(cached));
+        return;
+      }
     }
     setState(() => _recLoading = true);
     try {
@@ -88,7 +105,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         final picked = selectChartsForHome(lists);
         _topListIndex = 0;
         final detail = await manager.topListDetail(picked.first);
-        for (final raw in detail.take(kHomeChartSongs)) {
+        for (final raw in detail.take(kHomeChartPreview)) {
           try {
             hot.add(MusicItem.fromJson(raw));
           } catch (_) {}
@@ -175,7 +192,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final manager = ref.read(pluginManagerProvider);
       final detail = await manager.topListDetail(_topLists[index]);
       final songs = <MusicItem>[];
-      for (final raw in detail.take(kHomeChartSongs)) {
+      for (final raw in detail.take(kHomeChartPreview)) {
         try {
           songs.add(MusicItem.fromJson(raw));
         } catch (_) {}
@@ -329,6 +346,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 topLists: _topLists,
                                 topListIndex: _topListIndex,
                                 onPickTopList: _switchTopList,
+                                // 「查看全部」→ 完整榜单列表页(可滑动浏览选歌)
+                                onOpenChart: (i) {
+                                  if (i < 0 || i >= _topLists.length) return;
+                                  openChartDetail(context, ref, _topLists[i]);
+                                },
+                                // 下拉刷新:忽略缓存重新拉取榜单与推荐
+                                onRefresh: () =>
+                                    _loadRecommendations(force: true),
                                 // 用 watch 的值作数据源:清空/删除「最近播放」
                                 // 后本页会重建,列表随之更新(只 read 不会刷新)。
                                 recentPlays: [
@@ -578,6 +603,8 @@ class _IdleView extends StatelessWidget {
     this.topLists = const [],
     this.topListIndex = 0,
     this.onPickTopList,
+    this.onOpenChart,
+    this.onRefresh,
     this.recentPlays = const [],
     this.onPlayRecent,
     this.onDownloadRecent,
@@ -599,6 +626,12 @@ class _IdleView extends StatelessWidget {
   final List<Map<String, dynamic>> topLists;
   final int topListIndex;
   final ValueChanged<int>? onPickTopList;
+
+  /// 打开第 index 个榜单的**完整列表页**(可上下滑动浏览选歌)。
+  final ValueChanged<int>? onOpenChart;
+
+  /// 下拉刷新:重新拉取榜单与推荐。为 null 时不启用下拉刷新。
+  final Future<void> Function()? onRefresh;
 
   /// 最近播放(原「音乐由插件驱动」卡片的替代,用户诉求)。
   final List<MusicItem> recentPlays;
@@ -639,7 +672,10 @@ class _IdleView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
-    return ListView(
+    final list = ListView(
+      // 下拉刷新需要列表本身可滚动:内容不足一屏时也要能下拉,
+      // 因此始终给 AlwaysScrollableScrollPhysics。
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 20, 0, 24),
       children: [
         // 动态热歌榜(真实音源排行榜);拉不到时退回下面的静态关键词卡
@@ -669,13 +705,19 @@ class _IdleView extends StatelessWidget {
           // 标题显示**当前实际榜单名**(如「酷我热歌榜」),而不是笼统的
           // 「热门推荐」—— 否则切换榜单后标题不变,用户分不清在看哪个榜,
           // 会觉得「新歌不是新歌」。
+          // 右侧「查看全部」进入完整榜单页(30 首,可上下滑动浏览选歌)。
           _SectionTitle(
             _currentChartName,
             icon: Icons.local_fire_department_rounded,
+            onMore: onOpenChart == null
+                ? null
+                : () => onOpenChart!(topListIndex),
           ),
           const SizedBox(height: 12),
-          _SongCardGrid(
-            songs: hotSongs.take(kHomeChartSongs).toList(),
+          // 首页只放少量预览(列表形式,比卡片网格省空间);
+          // 完整榜单走右上角「查看全部」。
+          _ChartList(
+            songs: hotSongs.take(kHomeChartPreview).toList(),
             onPlay: onPlayHot,
             onDownloadSong: onDownloadSong,
             onAddSong: onAddSong,
@@ -685,8 +727,9 @@ class _IdleView extends StatelessWidget {
         if (guessSongs.isNotEmpty) ...[
           _SectionTitle('猜你喜欢', icon: Icons.auto_awesome_rounded),
           const SizedBox(height: 12),
-          _SongCardGrid(
-            songs: guessSongs.take(6).toList(),
+          // 猜你喜欢同样用列表,保持与上方榜单一致的观感
+          _ChartList(
+            songs: guessSongs.take(kHomeChartPreview).toList(),
             onPlay: onPlayGuess,
             onDownloadSong: onDownloadSong,
             onAddSong: onAddSong,
@@ -845,6 +888,10 @@ class _IdleView extends StatelessWidget {
         ],
       ],
     );
+
+    // 没有刷新回调时不套 RefreshIndicator,避免下拉出现"永远转不完"的指示器。
+    if (onRefresh == null) return list;
+    return RefreshIndicator(onRefresh: onRefresh!, child: list);
   }
 }
 
@@ -999,9 +1046,13 @@ class _RecentPlayRow extends ConsumerWidget {
   }
 }
 
-/// 推荐卡片网格:两排、每排三个。
-class _SongCardGrid extends StatelessWidget {
-  const _SongCardGrid({
+/// 榜单/推荐的歌曲列表(替代原卡片网格)。
+///
+/// 为什么改成列表:排行榜本质是"歌单式"浏览,卡片网格每行只放 2-3 首、
+/// 封面占掉大半高度,首页被拉得很长(用户反馈"卡片好占地方")。
+/// 列表每条一行、信息密度更高,且与搜索结果共用 [SongTile],观感统一。
+class _ChartList extends StatelessWidget {
+  const _ChartList({
     required this.songs,
     required this.onPlay,
     this.onDownloadSong,
@@ -1013,149 +1064,88 @@ class _SongCardGrid extends StatelessWidget {
   final ValueChanged<MusicItem>? onDownloadSong;
   final ValueChanged<MusicItem>? onAddSong;
 
-  /// 卡片空间小,下载/收藏等动作放长按菜单里。
-  Future<void> _showSongMenu(BuildContext context, MusicItem song) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.download_rounded),
-              title: const Text('下载'),
-              onTap: () {
-                Navigator.pop(ctx);
-                onDownloadSong?.call(song);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add_rounded),
-              title: const Text('加入歌单'),
-              onTap: () {
-                Navigator.pop(ctx);
-                onAddSong?.call(song);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 列数与行高由可用宽度推导:封面是正方形,行高必须跟着单元格宽度走,
-    // 否则桌面宽屏下方图会超出固定行高、盖住下面的区块(实测现象)。
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = songCardLayoutFor(constraints.maxWidth);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(right: songCardTrailingPadding),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: layout.columns,
-            mainAxisSpacing: songCardSpacing,
-            crossAxisSpacing: songCardSpacing,
-            mainAxisExtent: layout.extent,
-          ),
-          itemCount: songs.length,
-          itemBuilder: (context, i) => _SongCard(
-            song: songs[i],
-            onTap: onPlay == null ? null : () => onPlay!(i),
-            onLongPress: onDownloadSong == null && onAddSong == null
-                ? null
-                : () => _showSongMenu(context, songs[i]),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// 单个歌曲卡:封面 + 歌名 + 歌手。
-class _SongCard extends StatelessWidget {
-  const _SongCard({
-    required this.song,
-    required this.onTap,
-    this.onLongPress,
-  });
-
-  final MusicItem song;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(12),
+    return Padding(
+      // 右侧留白与页面其他区块一致(ListView 的 padding 只管左侧)
+      padding: const EdgeInsets.only(right: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                color: scheme.surfaceContainerHighest,
-                child: song.artwork == null || song.artwork!.isEmpty
-                    ? Icon(
-                        Icons.music_note_rounded,
-                        color: scheme.outline,
-                        size: 28,
-                      )
-                    : Image.network(
-                        song.artwork!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.music_note_rounded,
-                          color: scheme.outline,
-                          size: 28,
-                        ),
-                      ),
+          for (var i = 0; i < songs.length; i++)
+            _ChartRow(
+              // 用 platform+id 做 key:切换榜单时列表项能正确复用/替换
+              key: ValueKey(
+                '${songs[i].platform}|${songs[i].id}|$i',
               ),
+              index: i,
+              song: songs[i],
+              onTap: onPlay == null ? null : () => onPlay!(i),
+              onDownload: onDownloadSong == null
+                  ? null
+                  : () => onDownloadSong!(songs[i]),
+              onAdd: onAddSong == null ? null : () => onAddSong!(songs[i]),
+              rankColor: scheme.primary,
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          Text(
-            song.artist ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.labelSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
     );
   }
 }
+
+/// 榜单行:序号 + 歌曲信息 + 操作。
+///
+/// 榜单带序号(1/2/3…)是排行榜的惯例,能一眼看出名次 —— 卡片网格做不到这点。
+class _ChartRow extends StatelessWidget {
+  const _ChartRow({
+    super.key,
+    required this.index,
+    required this.song,
+    required this.onTap,
+    this.onDownload,
+    this.onAdd,
+    required this.rankColor,
+  });
+
+  final int index;
+  final MusicItem song;
+  final VoidCallback? onTap;
+  final VoidCallback? onDownload;
+  final VoidCallback? onAdd;
+  final Color rankColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    // 前三名用品牌色强调,其余用弱化色
+    final isTop3 = index < 3;
+    return Row(
+      children: [
+        SizedBox(
+          width: 26,
+          child: Text(
+            '${index + 1}',
+            textAlign: TextAlign.center,
+            style: textTheme.labelMedium?.copyWith(
+              color: isTop3 ? rankColor : scheme.outline,
+              fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SongTile(
+            song: song,
+            onTap: onTap,
+            onDownload: onDownload,
+            onAdd: onAdd,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 
 /// 结果态:加载 / 错误 / 空 / 列表。
 class _ResultView extends StatefulWidget {
@@ -1516,23 +1506,74 @@ class _SuggestionCard extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text, {this.icon});
+  const _SectionTitle(this.text, {this.icon, this.onMore});
 
   final String text;
   final IconData? icon;
 
+  /// 提供时在右侧显示「查看全部 ›」入口(用于进入榜单完整列表页)。
+  final VoidCallback? onMore;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(
       context,
     ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700);
-    return Row(
+
+    final title = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          Icon(icon, size: 18, color: scheme.primary),
           const SizedBox(width: 6),
         ],
-        Text(text, style: style),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      ],
+    );
+
+    // 无入口时只返回标题本身:mainAxisSize.min + Flexible 的 Row 可以安全地
+    // 嵌在别的 Row 里(如「最近播放」那行自己带 Spacer + 清空按钮)。
+    if (onMore == null) return title;
+
+    // 带「查看全部」入口时必须独占一行:内部用了 Spacer/Expanded 之类的
+    // 弹性布局,嵌进外层 Row 会因宽度约束无界而崩(RenderFlex 断言)。
+    return Row(
+      children: [
+        Flexible(child: title),
+        const Spacer(),
+        InkWell(
+          onTap: onMore,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '查看全部',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 入口右侧留出与页面一致的边距(ListView 的 padding 只管左侧)
+        const SizedBox(width: 20),
       ],
     );
   }
