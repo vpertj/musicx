@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
+import 'package:musicx/core/search/chart_selection.dart';
 import 'package:musicx/core/search/search_controller.dart';
 import 'package:musicx/core/search/search_history.dart';
 import 'package:musicx/core/search/recommend.dart';
@@ -15,6 +16,13 @@ import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/ui/widgets/song_tile.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/models/music_item.dart';
+
+/// 首页榜单卡展示的歌曲数量。
+///
+/// 此前只显示 6 首(两排),而榜单实际有 30 首 —— 前几名长期固定,
+/// 用户会觉得「热歌不太像热歌」。提到 9 首(三排)能看到更多差异,
+/// 同时不至于把首页拉得过长。
+const int kHomeChartSongs = 9;
 
 /// 发现页:渐变品牌头部 + 搜索框 + 热门推荐/历史 + 插件引导。
 class SearchPage extends ConsumerStatefulWidget {
@@ -75,11 +83,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final hot = <MusicItem>[];
       final lists = await manager.topLists();
       if (lists.isNotEmpty) {
-        // 只保留前 6 个榜作为可切换项,避免首页堆一排芯片
+        // 按名称优先挑出真正的「热歌榜」(而非盲取插件返回的第一个),
+        // 并把它排到首位作为默认选中项。见 chart_selection.dart。
+        final picked = selectChartsForHome(lists);
         _topListIndex = 0;
-        final picked = lists.take(6).toList();
         final detail = await manager.topListDetail(picked.first);
-        for (final raw in detail.take(6)) {
+        for (final raw in detail.take(kHomeChartSongs)) {
           try {
             hot.add(MusicItem.fromJson(raw));
           } catch (_) {}
@@ -166,7 +175,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final manager = ref.read(pluginManagerProvider);
       final detail = await manager.topListDetail(_topLists[index]);
       final songs = <MusicItem>[];
-      for (final raw in detail.take(6)) {
+      for (final raw in detail.take(kHomeChartSongs)) {
         try {
           songs.add(MusicItem.fromJson(raw));
         } catch (_) {}
@@ -615,6 +624,16 @@ class _IdleView extends StatelessWidget {
     LinearGradient(colors: [Color(0xFFFF7A85), Color(0xFFFA3B4D)]),
   ];
 
+  /// 当前选中榜单的名称(用于区块标题)。
+  ///
+  /// 取不到时回落到「热门推荐」,保持旧观感不变。
+  String get _currentChartName {
+    if (topLists.isEmpty) return '热门推荐';
+    if (topListIndex < 0 || topListIndex >= topLists.length) return '热门推荐';
+    final title = '${topLists[topListIndex]['title'] ?? ''}'.trim();
+    return title.isEmpty ? '热门推荐' : title;
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -647,9 +666,16 @@ class _IdleView extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         if (hotSongs.isNotEmpty) ...[
-          // 两排、每排三个(用户诉求)
+          // 标题显示**当前实际榜单名**(如「酷我热歌榜」),而不是笼统的
+          // 「热门推荐」—— 否则切换榜单后标题不变,用户分不清在看哪个榜,
+          // 会觉得「新歌不是新歌」。
+          _SectionTitle(
+            _currentChartName,
+            icon: Icons.local_fire_department_rounded,
+          ),
+          const SizedBox(height: 12),
           _SongCardGrid(
-            songs: hotSongs.take(6).toList(),
+            songs: hotSongs.take(kHomeChartSongs).toList(),
             onPlay: onPlayHot,
             onDownloadSong: onDownloadSong,
             onAddSong: onAddSong,
