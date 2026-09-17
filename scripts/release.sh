@@ -57,8 +57,16 @@ echo
 # 用途:CI 跑完后确认「两个版本都发出去了」,避免只发成功一个却没人发现。
 # 检查每个变体在当前平台上的关键产物(apk/dmg),HTTP 200 即视为就绪。
 if [ "$VERIFY" = "1" ]; then
-  REPO="$(git remote get-url origin \
-    | sed -E 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?#\1#')"
+  ORIGIN="$(git remote get-url origin 2>/dev/null || echo '')"
+  REPO="$(echo "$ORIGIN" \
+    | sed -nE 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#p')"
+  if [ -z "$REPO" ]; then
+    # 本地 clone / 非 GitHub remote 时不能静默取错仓库去核对,
+    # 否则会对着一个不存在的路径报 404,误导成"没发布"。
+    echo "错误:origin 不是 GitHub 仓库地址(当前:$ORIGIN)" >&2
+    echo "      --verify 需要能访问 github.com 的 remote。" >&2
+    exit 2
+  fi
   echo "核对仓库: $REPO"
   echo
 
