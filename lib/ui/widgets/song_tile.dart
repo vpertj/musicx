@@ -14,9 +14,10 @@ class SongTile extends StatelessWidget {
     // 界面精简:列表不再展示歌曲来源(用户只关心歌本身)
     @Deprecated('列表已不展示来源徽标,保留参数仅为兼容调用方')
     this.showPlatform = false,
-    this.artworkSize = 52,
+    this.artworkSize,
     this.onAdd,
     this.onDownload,
+    this.dense = false,
   });
 
   final MusicItem song;
@@ -24,7 +25,9 @@ class SongTile extends StatelessWidget {
   final Widget? trailing;
   final bool highlighted;
   final bool showPlatform;
-  final double artworkSize;
+
+  /// 封面尺寸。为 null 时按 [dense] 取值:普通 52,紧凑 40。
+  final double? artworkSize;
 
   /// 提供时显示「+」加入歌单按钮。
   final VoidCallback? onAdd;
@@ -32,17 +35,26 @@ class SongTile extends StatelessWidget {
   /// 提供时显示「下载」按钮。
   final VoidCallback? onDownload;
 
+  /// 紧凑模式:封面更小、行内边距更小、ListTile dense —— 用于榜单等
+  /// 需要紧密排列的长列表(用户反馈默认间距"有点大")。
+  final bool dense;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final artist = song.artist ?? '';
     final album = song.album ?? '';
+    final size = artworkSize ?? (dense ? 40.0 : 52.0);
 
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      leading: ArtworkView(url: song.artwork, size: artworkSize, radius: 12),
+      dense: dense,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 4,
+        vertical: dense ? 0 : 2,
+      ),
+      leading: ArtworkView(url: song.artwork, size: size, radius: dense ? 8 : 12),
       title: Text(
         song.title,
         maxLines: 1,

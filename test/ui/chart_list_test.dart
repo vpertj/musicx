@@ -109,6 +109,12 @@ void main() {
     );
     // 卡片网格的标题+歌手堆叠结构不应再出现在榜单区域
     expect(find.text('榜单歌曲0'), findsOneWidget);
+
+    // 紧凑排列:单行高度应明显小于普通 SongTile(封面 52 → 40,
+    // 实测默认行高 76px、紧凑 64px)。用户反馈默认间距"有点大"。
+    final rowRect = tester.getRect(find.byType(SongTile).first);
+    expect(rowRect.height, lessThan(70.0),
+        reason: '榜单行应使用紧凑模式(dense),行高明显小于默认 SongTile(76px)');
   });
 
   testWidgets('区块标题显示真实榜单名(而非写死的「热门推荐」)', (tester) async {

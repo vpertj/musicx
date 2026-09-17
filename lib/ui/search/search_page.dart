@@ -1136,6 +1136,8 @@ class _ChartRow extends StatelessWidget {
         Expanded(
           child: SongTile(
             song: song,
+            // 榜单用紧凑排列:封面 40、dense,行高明显小于搜索结果
+            dense: true,
             onTap: onTap,
             onDownload: onDownload,
             onAdd: onAdd,
