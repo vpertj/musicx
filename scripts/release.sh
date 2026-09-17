@@ -3,26 +3,29 @@
 # 一条命令发布两个变体(或只发其中一个)。
 #
 # 用法:
-#   scripts/release.sh              # 发布当前 pubspec 版本的两个变体
+#   scripts/release.sh              # 发布当前 pubspec 版本的两个变体(默认)
 #   scripts/release.sh --blessing   # 只发吴玫静版
 #   scripts/release.sh --standard   # 只发标准版
 #   scripts/release.sh --dry-run    # 只打印将要执行的命令
+#   scripts/release.sh --verify     # 核对两个变体的产物是否都已发布
 #
 # 为什么需要这个脚本:发布涉及两个 tag、且**顺序有讲究**(见下),
-# 手工敲容易漏掉一条或搞反顺序。
+# 手工敲容易漏掉一条或搞反顺序。**不带参数时默认两个都发。**
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 ONLY=""
+VERIFY=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1;;
     --blessing) ONLY=blessing;;
     --standard) ONLY=standard;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    --verify) VERIFY=1;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "未知参数: $arg(用 --help 查看用法)" >&2; exit 2;;
   esac
 done
@@ -48,6 +51,44 @@ echo "版本:  $VERSION (code $CODE)"
 echo "吴玫静版 tag: $BLESSING_TAG"
 echo "标准版 tag:   $STANDARD_TAG"
 echo
+
+# ---- --verify:核对两个变体的产物是否都真的发布了 --------------------------
+#
+# 用途:CI 跑完后确认「两个版本都发出去了」,避免只发成功一个却没人发现。
+# 检查每个变体在当前平台上的关键产物(apk/dmg),HTTP 200 即视为就绪。
+if [ "$VERIFY" = "1" ]; then
+  REPO="$(git remote get-url origin \
+    | sed -E 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?#\1#')"
+  echo "核对仓库: $REPO"
+  echo
+
+  check() { # $1=tag $2=文件名
+    local code
+    code="$(curl -sI -L -o /dev/null -w '%{http_code}' --max-time 30 \
+      "https://github.com/$REPO/releases/download/$1/$2" || echo 000)"
+    if [ "$code" = "200" ]; then
+      printf '  ✅ %-46s (%s)\n' "$2" "$1"
+      return 0
+    fi
+    printf '  ❌ %-46s (%s) HTTP=%s\n' "$2" "$1" "$code"
+    return 1
+  }
+
+  FAILED=0
+  check "$BLESSING_TAG" "MusicX-${VERSION}.apk"      || FAILED=1
+  check "$BLESSING_TAG" "MusicX-${VERSION}.dmg"      || FAILED=1
+  check "$STANDARD_TAG" "MusicX-${VERSION}-standard.apk" || FAILED=1
+  check "$STANDARD_TAG" "MusicX-${VERSION}-standard.dmg" || FAILED=1
+
+  echo
+  if [ "$FAILED" = "1" ]; then
+    echo "有产物尚未就绪 —— 若刚推送,CI 可能仍在构建,稍等几分钟再跑一次"
+    echo "scripts/release.sh --verify"
+    exit 1
+  fi
+  echo "两个变体的产物均已就绪 ✅"
+  exit 0
+fi
 
 # ---- 发布前检查 ----------------------------------------------------------
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
