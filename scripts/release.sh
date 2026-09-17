@@ -71,9 +71,16 @@ if [ "$VERIFY" = "1" ]; then
   echo
 
   check() { # $1=tag $2=文件名
-    local code
-    code="$(curl -sI -L -o /dev/null -w '%{http_code}' --max-time 30 \
-      "https://github.com/$REPO/releases/download/$1/$2" || echo 000)"
+    # 注意:`curl -I -L` 每经过一次重定向都会输出一个 http_code
+    # (GitHub 资产会 302 到 CDN),直接取用会得到 "302000" 这种拼接值。
+    # 因此:
+    #   - 用 -o /dev/null 丢弃正文,只保留最后一次的 code(取末尾 3 位);
+    #   - 加 --retry 抵消偶发网络抖动(实测出现过瞬时 000)。
+    local raw code
+    raw="$(curl -sI -L --retry 3 --retry-delay 2 --retry-all-errors \
+      -o /dev/null -w '%{http_code}' --max-time 40 \
+      "https://github.com/$REPO/releases/download/$1/$2" 2>/dev/null || echo 000)"
+    code="${raw: -3}"
     if [ "$code" = "200" ]; then
       printf '  ✅ %-46s (%s)\n' "$2" "$1"
       return 0

@@ -87,11 +87,15 @@ flutter build apk                    →  自己是 blessing,前缀 "v"
 ### 推荐:用发布脚本
 
 ```bash
-scripts/release.sh              # 一次发两个变体(自动保证顺序)
+scripts/release.sh              # 一次发两个变体(默认;自动保证顺序)
 scripts/release.sh --blessing   # 只发吴玫静版
 scripts/release.sh --standard   # 只发标准版
 scripts/release.sh --dry-run    # 只打印将执行的命令,不实际打 tag
+scripts/release.sh --verify     # 核对两个变体的产物是否都已发布
 ```
+
+**不带参数时默认两个都发。** CI 跑完后用 `--verify` 确认两个变体的
+apk/dmg 都能下载(HTTP 200),避免「只成功发布了一个变体却没发现」。
 
 脚本会读取 `pubspec.yaml` 的版本,自动生成两种 tag,并在发布前检查:
 
