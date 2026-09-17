@@ -202,14 +202,31 @@ class PlayerController extends Notifier<PlayerState> {
   ///
   /// 与 [next] 的区别:单曲循环下应重播当前曲,而不是跳到队列下一首。
   /// 两条自动触发路径(completedStream 与位置兜底)都必须走这里。
+  ///
+  /// **失败兜底**:起播失败(解析失败/流地址失效/网络错误)时自动跳过失败
+  /// 歌曲,继续尝试后续歌曲 —— 否则一首坏了整个队列就停住(用户实测:
+  /// 「第一首播完,切下一首时播放失败」就再也不动了)。最多尝试整队一遍,
+  /// 避免坏队列无限打源站;全部失败才真正停下并保留错误提示。
   Future<void> _advanceAuto() async {
-    final idx = _advance(forward: true, auto: true);
-    if (idx == null) return;
-    await _goTo(idx);
+    final n = state.queue.length;
+    if (n == 0) return;
+    var idx = _advance(forward: true, auto: true);
+    var attempts = 0;
+    while (idx != null && attempts < n) {
+      attempts++;
+      final ok = await _goTo(idx);
+      if (ok) return;
+      // 这一首失败:跳过它,试下一首(单曲循环重播失败时也顺延到下一首,
+      // 避免无限重播同一首失败的歌)。
+      idx = (idx + 1) % n;
+    }
   }
 
   /// 切到指定下标并起播(手动切歌与自动推进共用)。
-  Future<void> _goTo(int idx) async {
+  ///
+  /// 返回是否起播成功;失败时已把错误写入状态(手动操作展示给用户,
+  /// 自动推进则据此跳过)。
+  Future<bool> _goTo(int idx) async {
     state = state.copyWith(
       currentIndex: idx,
       isPlaying: false,
@@ -217,7 +234,7 @@ class PlayerController extends Notifier<PlayerState> {
       position: Duration.zero,
       duration: Duration.zero,
     );
-    await _playCurrent();
+    return _playCurrent();
   }
 
   Future<void> seek(Duration position) async {
@@ -302,11 +319,11 @@ class PlayerController extends Notifier<PlayerState> {
   /// 与队列平行的本地文件路径;非 null 表示当前队列为本地播放模式。
   List<String>? _localPaths;
 
-  Future<void> _playCurrentLocal() async {
+  Future<bool> _playCurrentLocal() async {
     final current = state.current;
     final paths = _localPaths;
-    if (current == null || paths == null) return;
-    if (state.currentIndex >= paths.length) return;
+    if (current == null || paths == null) return false;
+    if (state.currentIndex >= paths.length) return false;
     // 本地(已下载)播放同样计入播放历史,否则只播下载歌曲的用户首页永远
     // 没有「最近播放」(实测缺口)。
     try {
@@ -323,19 +340,23 @@ class PlayerController extends Notifier<PlayerState> {
       'MusicX 本地歌词: ${lyric.isEmpty ? "无旁挂歌词" : "${lyric.length} 行"} ← $path',
     );
     state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
+    return true;
   }
 
   /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报)。
   int _playToken = 0;
 
-  Future<void> _playCurrent() async {
+  /// 播放当前曲。
+  ///
+  /// 返回是否起播成功。**自动推进依赖这个结果做失败跳过**(见 [_advanceAuto]);
+  /// 手动切歌失败时错误已写入状态展示给用户,由用户决定下一步。
+  Future<bool> _playCurrent() async {
     // 本地队列:直接播文件,不走插件解析
     if (_localPaths != null) {
-      await _playCurrentLocal();
-      return;
+      return _playCurrentLocal();
     }
     final current = state.current;
-    if (current == null) return;
+    if (current == null) return false;
     // 记录播放历史:首页「猜你喜欢」按最常听的歌手做推荐(方案 C)
     try {
       ref.read(playHistoryProvider.notifier).record(current.toJson());
@@ -349,13 +370,13 @@ class PlayerController extends Notifier<PlayerState> {
       final media = await manager.resolveMediaSource(current.toJson());
       // 播放令牌:请求期间若已被更新请求取代(快速连点 next/切歌),放弃本次播放,
       // 避免旧歌在解析完成后覆盖/打断当前曲目。
-      if (token != _playToken) return;
+      if (token != _playToken) return false;
       final url = media['url'] as String;
       // 先发下一首预取(与播放器初始化并行),再起播 —— 缩短下一首的切换时间
       _prefetchNext();
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
-      if (token != _playToken) return;
+      if (token != _playToken) return false;
       // 关键:先切到「播放中」并把歌词清空,歌词在后台再取。
       // 此前这里 await 歌词解析后才置为播放中,而歌词解析包含重试与跨源兜底
       // (要再发搜索请求),于是列表点击切歌要等歌词才生效 —— 用户体感「非常慢」。
@@ -367,11 +388,13 @@ class PlayerController extends Notifier<PlayerState> {
       );
       // 歌词后台加载:完成后再校验 token,避免旧请求写入新请求的歌词。
       unawaited(_loadLyric(current, token));
+      return true;
     } catch (e) {
-      if (token != _playToken) return;
+      if (token != _playToken) return false;
       // 旧加载被新请求打断不算错误
-      if (e.toString().contains('Loading interrupted')) return;
-      state = state.copyWith(error: e.toString());
+      if (e.toString().contains('Loading interrupted')) return false;
+      state = state.copyWith(error: e.toString(), isLoading: false);
+      return false;
     }
   }
 

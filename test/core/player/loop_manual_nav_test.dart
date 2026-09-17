@@ -225,4 +225,42 @@ void main() {
       expect(c.read(playerControllerProvider).repeatMode, LoopMode.off);
     });
   });
+
+  group('端到端循环序列(用户描述的场景)', () {
+    test('单曲循环连续重播;切列表循环后从当前位置继续到队尾再回开头',
+        () async {
+      final (c, fake) = await setup();
+      // startAt 就是 playFromList:队列 [歌1,歌2,歌3],从歌1开始播
+      await startAt(c, [song(1), song(2), song(3)], 0);
+
+      // 单曲循环:播完 3 次都应重播同一首
+      setMode(c, LoopMode.one);
+      for (var i = 1; i <= 3; i++) {
+        final before = fake.playedUrls.length;
+        fake.fireCompleted();
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(
+          c.read(playerControllerProvider).currentIndex,
+          0,
+          reason: '单曲循环播完第$i次仍应重播歌1',
+        );
+        expect(fake.playedUrls.length, greaterThan(before),
+            reason: '应真的重新起播');
+      }
+
+      // 切列表循环:从当前位置(歌1)继续 → 2 → 3 → 回到 1
+      setMode(c, LoopMode.all);
+      final seq = <int>[];
+      for (var i = 0; i < 3; i++) {
+        fake.fireCompleted();
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        seq.add(c.read(playerControllerProvider).currentIndex);
+      }
+      expect(
+        seq,
+        [1, 2, 0],
+        reason: '列表循环应依次往后播,最后一首播完回到第一首',
+      );
+    });
+  });
 }
