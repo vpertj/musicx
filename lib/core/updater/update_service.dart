@@ -261,12 +261,25 @@ class UpdateService {
   static String currentVersion() {
     try {
       final exe = Platform.resolvedExecutable;
-      // exe = .../musicx.app/Contents/MacOS/musicx
+      // macOS:exe = .../musicx.app/Contents/MacOS/musicx
       final contentsDir = File(exe).parent.parent; // .../musicx.app/Contents
       final plist = File('${contentsDir.path}/Info.plist');
       if (plist.existsSync()) {
         final parsed = parseMacVersionFromPlist(plist.readAsStringSync());
         if (parsed.isNotEmpty) return parsed;
+      }
+      // Windows:读随包发布的 version.txt(与 exe 同目录)。
+      // 此前 Windows 恒返回 '0.0.0' → 桌面版永远提示「有新版本」,
+      // 升级判断全乱(桌面端与安卓功能没跟上的一个硬伤)。
+      if (Platform.isWindows) {
+        final dir = File(exe).parent;
+        for (final name in ['version.txt', 'VERSION']) {
+          final f = File('${dir.path}${Platform.pathSeparator}$name');
+          if (f.existsSync()) {
+            final v = f.readAsStringSync().trim().split('+').first.trim();
+            if (v.isNotEmpty && v != '0.0.0') return v;
+          }
+        }
       }
     } catch (_) {}
     return '0.0.0';

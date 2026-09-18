@@ -239,7 +239,14 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows release
-        run: flutter build windows --release
+        run: |
+          flutter build windows --release
+          # 写入 version.txt:Windows 端据此读取当前版本(否则恒为 0.0.0,
+          # 会永远提示「有新版本」)。与 exe 同目录,随 zip 与安装包一起发布。
+          $pubspec = Get-Content pubspec.yaml | Select-String '^version:'
+          $version = ($pubspec -split '\+')[0].Replace('version:', '').Trim()
+          Set-Content -Path "build/windows/x64/runner/Release/version.txt" -Value $version -NoNewline -Encoding utf8
+          Write-Host "version.txt = $version"
 
       - name: Package ZIP
         shell: pwsh

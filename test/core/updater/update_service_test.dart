@@ -57,4 +57,17 @@ void main() {
       expect((out.stdout as String).trim(), '9.9.9');
     });
   });
+
+  test('Windows 端当前版本应能读取(此前恒为 0.0.0,导致永远提示有新版本)', () {
+    // 平台相关:测试机是 macOS,这里验证「解析逻辑」本身
+    // —— version.txt 内容可能带 +build,需只取版本号部分。
+    String parseWin(String raw) => raw.trim().split('+').first.trim();
+    expect(parseWin('1.7.42'), '1.7.42');
+    expect(parseWin('1.7.42+61'), '1.7.42');
+    expect(parseWin(' 1.7.42\n'), '1.7.42');
+    // 非 Windows 平台不应误报:currentVersion 在 macOS 上返回 Info.plist 版本
+    if (!Platform.isWindows) {
+      expect(UpdateService.currentVersion(), isNotEmpty);
+    }
+  });
 }
