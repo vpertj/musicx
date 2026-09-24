@@ -1,31 +1,28 @@
 #!/usr/bin/env bash
 #
-# 一条命令发布两个变体(或只发其中一个)。
+# 一条命令发布当前版本(只发标准版)。
 #
 # 用法:
-#   scripts/release.sh              # 发布当前 pubspec 版本的两个变体(默认)
-#   scripts/release.sh --blessing   # 只发吴玫静版
-#   scripts/release.sh --standard   # 只发标准版
+#   scripts/release.sh              # 发布当前 pubspec 版本(标准版)
 #   scripts/release.sh --dry-run    # 只打印将要执行的命令
-#   scripts/release.sh --verify     # 核对两个变体的产物是否都已发布
+#   scripts/release.sh --verify     # 核对标准版产物是否已发布
 #
-# 为什么需要这个脚本:发布涉及两个 tag、且**顺序有讲究**(见下),
-# 手工敲容易漏掉一条或搞反顺序。**不带参数时默认两个都发。**
+# 历史说明:早期同时发布「吴玫静版」(v*)与「标准版」(std-v*)两条升级线,
+# 需要维护两套 tag、顺序有讲究(旧客户端依赖 /releases/latest)。
+# 现已合并为标准版单一发布线:只打 std-v* tag,CI 只构建一份包。
+# 已安装旧吴玫静版的用户不会再收到自动更新(如需升级请手动下载)。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
-ONLY=""
 VERIFY=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1;;
-    --blessing) ONLY=blessing;;
-    --standard) ONLY=standard;;
     --verify) VERIFY=1;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "未知参数: $arg(用 --help 查看用法)" >&2; exit 2;;
   esac
 done
@@ -44,18 +41,16 @@ if ! echo "$CODE" | grep -qE '^[0-9]+$'; then
   exit 1
 fi
 
-BLESSING_TAG="v${VERSION}"
 STANDARD_TAG="std-v${VERSION}"
 
 echo "版本:  $VERSION (code $CODE)"
-echo "吴玫静版 tag: $BLESSING_TAG"
-echo "标准版 tag:   $STANDARD_TAG"
+echo "标准版 tag: $STANDARD_TAG"
 echo
 
-# ---- --verify:核对两个变体的产物是否都真的发布了 --------------------------
+# ---- --verify:核对标准版产物是否都真的发布了 --------------------------------
 #
-# 用途:CI 跑完后确认「两个版本都发出去了」,避免只发成功一个却没人发现。
-# 检查每个变体在当前平台上的关键产物(apk/dmg),HTTP 200 即视为就绪。
+# 用途:CI 跑完后确认产物已就绪,避免发失败却没人发现。
+# 检查标准版在当前平台上的关键产物(apk/dmg),HTTP 200 即视为就绪。
 if [ "$VERIFY" = "1" ]; then
   ORIGIN="$(git remote get-url origin 2>/dev/null || echo '')"
   REPO="$(echo "$ORIGIN" \
@@ -90,8 +85,6 @@ if [ "$VERIFY" = "1" ]; then
   }
 
   FAILED=0
-  check "$BLESSING_TAG" "MusicX-${VERSION}.apk"      || FAILED=1
-  check "$BLESSING_TAG" "MusicX-${VERSION}.dmg"      || FAILED=1
   check "$STANDARD_TAG" "MusicX-${VERSION}-standard.apk" || FAILED=1
   check "$STANDARD_TAG" "MusicX-${VERSION}-standard.dmg" || FAILED=1
 
@@ -101,7 +94,7 @@ if [ "$VERIFY" = "1" ]; then
     echo "scripts/release.sh --verify"
     exit 1
   fi
-  echo "两个变体的产物均已就绪 ✅"
+  echo "标准版产物均已就绪 ✅"
   exit 0
 fi
 
@@ -127,27 +120,12 @@ if [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
 fi
 
 # tag 是否已存在
-for t in "$BLESSING_TAG" "$STANDARD_TAG"; do
-  if git rev-parse -q --verify "refs/tags/$t" >/dev/null; then
-    echo "错误:tag $t 已存在(本地)。" >&2
-    exit 1
-  fi
-done
+if git rev-parse -q --verify "refs/tags/$STANDARD_TAG" >/dev/null; then
+  echo "错误:tag $STANDARD_TAG 已存在(本地)。" >&2
+  exit 1
+fi
 
-# ---- 组装 tag 列表 --------------------------------------------------------
-# 顺序很重要:先推标准版、再推吴玫静版。
-#
-# 原因:v1.7.46 及以前的旧客户端只读 /releases/latest,且用
-# `tag.startsWith('v')` 取版本号。若标准版(std-v*)最后发布并占据最新位,
-# 旧版会解析出 "std-vX.Y.Z",版本比较被判为 0 → 误报「已是最新」,
-# 永远收不到更新。让吴玫静版占住最新位,旧版才有出路。
-TAGS=()
-case "$ONLY" in
-  blessing) TAGS=("$BLESSING_TAG");;
-  standard) TAGS=("$STANDARD_TAG");;
-  *)        TAGS=("$STANDARD_TAG" "$BLESSING_TAG");;
-esac
-
+# ---- 执行 ----------------------------------------------------------------
 run() {
   if [ "$DRY_RUN" = "1" ]; then
     echo "  [dry-run] $*"
@@ -156,26 +134,13 @@ run() {
   fi
 }
 
-# ---- 执行 ----------------------------------------------------------------
-for t in "${TAGS[@]}"; do
-  case "$t" in
-    std-*) NAME="标准版";;
-    *)     NAME="吴玫静版";;
-  esac
-  echo "打 tag $t($NAME)…"
-  run git tag -a "$t" -m "MusicX ${VERSION}(${NAME})"
-done
+echo "打 tag $STANDARD_TAG(标准版)…"
+run git tag -a "$STANDARD_TAG" -m "MusicX ${VERSION}(标准版)"
 
 echo
-echo "推送 tag(顺序:${TAGS[*]})…"
-for t in "${TAGS[@]}"; do
-  case "$t" in
-    std-*) NAME="标准版";;
-    *)     NAME="吴玫静版";;
-  esac
-  echo "  → $t($NAME)"
-  run git push origin "$t"
-done
+echo "推送 tag…"
+echo "  → $STANDARD_TAG(标准版)"
+run git push origin "$STANDARD_TAG"
 
 echo
 if [ "$DRY_RUN" = "1" ]; then
@@ -183,11 +148,9 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-echo "已推送。CI 将并行构建对应变体,约 3-6 分钟。"
+echo "已推送。CI 将构建并上传产物,约 3-6 分钟。"
 echo "查看进度: https://github.com/vpertj/musicx/actions"
 echo
 echo "构建完成后可核对:"
-echo "  吴玫静版: https://github.com/vpertj/musicx/releases/tag/$BLESSING_TAG"
-if [ "$ONLY" != "blessing" ]; then
-  echo "  标准版:   https://github.com/vpertj/musicx/releases/tag/$STANDARD_TAG"
-fi
+echo "  scripts/release.sh --verify"
+echo "  页面: https://github.com/vpertj/musicx/releases/tag/$STANDARD_TAG"

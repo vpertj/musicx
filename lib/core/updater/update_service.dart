@@ -116,9 +116,9 @@ String parseMacVersionFromPlist(String plistText) {
 /// 我们改走代理拿同一份 JSON,从而保住 SHA256 digest 这个关键字段 ——
 /// 少了它,第三方下载代理就等于在无校验的情况下过境。
 ///
-/// [flavor] 决定如何从 tag 里剥离前缀(吴玫静版 `v1.7.46`,
-/// 标准版 `std-v1.7.46`)。**不属于本变体时返回 null**,由调用方跳过 ——
-/// 这是防止「串版」的关键:标准版绝不能把吴玫静版的 release 当成自己的更新。
+/// [flavor] 决定如何从 tag 里剥离前缀(标准版 `std-v1.7.46`)。
+/// **不属于本变体时返回 null**,由调用方跳过 —— 这是防止「串版」的关键:
+/// 标准版绝不能把历史吴玫静版(v* tag)的 release 当成自己的更新。
 UpdateInfo? parseReleaseJson(
   String body, {
   required String assetSuffix,
@@ -176,8 +176,8 @@ UpdateInfo? parseReleaseEntry(
 /// 从 release 列表里挑出**本变体**的最新一条(纯函数,便于单测)。
 ///
 /// 为什么不用 `/releases/latest`:它返回全仓库最新的 release,不区分变体。
-/// 两个版本并存时,标准版的用户会收到吴玫静版的更新提示(串版)。
-/// 因此改为拉取列表后按 tag 前缀筛选,再取版本号最大的一条。
+/// 历史上吴玫静版(v* tag)与标准版并存时,标准版的用户会收到吴玫静版的
+/// 更新提示(串版)。因此改为拉取列表后按 tag 前缀筛选,再取版本号最大的一条。
 UpdateInfo? pickLatestForFlavor(
   List<Map<String, dynamic>> releases, {
   required String assetSuffix,
@@ -394,7 +394,7 @@ class UpdateService {
   Future<UpdateInfo> _checkViaApi({String? apiBase}) async {
     final base = apiBase ?? 'https://api.github.com';
     // 用 /releases(列表)而非 /releases/latest:后者不区分变体,
-    // 会让标准版收到吴玫静版的更新(串版)。筛选靠 tag 前缀完成。
+    // 会让标准版收到历史吴玫静版(v* tag)的更新(串版)。筛选靠 tag 前缀完成。
     final uri = Uri.parse('$base/repos/$kGitHubRepo/releases?per_page=100');
     final resp = await _client
         .get(uri, headers: const {'Accept': 'application/vnd.github+json'})

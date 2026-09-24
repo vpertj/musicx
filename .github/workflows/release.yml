@@ -3,11 +3,8 @@ name: Release
 on:
   push:
     tags:
-      # 两条升级线各打各的 tag:
-      #   v1.7.47     → 吴玫静版
-      #   std-v1.7.47 → 标准版
-      # 必须显式列出 std-v*,否则标准版的 tag 不会触发发布。
-      - 'v*'
+      # 单一升级线:标准版,tag 形如 std-v1.7.47。
+      # (早期还有吴玫静版 v* 升级线,已合并,不再发布。)
       - 'std-v*'
   workflow_dispatch:  # 也可手动触发
 
@@ -48,56 +45,25 @@ jobs:
           set -e
           APP="build/macos/Build/Products/Release/musicx.app"
           STAGE="${RUNNER_TEMP}/dmg_stage"
-          # 两个变体共用 pubspec 版本号,靠 tag 前缀区分升级线。
-          # 注意 `${TAG#v}` 对 `std-v1.7.46` 不生效(它不以 v 开头),
-          # 必须先判断变体再剥前缀,否则文件名会变成 std-v1.7.46。
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in
-            std-v*) FLAVOR=standard; VERSION="${TAG#std-v}";;
-            v*)     FLAVOR=blessing; VERSION="${TAG#v}";;
-            *) echo "::error::tag 必须以 v 或 std-v 开头,当前:$TAG"; exit 1;;
+            std-v*) VERSION="${TAG#std-v}";;
+            *) echo "::error::tag 必须以 std-v 开头,当前:$TAG"; exit 1;;
           esac
-          if [ "$FLAVOR" = "standard" ]; then
-            DMG_NAME="MusicX-${VERSION}-standard.dmg"
-          else
-            DMG_NAME="MusicX-${VERSION}.dmg"
-          fi
-          
+          DMG_NAME="MusicX-${VERSION}-standard.dmg"
+
           rm -rf "$STAGE"
           mkdir -p "$STAGE" dist
           cp -R "$APP" "$STAGE/"
           ln -s /Applications "$STAGE/Applications"
-          
+
           hdiutil create \
             -volname "MusicX" \
             -srcfolder "$STAGE" \
             -ov -format UDZO "dist/$DMG_NAME"
-          
+
           echo "DMG_PATH=dist/$DMG_NAME" >> "$GITHUB_ENV"
           echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
-
-      - name: Check publishing order (legacy clients rely on /releases/latest)
-        shell: bash
-        run: |
-          set -e
-          TAG="${GITHUB_REF_NAME}"
-          # 背景:v1.7.46 及以前的旧客户端只会读 /releases/latest,
-          # 且用 `tag.startsWith('v')` 判断版本号。因此:
-          #   - 最新 release 必须是 v*(吴玫静版)，旧版才能解析出版本号；
-          #   - 若最新是 std-v*(标准版)，旧版会解析出 "std-vX.Y.Z"，
-          #     比较时被当作 0 → 误判「已是最新」，永远收不到更新。
-          #
-          # 这里对「这次发标准版会不会把 v* 挤下最新位」给出明确提醒。
-          if ! echo "$TAG" | grep -q '^v[0-9]'; then
-            echo "本次发布的是标准版($TAG)，不占用 v* 的升级线，跳过检查。"
-            exit 0
-          fi
-          LATEST="$(curl -sSL -o /dev/null -w '%{url_effective}' \
-            https://github.com/${{ github.repository }}/releases/latest \
-            | sed 's#.*/tag/##')"
-          echo "当前 /releases/latest = $LATEST"
-          echo "本次发布            = $TAG"
-          echo "::notice::发布完成后 $TAG 将成为最新 release，旧版客户端(v1.7.46 及以前)即可恢复在线升级。"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -154,16 +120,14 @@ jobs:
         run: |
           set -e
           TAG="${GITHUB_REF_NAME}"
-          # 变体判定:tag 以 std-v 开头是「标准版」,否则是「吴玫静版」。
-          # 两个变体共用同一份 pubspec 版本号,靠 tag 前缀区分升级线。
+          # 单一升级线:只接受 std-v* tag(标准版)。
           case "$TAG" in
-            std-v*) FLAVOR=standard; TAG_VERSION="${TAG#std-v}";;
-            v*)     FLAVOR=blessing; TAG_VERSION="${TAG#v}";;
-            *) echo "::error::tag 必须以 v(吴玫静版)或 std-v(标准版)开头,当前:$TAG"; exit 1;;
+            std-v*) TAG_VERSION="${TAG#std-v}";;
+            *) echo "::error::tag 必须以 std-v 开头(标准版),当前:$TAG"; exit 1;;
           esac
           PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1)"
           PUBSPEC_CODE="$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f2)"
-          echo "flavor=$FLAVOR tag_version=$TAG_VERSION pubspec=$PUBSPEC_VERSION+$PUBSPEC_CODE"
+          echo "tag_version=$TAG_VERSION pubspec=$PUBSPEC_VERSION+$PUBSPEC_CODE"
           if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
             echo "::error::tag 版本($TAG_VERSION)与 pubspec.yaml($PUBSPEC_VERSION)不一致。" \
                  "打错 tag 会让发布包文件名带上错误版本号,用户端会看到版本对不上。"
@@ -174,7 +138,6 @@ jobs:
                  "缺了它安卓无法判断版本高低,升级会被系统拒绝。"
             exit 1
           fi
-          echo "FLAVOR=$FLAVOR" >> "$GITHUB_ENV"
           echo "TAG_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
 
       - name: Build signed APK
@@ -182,22 +145,17 @@ jobs:
         run: |
           set -e
           VERSION="$TAG_VERSION"
-          # 关键:按变体注入 FLAVOR,应用据此决定「只认哪个 tag 前缀的更新」。
-          # 漏掉它会导致两个版本互相串版(标准版提示升级到吴玫静版)。
-          if [ "$FLAVOR" = "standard" ]; then
-            flutter build apk --release --dart-define=FLAVOR=standard
-            APK_NAME="MusicX-${VERSION}-standard.apk"
-          else
-            flutter build apk --release
-            APK_NAME="MusicX-${VERSION}.apk"
-          fi
+          # 注入 FLAVOR=standard:应用据此只认 std-v* tag 的更新,
+          # 与已发布的吴玫静版(v* tag)互不干扰。
+          flutter build apk --release --dart-define=FLAVOR=standard
+          APK_NAME="MusicX-${VERSION}-standard.apk"
           # 发布包的 versionName/versionCode 必须真的等于本次 tag,
           # 否则会出现「文件名是新版本、包内却是旧版本」这种最难查的问题。
           AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | tail -1)"
           BADGING="$("$AAPT" dump badging build/app/outputs/flutter-apk/app-release.apk | head -1)"
           APK_VERSION="$(echo "$BADGING" | sed -E "s/.*versionName='([^']*)'.*/\1/")"
           APK_CODE="$(echo "$BADGING" | sed -E "s/.*versionCode='([^']*)'.*/\1/")"
-          echo "APK 实际: versionName=$APK_VERSION versionCode=$APK_CODE flavor=$FLAVOR"
+          echo "APK 实际: versionName=$APK_VERSION versionCode=$APK_CODE"
           if [ "$APK_VERSION" != "$VERSION" ]; then
             echo "::error::构建出的 APK 版本($APK_VERSION)与 tag($VERSION)不一致,拒绝发布。"
             exit 1
@@ -251,16 +209,11 @@ jobs:
       - name: Package ZIP
         shell: pwsh
         run: |
-          # 变体判定:std-v 开头为标准版。
-          # 注意 TrimStart('v') 对 'std-v1.7.46' 不生效(不以 v 开头),
-          # 必须先判变体再剥前缀,否则文件名会变成 std-v1.7.46。
+          # 单一升级线:只接受 std-v* tag(标准版)。
           $tag = "${{ github.ref_name }}"
-          if ($tag.StartsWith('std-v')) { $flavor='standard'; $version=$tag.Substring(5) }
-          elseif ($tag.StartsWith('v'))  { $flavor='blessing'; $version=$tag.Substring(1) }
-          else { throw "tag 必须以 v 或 std-v 开头: $tag" }
-          if ($flavor -eq 'standard') { $name = "MusicX-$version-windows-standard.zip" }
-          else { $name = "MusicX-$version-windows.zip" }
-          "FLAVOR=$flavor" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if (-not $tag.StartsWith('std-v')) { throw "tag 必须以 std-v 开头: $tag" }
+          $version = $tag.Substring(5)
+          $name = "MusicX-$version-windows-standard.zip"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "dist/$name" -Force
           "ZIP_PATH=dist/$name" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -273,20 +226,15 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          if ($tag.StartsWith('std-v')) { $flavor='standard'; $version=$tag.Substring(5) }
-          elseif ($tag.StartsWith('v'))  { $flavor='blessing'; $version=$tag.Substring(1) }
-          else { throw "tag 必须以 v 或 std-v 开头: $tag" }
+          if (-not $tag.StartsWith('std-v')) { throw "tag 必须以 std-v 开头: $tag" }
+          $version = $tag.Substring(5)
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe 未找到: $iscc" }
           & $iscc "/DAppVersion=$version" "windows/installer/musicx.iss"
           $produced = "dist/MusicX-$version-setup.exe"
           if (-not (Test-Path $produced)) { throw "安装包未生成: $produced" }
-          if ($flavor -eq 'standard') {
-            $exe = "dist/MusicX-$version-setup-standard.exe"
-            Move-Item $produced $exe -Force
-          } else {
-            $exe = $produced
-          }
+          $exe = "dist/MusicX-$version-setup-standard.exe"
+          Move-Item $produced $exe -Force
           "SETUP_PATH=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "SETUP_NAME=$($exe.Replace('dist/',''))" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 

@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:musicx/core/updater/app_flavor.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/providers.dart'
@@ -690,7 +689,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               ],
               const SizedBox(height: 8),
               const _AboutCard(),
-              const BlessingCard(),
             ],
           ),
         ];
@@ -1054,141 +1052,6 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
             '插件协议兼容 MusicFree · 播放器本体不含音源',
             style: textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 设置页底部的寄语卡片(吴玫静版专属)。
-///
-/// 设计要点:
-/// - 品牌红渐变 + 柔和高光,作为整页唯一的"装饰性"元素;
-/// - 深浅色两套配色都保证对比度(渐变上统一用白字);
-/// - 纯展示、不可点,避免用户误以为能交互;
-/// - **只在吴玫静版展示**,标准版设置页不出现该卡片。
-///
-/// 展示规则由**构建变体**决定(见 app_flavor.dart),与运行平台无关。
-/// 保留 [visibleOverride] 供测试覆盖:测试宿主的变体未必是吴玫静版,
-/// 否则渲染类断言永远无法执行。
-class BlessingCard extends StatelessWidget {
-  const BlessingCard({super.key, this.visibleOverride});
-
-  /// 仅供测试:强制显示/隐藏,绕过变体判断。
-  final bool? visibleOverride;
-
-  /// 展示规则:仅吴玫静版。
-  static bool isVisibleIn(AppFlavor flavor) => flavor.showsBlessingCard;
-
-  static const String line1 = '玫风入怀,静享喜乐,日日有甜。';
-
-  /// 右下角署名。
-  static const String signature = '---吴玫静';
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = visibleOverride ?? isVisibleIn(currentFlavor);
-    if (!visible) return const SizedBox.shrink();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 深色模式整体压暗一档,避免在深色页面上过亮刺眼。
-    final gradient = LinearGradient(
-      colors: isDark
-          ? const [Color(0xFF8E2A38), Color(0xFFB93044)]
-          : const [Color(0xFFC4343F), Color(0xFFFA3B4D)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFA3B4D).withValues(
-              alpha: isDark ? 0.18 : 0.22,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // 右上角柔光,让纯色渐变不至于太平。
-          Positioned(
-            right: -30,
-            top: -40,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.favorite_rounded,
-                  size: 18,
-                  color: Colors.white.withValues(alpha: 0.9),
-                ),
-                const SizedBox(height: 10),
-                // 用 SizedBox(width: double.infinity) 让 Text 撑满卡片宽度。
-                // 只写 textAlign: center 是不够的:Text 默认按内容宽度收缩,
-                // textAlign 只在自身宽度内居中,实测文案会明显偏左。
-                SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    line1,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      height: 1.7,
-                      fontWeight: FontWeight.w600,
-                      shadows: [
-                        Shadow(
-                          color: Color(0x33000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // 署名:右下角。用 width: double.infinity + 右对齐,
-                // 保证它始终贴着卡片右边缘(不随正文宽度浮动)。
-                SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    signature,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12.5,
-                      height: 1.2,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.4,
-                      shadows: const [
-                        Shadow(
-                          color: Color(0x26000000),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
         ],
