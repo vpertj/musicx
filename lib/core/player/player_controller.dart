@@ -14,6 +14,18 @@ import 'player_service.dart';
 /// 播放循环模式:顺序 / 列表循环 / 单曲循环。
 enum LoopMode { off, all, one }
 
+/// 一次播放尝试的结果(自动推进据此决定「跳过失败歌曲」还是「让位给用户」)。
+enum _PlayOutcome {
+  /// 已成功起播。
+  ok,
+
+  /// 起播失败(解析失败/流地址失效/网络错误);错误已写入状态,供界面展示。
+  failed,
+
+  /// 本次请求已被更新的播放请求取代(用户手动切歌);不报错,也不再抢。
+  superseded,
+}
+
 class PlayerState {
   final List<MusicItem> queue;
   final int currentIndex;
@@ -115,7 +127,7 @@ class PlayerController extends Notifier<PlayerState> {
     );
     // 一首播完自动切下一首(遵循循环/随机模式)。
     // 用 _advanceAuto 而非 next():单曲循环下必须重播当前曲。
-    _subs.add(service.completedStream.listen((_) => _advanceAuto()));
+    _subs.add(service.completedStream.listen((_) => _onPlaybackEnded()));
     ref.onDispose(() {
       for (final s in _subs) {
         s.cancel();
@@ -128,18 +140,35 @@ class PlayerController extends Notifier<PlayerState> {
   /// 已判定「播完」并触发过自动切歌的播放令牌(避免同一次播放重复触发)。
   final Set<int> _autoAdvancedTokens = <int>{};
 
-  /// 位置到达时长 → 视为播完并切下一首。返回 true 表示已处理(调用方别再用该位置)。
+  /// 自动推进是否正在进行(见 [_onPlaybackEnded])。
+  bool _advancing = false;
+
+  /// 「当前曲播完」的统一入口:completed 事件与位置兜底**都走这里**。
+  ///
+  /// 两条路径必须互斥。位置兜底在「时长 - 900ms」就触发,而真实 completed 会在
+  /// 随后 900ms 内到达,此时解析下一首的地址还在进行(实测 0.4~2s):两个
+  /// _advanceAuto 并发后,会互相把对方的播放令牌作废(被当成「起播失败」),
+  /// 各自的「跳过失败歌曲」循环再继续往后跳 —— 级联切歌、白打源站,队列最后
+  /// 停住。安卓真机实测就是这样「一首播完就停了」。
+  void _onPlaybackEnded() {
+    // 正在切歌:此刻收到的播放事件都属于上一首,丢弃。这一步必须在记标号之前,
+    // 否则会把「已播完」标到刚起播的下一首头上,那首歌真播完时反而不再切歌。
+    if (_advancing) return;
+    // 同一次播放只推进一次(位置流在末尾会连续更新)。
+    if (!_autoAdvancedTokens.add(_playToken)) return;
+    if (_autoAdvancedTokens.length > 32) {
+      _autoAdvancedTokens.remove(_autoAdvancedTokens.first);
+    }
+    unawaited(_advanceAuto());
+  }
+
+  /// 位置到达时长 → 视为播完。返回 true 表示已处理(调用方别再用该位置)。
   bool _maybeAutoAdvance(Duration pos) {
     final total = state.duration;
     if (total <= Duration.zero) return false;
     // 留 900ms 余量:部分流的最后一段位置更新早于真正结束
     if (pos < total - const Duration(milliseconds: 900)) return false;
-    final token = _playToken;
-    if (!_autoAdvancedTokens.add(token)) return true;
-    if (_autoAdvancedTokens.length > 32) {
-      _autoAdvancedTokens.remove(_autoAdvancedTokens.first);
-    }
-    unawaited(_advanceAuto());
+    _onPlaybackEnded();
     return true;
   }
 
@@ -201,7 +230,8 @@ class PlayerController extends Notifier<PlayerState> {
   /// **自动**推进到下一首(当前曲播完时触发)。
   ///
   /// 与 [next] 的区别:单曲循环下应重播当前曲,而不是跳到队列下一首。
-  /// 两条自动触发路径(completedStream 与位置兜底)都必须走这里。
+  /// 两条自动触发路径(completedStream 与位置兜底)都经 [_onPlaybackEnded]
+  /// 汇到这里。
   ///
   /// **失败兜底**:起播失败(解析失败/流地址失效/网络错误)时自动跳过失败
   /// 歌曲,继续尝试后续歌曲 —— 否则一首坏了整个队列就停住(用户实测:
@@ -210,23 +240,31 @@ class PlayerController extends Notifier<PlayerState> {
   Future<void> _advanceAuto() async {
     final n = state.queue.length;
     if (n == 0) return;
-    var idx = _advance(forward: true, auto: true);
-    var attempts = 0;
-    while (idx != null && attempts < n) {
-      attempts++;
-      final ok = await _goTo(idx);
-      if (ok) return;
-      // 这一首失败:跳过它,试下一首(单曲循环重播失败时也顺延到下一首,
-      // 避免无限重播同一首失败的歌)。
-      idx = (idx + 1) % n;
+    // 推进期间到达的「播完」信号一律丢弃(见 [_onPlaybackEnded]):只有一次
+    // 推进在跑,跳过失败歌曲的循环才不会和别人互相作废。
+    _advancing = true;
+    try {
+      var idx = _advance(forward: true, auto: true);
+      var attempts = 0;
+      while (idx != null && attempts < n) {
+        attempts++;
+        final outcome = await _goTo(idx);
+        if (outcome == _PlayOutcome.ok) return;
+        // 用户已经手动切走:让位,别把用户选的歌盖掉。
+        if (outcome == _PlayOutcome.superseded) return;
+        // 这一首起播失败:跳过它,试下一首(单曲循环重播失败时也顺延到下一首,
+        // 避免无限重播同一首失败的歌)。
+        idx = (idx + 1) % n;
+      }
+    } finally {
+      _advancing = false;
     }
   }
 
   /// 切到指定下标并起播(手动切歌与自动推进共用)。
   ///
-  /// 返回是否起播成功;失败时已把错误写入状态(手动操作展示给用户,
-  /// 自动推进则据此跳过)。
-  Future<bool> _goTo(int idx) async {
+  /// 失败时已把错误写入状态(手动操作展示给用户,自动推进则据此跳过)。
+  Future<_PlayOutcome> _goTo(int idx) async {
     state = state.copyWith(
       currentIndex: idx,
       isPlaying: false,
@@ -308,22 +346,21 @@ class PlayerController extends Notifier<PlayerState> {
       lyric: const [],
     );
     _localPaths = pathList;
-    try {
-      await _playCurrentLocal();
-    } catch (e) {
-      if (e.toString().contains('Loading interrupted')) return;
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+    await _playCurrentLocal();
   }
 
   /// 与队列平行的本地文件路径;非 null 表示当前队列为本地播放模式。
   List<String>? _localPaths;
 
-  Future<bool> _playCurrentLocal() async {
+  Future<_PlayOutcome> _playCurrentLocal() async {
     final current = state.current;
     final paths = _localPaths;
-    if (current == null || paths == null) return false;
-    if (state.currentIndex >= paths.length) return false;
+    if (current == null || paths == null) return _PlayOutcome.failed;
+    if (state.currentIndex >= paths.length) return _PlayOutcome.failed;
+    // 本地播放同样要占一个播放序号:播放序号是「这是第几次播放」的唯一标识,
+    // 自动推进按它去重。不递增的话所有本地播放共用一个序号,第二次播完就被
+    // 当成「已处理过」而不再切歌(实测:下载列表播完一首就停住)。
+    final token = ++_playToken;
     // 本地(已下载)播放同样计入播放历史,否则只播下载歌曲的用户首页永远
     // 没有「最近播放」(实测缺口)。
     try {
@@ -331,32 +368,51 @@ class PlayerController extends Notifier<PlayerState> {
     } catch (_) {}
     final service = ref.read(playerServiceProvider);
     final path = paths[state.currentIndex];
-    await service.playUrl('file://$path');
-    // 本地播放优先用**下载时存的旁挂歌词**(离线也有词);没有则不显示歌词,
-    // 也不再联网找(本地播放应完全离线可用)。
-    final sidecar = await readLyricSidecar(path);
-    final lyric = sidecar == null ? const <LyricLine>[] : parseLrc(sidecar);
-    debugPrint(
-      'MusicX 本地歌词: ${lyric.isEmpty ? "无旁挂歌词" : "${lyric.length} 行"} ← $path',
-    );
-    state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
-    return true;
+    try {
+      await service.playUrl('file://$path');
+      if (token != _playToken) return _PlayOutcome.superseded;
+      // 本地播放优先用**下载时存的旁挂歌词**(离线也有词)。
+      final sidecar = await readLyricSidecar(path);
+      if (token != _playToken) return _PlayOutcome.superseded;
+      final lyric = sidecar == null ? const <LyricLine>[] : parseLrc(sidecar);
+      debugPrint(
+        'MusicX 本地歌词: ${lyric.isEmpty ? "无旁挂歌词" : "${lyric.length} 行"} ← $path',
+      );
+      state = state.copyWith(isPlaying: true, clearError: true, lyric: lyric);
+      if (sidecar == null) {
+        // 没有旁挂文件:功能上线前下载的老歌、下载当刻歌词源没给词(占位文案/
+        // 接口失败)的歌 —— 只读旁挂就等于这些歌永远没词(用户反馈:下载的歌
+        // 再次播放没有歌词,而同一首在线播却有)。故后台补一次联网找词并回填
+        // `.lrc`,不阻塞播放;离线时取不到也无所谓,不影响播放。
+        unawaited(_loadLyric(current, token, sidecarPath: path));
+      }
+      return _PlayOutcome.ok;
+    } catch (e) {
+      if (token != _playToken) return _PlayOutcome.superseded;
+      // 旧加载被新请求打断不算错误
+      if (e.toString().contains('Loading interrupted')) {
+        return _PlayOutcome.superseded;
+      }
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return _PlayOutcome.failed;
+    }
   }
 
-  /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报)。
+  /// 播放请求序号:新的播放请求会使旧的请求失效(避免打断误报),同时标识
+  /// 「这是第几次播放」(自动推进按它去重,见 [_onPlaybackEnded])。
   int _playToken = 0;
 
   /// 播放当前曲。
   ///
-  /// 返回是否起播成功。**自动推进依赖这个结果做失败跳过**(见 [_advanceAuto]);
-  /// 手动切歌失败时错误已写入状态展示给用户,由用户决定下一步。
-  Future<bool> _playCurrent() async {
+  /// **自动推进依赖这个结果做失败跳过**(见 [_advanceAuto]);手动切歌失败时
+  /// 错误已写入状态展示给用户,由用户决定下一步。
+  Future<_PlayOutcome> _playCurrent() async {
     // 本地队列:直接播文件,不走插件解析
     if (_localPaths != null) {
       return _playCurrentLocal();
     }
     final current = state.current;
-    if (current == null) return false;
+    if (current == null) return _PlayOutcome.failed;
     // 记录播放历史:首页「猜你喜欢」按最常听的歌手做推荐(方案 C)
     try {
       ref.read(playHistoryProvider.notifier).record(current.toJson());
@@ -370,13 +426,13 @@ class PlayerController extends Notifier<PlayerState> {
       final media = await manager.resolveMediaSource(current.toJson());
       // 播放令牌:请求期间若已被更新请求取代(快速连点 next/切歌),放弃本次播放,
       // 避免旧歌在解析完成后覆盖/打断当前曲目。
-      if (token != _playToken) return false;
+      if (token != _playToken) return _PlayOutcome.superseded;
       final url = media['url'] as String;
       // 先发下一首预取(与播放器初始化并行),再起播 —— 缩短下一首的切换时间
       _prefetchNext();
       final service = ref.read(playerServiceProvider);
       await service.playUrl(url);
-      if (token != _playToken) return false;
+      if (token != _playToken) return _PlayOutcome.superseded;
       // 关键:先切到「播放中」并把歌词清空,歌词在后台再取。
       // 此前这里 await 歌词解析后才置为播放中,而歌词解析包含重试与跨源兜底
       // (要再发搜索请求),于是列表点击切歌要等歌词才生效 —— 用户体感「非常慢」。
@@ -388,23 +444,35 @@ class PlayerController extends Notifier<PlayerState> {
       );
       // 歌词后台加载:完成后再校验 token,避免旧请求写入新请求的歌词。
       unawaited(_loadLyric(current, token));
-      return true;
+      return _PlayOutcome.ok;
     } catch (e) {
-      if (token != _playToken) return false;
+      if (token != _playToken) return _PlayOutcome.superseded;
       // 旧加载被新请求打断不算错误
-      if (e.toString().contains('Loading interrupted')) return false;
+      if (e.toString().contains('Loading interrupted')) {
+        return _PlayOutcome.superseded;
+      }
       state = state.copyWith(error: e.toString(), isLoading: false);
-      return false;
+      return _PlayOutcome.failed;
     }
   }
 
   /// 后台加载歌词:不阻塞切歌(播放状态已先行更新)。
-  Future<void> _loadLyric(MusicItem song, int token) async {
+  ///
+  /// [sidecarPath] 非空表示这是本地播放补词:取到词就回填旁挂 `.lrc`,
+  /// 下次离线播放直接读它。
+  Future<void> _loadLyric(
+    MusicItem song,
+    int token, {
+    String? sidecarPath,
+  }) async {
     try {
       final manager = ref.read(pluginManagerProvider);
       final text = await manager.resolveLyric(song.toJson());
       if (token != _playToken) return; // 已切到别的歌,丢弃
       state = state.copyWith(lyric: parseLrc(text));
+      if (sidecarPath != null && text.trim().isNotEmpty) {
+        await writeLyricSidecar(sidecarPath, text);
+      }
     } catch (_) {
       // 歌词失败不影响播放
     }
