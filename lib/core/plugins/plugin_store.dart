@@ -24,10 +24,20 @@ class PluginStore {
   /// 轻量解析:匹配顶层 `platform`/`version`/`srcUrl` 字符串字面量,
   /// 不执行 JS(元数据解析阶段不加载插件)。
   ///
-  /// 限定在最后一个 `module.exports` 之后,避免误匹配插件源码中
-  /// 其他位置的同名键(如 bilibili 插件内部 `platform: "pc"` 参数)。
+  /// 限定在导出对象定义处之后,避免误匹配插件源码中其他位置的同名键
+  /// (如内部请求参数 `platform: "pc"`、`platform: "WebFilter"`)。
+  /// 兼容两种打包形态,取两者中更靠后的定义点作为起点:
+  ///  - CommonJS 直出:`module.exports = { ... }`;
+  ///  - Parcel/TS 打包:真正的元信息对象在 `xxx$var$pluginInstance = { ... }`
+  ///    (文件头部的 `module.exports` 只是 `$parcel$export` 样板,不含元信息)。
   Map<String, dynamic> parseMeta(String source) {
-    final idx = source.lastIndexOf('module.exports');
+    final anchor = RegExp(
+      r'(?:module\.exports\s*=\s*\{|\$var\$pluginInstance\s*=\s*\{)',
+    );
+    var idx = -1;
+    for (final m in anchor.allMatches(source)) {
+      idx = m.start;
+    }
     final tail = idx >= 0 ? source.substring(idx) : source;
     final re = RegExp("(platform|version|srcUrl)\\s*:\\s*[\"']([^\"']+)[\"']");
     final meta = <String, dynamic>{};

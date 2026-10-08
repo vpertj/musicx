@@ -21,6 +21,10 @@ class PluginLoadException implements Exception {
 /// 并把导出挂到 globalThis.__musicx_export 供 Bridge 调用。
 /// require 使用 JsRuntimeFactory 注入的白名单注册表(__musicx_require),
 /// 以兼容 MusicFree 官方插件的运行时依赖(axios 等)。
+///
+/// MusicFree 生态中相当一部分音源是 Parcel/TS 打包产物,实际形态是
+/// `exports.default = pluginInstance`(顶层还带 __esModule 标记),
+/// 因此这里统一解包:优先取 default,回退顶层 exports,两类音源都能跑。
 String cjsShim(String source) =>
     '''
 var __musicx_module = { exports: {} };
@@ -29,7 +33,13 @@ $source
 })(__musicx_module, __musicx_module.exports, typeof __musicx_require === "function" ? __musicx_require : function (name) {
   throw new Error("require() not supported at load time: " + name);
 });
-globalThis.__musicx_export = __musicx_module.exports;
+var __musicx_raw = __musicx_module.exports;
+globalThis.__musicx_export =
+  (__musicx_raw && typeof __musicx_raw === "object" &&
+   __musicx_raw.platform === undefined &&
+   __musicx_raw.default && typeof __musicx_raw.default === "object")
+    ? __musicx_raw.default
+    : __musicx_raw;
 ''';
 
 class PluginLoader {

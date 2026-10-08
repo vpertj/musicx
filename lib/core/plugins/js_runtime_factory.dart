@@ -4,6 +4,8 @@ import 'package:musicx/core/plugins/modules/cheerio_module.dart';
 import 'package:musicx/core/plugins/modules/crypto_js_module.dart';
 import 'package:musicx/core/plugins/modules/dayjs_module.dart';
 import 'package:musicx/core/plugins/modules/he_module.dart';
+import 'package:musicx/core/plugins/modules/qs_module.dart';
+import 'package:musicx/core/plugins/modules/big_integer_module.dart';
 import 'package:musicx/core/plugins/xhr_safe.dart';
 import 'dart:convert';
 
@@ -114,6 +116,8 @@ class JsRuntimeFactory {
     _defineModule(runtime, 'he', heModuleSource);
     _defineModule(runtime, 'crypto-js', crypto_jsModuleSource);
     _defineModule(runtime, 'cheerio', cheerioModuleSource);
+    _defineModule(runtime, 'qs', qsModuleSource);
+    _defineModule(runtime, 'big-integer', bigIntegerModuleSource);
     // MusicFree 宿主 env API(部分生态插件依赖,如读用户 cookie)
     runtime.evaluate(
       'globalThis.env = { getUserVariables: function () { return {}; } };',

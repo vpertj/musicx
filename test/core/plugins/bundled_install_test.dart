@@ -23,11 +23,15 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  test('内置清单包含用户现有的 4 个音源', () async {
+  test('内置清单包含 11 个音源(原 3 + 收编 MusicFree 8)', () async {
     final bundled = await catalog.list();
     expect(
       bundled.map((p) => p.platform).toSet(),
-      {'腾讯音乐', '网yi', '酷我(念心音源)'},
+      {
+        '腾讯音乐', '网yi', '酷我(念心音源)',
+        '网易云音乐', 'QQ音乐', '酷狗音乐', '酷我音乐',
+        '咪咕音乐', '网易云电台', '哔哩哔哩', 'youtube',
+      },
       reason: '酷我(独家音源) 上游仍为 v4、其 API 已拒绝,不再内置',
     );
   });
@@ -51,7 +55,11 @@ void main() {
     final installed = await manager.listPlugins();
     expect(
       installed.map((p) => p.platform).toSet(),
-      {'腾讯音乐', '网yi', '酷我(念心音源)'},
+      {
+        '腾讯音乐', '网yi', '酷我(念心音源)',
+        '网易云音乐', 'QQ音乐', '酷狗音乐', '酷我音乐',
+        '咪咕音乐', '网易云电台', '哔哩哔哩', 'youtube',
+      },
     );
   });
 

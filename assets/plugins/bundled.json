@@ -23,6 +23,70 @@
       "asset": "assets/plugins/kuwo_nianxin.js",
       "author": "玥然OvO",
       "sourceUrl": "https://raw.gitcode.com/Crystim/mfp/raw/main/%E9%85%B7%E6%88%91_%E5%BF%B5%E5%BF%83.js"
+    },
+    {
+      "name": "网易云音乐(vper)",
+      "platform": "网易云音乐",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/netease.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/netease.js"
+    },
+    {
+      "name": "QQ音乐(vper)",
+      "platform": "QQ音乐",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/qqmusic.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/qqmusic.js"
+    },
+    {
+      "name": "酷狗音乐",
+      "platform": "酷狗音乐",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/kugou.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/kugou.js"
+    },
+    {
+      "name": "酷我音乐",
+      "platform": "酷我音乐",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/kuwo.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/kuwo.js"
+    },
+    {
+      "name": "咪咕音乐",
+      "platform": "咪咕音乐",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/migu.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/migu.js"
+    },
+    {
+      "name": "网易云电台",
+      "platform": "网易云电台",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/netease_fm.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/netease_fm.js"
+    },
+    {
+      "name": "哔哩哔哩",
+      "platform": "哔哩哔哩",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/bilibili.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/bilibili.js"
+    },
+    {
+      "name": "YouTube",
+      "platform": "youtube",
+      "version": "2026.09.21",
+      "asset": "assets/plugins/youtube.js",
+      "author": "vpertj",
+      "sourceUrl": "https://gitee.com/vper/musicfree/raw/master/youtube.js"
     }
   ]
 }
