@@ -336,14 +336,20 @@ class PluginManager {
     ], keyword);
   }
 
-  /// 取当前最优音源的排行榜列表(热歌榜/飙升榜…)。
+  /// 取排行榜列表(热歌榜/飙升榜…)。
   ///
   /// 首页「热歌榜」用它做动态推荐;源不支持或失败时返回空,由调用方回退。
+  ///
+  /// [platform] 非空时**只用这个音源**(用户在「默认音源」里指定了源:首页榜单
+  /// 应跟用户选的源走,而不是继续按自动线路挑);为空则走自动线路,同档次的
+  /// 先后由 [orderAutoSourceIdentities] 按固定次序决定(不随插件目录顺序变化)。
   Future<List<Map<String, dynamic>>> topLists({
+    String? platform,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final plugins = await listPlugins();
     for (final plugin in _prioritizeAutoPlugins(plugins)) {
+      if (platform != null && plugin.platform != platform) continue;
       try {
         final source = await File(plugin.path).readAsString();
         final result = await _sandbox.callPluginRaw(

@@ -30,6 +30,7 @@ class _FakeManager extends PluginManager {
 
   @override
   Future<List<Map<String, dynamic>>> topLists({
+    String? platform,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     managerCallCount++;

@@ -85,10 +85,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   /// 否则下拉后拿到的还是缓存内容,用户会以为刷新没生效。
   Future<void> _loadRecommendations({bool force = false}) async {
     if (_recLoading) return;
+    // 默认音源也参与缓存键:换了源要让用户立刻看到新源的榜单,而不是旧缓存。
+    final source = ref.read(searchSourceProvider);
+    final cacheKey = 'home:${source ?? 'auto'}';
     if (force) {
       _recCache.clear();
     } else {
-      final cached = _recCache.get('home');
+      final cached = _recCache.get(cacheKey);
       if (cached != null) {
         if (mounted) setState(() => _applyRecommendRaw(cached));
         return;
@@ -98,7 +101,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     try {
       final manager = ref.read(pluginManagerProvider);
       final hot = <MusicItem>[];
-      final lists = await manager.topLists();
+      // 用户在「设置 → 音源 → 默认音源」指定了源:首页榜单跟着它走
+      // (此前无论选谁,榜单都按自动线路挑,选的源对首页没有作用)。
+      final lists = await manager.topLists(platform: source);
       if (lists.isNotEmpty) {
         // 按名称优先挑出真正的「热歌榜」(而非盲取插件返回的第一个),
         // 并把它排到首位作为默认选中项。见 chart_selection.dart。
@@ -117,7 +122,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final guess = <MusicItem>[];
       for (final artist in artists) {
         try {
-          final r = await manager.search(artist, page: 1);
+          final r = await manager.search(artist, platform: source, page: 1);
           final data = (r['data'] as List?) ?? const [];
           for (final raw in data.take(4)) {
             if (raw is! Map) continue;
@@ -146,7 +151,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               .catchError((_) => <String, dynamic>{}),
         );
       }
-      _recCache.put('home', [
+      _recCache.put(cacheKey, [
         for (final m in hot) {'__kind': 'hot', ...m.toJson()},
         for (final m in guessItems) {'__kind': 'guess', ...m.toJson()},
       ]);

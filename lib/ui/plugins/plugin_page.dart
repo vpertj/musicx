@@ -60,6 +60,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     // 内置音源当成用户音源显示出来(单测抓到的疏漏)。
     setState(() {
       _bundledPlatforms = {for (final p in bundled) p.platform};
+      _bundledCatalog = bundled;
       _bundledPending = pending;
     });
   }
@@ -186,6 +187,10 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   /// 随 App 内置的音源平台名:装好后不再出现在音源列表/默认音源选择器里。
   Set<String> _bundledPlatforms = <String>{};
 
+  /// 内置清单本体:识别「历史遗留的内置源」还要看上游文件与老平台名
+  /// (见 [isBundledPluginSource])。
+  List<BundledPlugin> _bundledCatalog = const [];
+
   /// 读取已安装音源的 platform → version。
   Future<Map<String, String>> _installedVersions() async {
     final manager = ref.read(pluginManagerProvider);
@@ -199,6 +204,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     if (mounted) {
       setState(() {
         _bundledPlatforms = {for (final p in bundled) p.platform};
+        _bundledCatalog = bundled;
       });
     }
     final pending = pendingBundledPlugins(
@@ -604,12 +610,22 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   ) {
     switch (section) {
       case _SettingsSection.sources:
-        // 内置音源(腾讯/网易/酷我)是随 App 自带的实现细节:装好后不再出现在
+        // 内置音源(腾讯/网易/酷我…)是随 App 自带的实现细节:装好后不再出现在
         // 音源列表里,只留一条「内置音源:已安装 N」的状态;列表与默认音源
         // 选择器只展示用户自己装的音源(用户诉求)。
+        //
+        // 识别必须覆盖**历史遗留的内置源**:内置源改过名(网易音乐 → 网yi)、
+        // 也下过线(酷我(独家音源)),老文件还留在设备上,只看当前平台名会把
+        // 它们当成用户音源列出来(用户反馈:默认音源列表里冒出一堆没见过的源)。
         final userPlugins = [
           for (final p in plugins)
-            if (!_bundledPlatforms.contains(p.platform)) p,
+            if (!_bundledPlatforms.contains(p.platform) &&
+                !isBundledPluginSource(
+                  platform: p.platform,
+                  srcUrl: p.srcUrl ?? '',
+                  catalog: _bundledCatalog,
+                ))
+              p,
         ];
         return [
           // 没有任何音源(含内置)时,在分组内显示引导卡片而不是整页替换,

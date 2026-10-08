@@ -18,6 +18,39 @@ const Set<String> deadAutoSources = {
   '喜马拉雅(公开API)',
 };
 
+/// 同档次内的官方推荐次序(越小越优先)。
+///
+/// 为什么需要它:**同一个档次往往有多个源**(腾讯系有「腾讯音乐」,后来又收编了
+/// 「QQ音乐」;网易系有「网yi」「网易云音乐」…)。此前排序只比档次,同档次之间
+/// 的先后等于**输入顺序**,而输入顺序来自插件目录的遍历顺序 —— 文件系统一变就
+/// 换源。实测表现:升级到 1.7.56 后首页热歌榜从「腾讯音乐」变成「QQ音乐」,
+/// 用户看到的就是「首页推荐怎么变了」。
+///
+/// 这里按内置清单的次序把同档次定死:任何设备、任何安装顺序,结果一致。
+const List<String> kCanonicalAutoOrder = [
+  '腾讯音乐',
+  'QQ音乐',
+  // 网易系:内置最早的是 wy.js(用户改名为「网yi」),排在后来收编的源前面。
+  '网yi',
+  '网易音乐',
+  '网易云音乐',
+  '网易云电台',
+  // 酷我系:念心是实测取流最快的代理源,排第一。
+  '酷我(念心音源)',
+  '酷我音乐',
+  '酷我(独家音源)',
+  '酷狗音乐',
+  '咪咕音乐',
+  '哔哩哔哩',
+  'youtube',
+];
+
+/// 同档次内的固定次序;不在表里的排最后(再按平台名兜底)。
+int _canonicalRank(String platform) {
+  final i = kCanonicalAutoOrder.indexOf(platform);
+  return i < 0 ? kCanonicalAutoOrder.length : i;
+}
+
 /// 音源类别。
 enum SourceKind { netease, tencent, kuwo, kugou, other, dead }
 
@@ -97,10 +130,23 @@ List<SourceIdentity> orderAutoSourceIdentities(List<SourceIdentity> sources) {
   final sorted = [
     for (final s in sources)
       if (classifySource(s) != SourceKind.dead) s,
-  ]..sort(
-      (a, b) => _kindPriority(classifySource(a))
-          .compareTo(_kindPriority(classifySource(b))),
-    );
+  ]..sort((a, b) {
+      final byKind = _kindPriority(classifySource(a)).compareTo(
+        _kindPriority(classifySource(b)),
+      );
+      if (byKind != 0) return byKind;
+      // 同档次必须按**内容**定序,不能靠输入顺序(输入顺序 = 插件目录遍历顺序,
+      // 会随文件系统变化)。见 [kCanonicalAutoOrder]。
+      final byRank = _canonicalRank(a.platform).compareTo(
+        _canonicalRank(b.platform),
+      );
+      if (byRank != 0) return byRank;
+      final byName = a.platform.compareTo(b.platform);
+      if (byName != 0) return byName;
+      final bySrc = a.srcUrl.compareTo(b.srcUrl);
+      if (bySrc != 0) return bySrc;
+      return a.fileName.compareTo(b.fileName);
+    });
 
   final result = <SourceIdentity>[];
   for (final source in sorted) {
