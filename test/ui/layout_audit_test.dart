@@ -59,13 +59,22 @@ void main() {
   const sizes = <double>[320, 375, 500, 700, 760, 1024, 1280, 1440];
 
   late Directory tmp;
+  late Directory empty;
+
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('musicx_layout');
     File('${tmp.path}/demo.js').writeAsStringSync(_demoPlugin);
+    // SearchPage 空闲态用例要用一个**空**插件目录:首页推荐会 listPlugins(),
+    // 真实文件 I/O 在 fake-async 测试里完成时机不定,pumpAndSettle 会偶发超时
+    // (实测:同一提交在干净树上也复现,与本页改动无关)。
+    empty = Directory.systemTemp.createTempSync('musicx_layout_empty');
     final f = LibraryController.dataFile();
     if (f.existsSync()) f.deleteSync();
   });
-  tearDown(() => tmp.deleteSync(recursive: true));
+  tearDown(() {
+    tmp.deleteSync(recursive: true);
+    empty.deleteSync(recursive: true);
+  });
 
   Future<void> setSize(WidgetTester tester, double w) async {
     tester.view.physicalSize = Size(w, 800);
@@ -126,7 +135,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
+            pluginManagerProvider.overrideWithValue(PluginManager(empty)),
           ],
           child: const MaterialApp(home: SearchPage()),
         ),

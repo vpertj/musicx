@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter_js/flutter_js.dart';
 import 'package:musicx/core/plugins/modules/axios_module.dart';
 import 'package:musicx/core/plugins/modules/cheerio_module.dart';
@@ -111,13 +112,13 @@ class JsRuntimeFactory {
     enableSafeXhr(runtime);
     runtime.evaluate(fetchPolyfillSource);
     runtime.evaluate(moduleRegistrySource);
-    _defineModule(runtime, 'axios', axiosModuleSource);
-    _defineModule(runtime, 'dayjs', dayjsModuleSource);
-    _defineModule(runtime, 'he', heModuleSource);
-    _defineModule(runtime, 'crypto-js', crypto_jsModuleSource);
-    _defineModule(runtime, 'cheerio', cheerioModuleSource);
-    _defineModule(runtime, 'qs', qsModuleSource);
-    _defineModule(runtime, 'big-integer', bigIntegerModuleSource);
+    defineModule(runtime, 'axios', axiosModuleSource);
+    defineModule(runtime, 'dayjs', dayjsModuleSource);
+    defineModule(runtime, 'he', heModuleSource);
+    defineModule(runtime, 'crypto-js', crypto_jsModuleSource);
+    defineModule(runtime, 'cheerio', cheerioModuleSource);
+    defineModule(runtime, 'qs', qsModuleSource);
+    defineModule(runtime, 'big-integer', bigIntegerModuleSource);
     // MusicFree 宿主 env API(部分生态插件依赖,如读用户 cookie)
     runtime.evaluate(
       'globalThis.env = { getUserVariables: function () { return {}; } };',
@@ -125,16 +126,28 @@ class JsRuntimeFactory {
     return runtime;
   }
 
-  static void _defineModule(
+  /// 注册一个 require 白名单模块(供 [createIsolateSafe] 与单测使用)。
+  ///
+  /// **失败只跳过该模块,绝不能让整个引擎起不来**:实测事故 —— 1.7.56 新增的
+  /// `qs` / `big-integer` 在安卓上初始化报错,而这里原先直接 throw,于是运行环境
+  /// 创建失败,**所有音源**都报 `failed to init module ...`:搜索全失败、首页
+  /// 「热门推荐 / 猜你喜欢」全空(用户反馈「首页热门歌曲、推荐歌曲都没有」)。
+  /// 真的需要该模块的插件会自己报错,影响范围可控。
+  @visibleForTesting
+  static void defineModule(
     JavascriptRuntime runtime,
     String name,
     String source,
   ) {
     final js =
         '__musicx_define(${jsonEncode(name)}, function (module, exports, require) {\n$source\n});';
-    final r = runtime.evaluate(js);
-    if (r.isError) {
-      throw StateError('failed to init module $name: ${r.stringResult}');
+    try {
+      final r = runtime.evaluate(js);
+      if (r.isError) {
+        debugPrint('MusicX: 运行时模块 $name 初始化失败(已跳过): ${r.stringResult}');
+      }
+    } catch (e) {
+      debugPrint('MusicX: 运行时模块 $name 初始化异常(已跳过): $e');
     }
   }
 }

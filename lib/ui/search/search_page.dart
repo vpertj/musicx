@@ -100,10 +100,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     setState(() => _recLoading = true);
     try {
       final manager = ref.read(pluginManagerProvider);
+      final chosen = ref.read(searchSourceProvider);
       final hot = <MusicItem>[];
       // 用户在「设置 → 音源 → 默认音源」指定了源:首页榜单跟着它走
       // (此前无论选谁,榜单都按自动线路挑,选的源对首页没有作用)。
-      final lists = await manager.topLists(platform: source);
+      //
+      // 但**选中源失效时首页绝不能空**:选中的源可能已被改名/卸载/撤下,或
+      // 根本没有榜单 —— 那样 topLists(platform) 匹配不到插件(榜单空),
+      // search(artist, platform) 还会抛「no plugin resolved」(猜你喜欢也空),
+      // 用户看到的就是「首页热门歌曲、推荐歌曲都没有」(实测事故)。所以两条都
+      // 在拿不到结果时回落自动。
+      var lists = await manager.topLists(platform: chosen);
+      if (lists.isEmpty && chosen != null) {
+        lists = await manager.topLists();
+      }
       if (lists.isNotEmpty) {
         // 按名称优先挑出真正的「热歌榜」(而非盲取插件返回的第一个),
         // 并把它排到首位作为默认选中项。见 chart_selection.dart。
@@ -119,27 +129,35 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       }
       // 猜你喜欢:按本地播放历史里最常听的歌手去找
       final artists = topArtistsFromHistory(ref.read(playHistoryProvider));
-      final guess = <MusicItem>[];
-      for (final artist in artists) {
-        try {
-          final r = await manager.search(artist, platform: source, page: 1);
-          final data = (r['data'] as List?) ?? const [];
-          for (final raw in data.take(4)) {
-            if (raw is! Map) continue;
-            final item = Map<String, dynamic>.from(raw);
-            // 只保留该歌手本人的歌(避免又混进翻唱)
-            if (!'${item['artist'] ?? ''}'.contains(artist)) continue;
-            guess.add(MusicItem.fromJson(item));
-          }
-        } catch (_) {}
+      Future<List<MusicItem>> loadGuess(String? platform) async {
+        final guess = <MusicItem>[];
+        for (final artist in artists) {
+          try {
+            final r = await manager.search(artist, platform: platform, page: 1);
+            final data = (r['data'] as List?) ?? const [];
+            for (final raw in data.take(4)) {
+              if (raw is! Map) continue;
+              final item = Map<String, dynamic>.from(raw);
+              // 只保留该歌手本人的歌(避免又混进翻唱)
+              if (!'${item['artist'] ?? ''}'.contains(artist)) continue;
+              guess.add(MusicItem.fromJson(item));
+            }
+          } catch (_) {}
+        }
+        return guess;
+      }
+
+      var guessItems = await loadGuess(chosen);
+      if (guessItems.isEmpty && chosen != null) {
+        guessItems = await loadGuess(null);
       }
       final merged = mergeRecommendations([
-        [for (final m in guess) m.toJson()],
+        [for (final m in guessItems) m.toJson()],
       ], limit: 12);
-      final guessItems = <MusicItem>[];
+      final pickedGuess = <MusicItem>[];
       for (final raw in merged) {
         try {
-          guessItems.add(MusicItem.fromJson(raw));
+          pickedGuess.add(MusicItem.fromJson(raw));
         } catch (_) {}
       }
       // 进首页即预热榜单前 2 首:用户直接点首页卡片时也能接近瞬时
@@ -151,14 +169,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               .catchError((_) => <String, dynamic>{}),
         );
       }
-      _recCache.put(cacheKey, [
-        for (final m in hot) {'__kind': 'hot', ...m.toJson()},
-        for (final m in guessItems) {'__kind': 'guess', ...m.toJson()},
-      ]);
+      // 空结果不写缓存:否则一次失败(或暂时没源)会空着十分钟。
+      if (hot.isNotEmpty || pickedGuess.isNotEmpty) {
+        _recCache.put(cacheKey, [
+          for (final m in hot) {'__kind': 'hot', ...m.toJson()},
+          for (final m in pickedGuess) {'__kind': 'guess', ...m.toJson()},
+        ]);
+      }
       if (mounted) {
         setState(() {
           _hotSongs = hot;
-          _guessSongs = guessItems;
+          _guessSongs = pickedGuess;
         });
       }
     } catch (_) {
