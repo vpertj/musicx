@@ -23,6 +23,23 @@ module.exports = { platform: "我的音源", version: "1.0.0",
 /// 内置音源名字(任何场景下都不该出现在界面里)。
 const _bundledNames = ['腾讯音乐', '网yi', '酷我(念心音源)', '酷我'];
 
+/// 老版本随 App 内置过、后来改名/下线的音源(用户手机上真实存在的遗留文件)。
+/// 用户反馈:「默认音源怎么那么多,以前不是只有三个还是四个」—— 就是这些
+/// 老文件被当成「用户自己装的音源」列了出来。
+const _legacyNeteasePlugin = '''
+module.exports = { platform: "网易音乐", version: "2025.09.14",
+  srcUrl: "https://raw.githubusercontent.com/ThomasBy2025/musicfree/refs/heads/main/plugins/wy.js",
+  search: function () { return Promise.resolve({ isEnd: true, data: [] }); }
+};
+''';
+
+const _legacyKuwoDujiaPlugin = '''
+module.exports = { platform: "酷我(独家音源)", version: "1.0.0",
+  srcUrl: "https://x/kuwo_dujia.js",
+  search: function () { return Promise.resolve({ isEnd: true, data: [] }); }
+};
+''';
+
 void main() {
   late Directory tmp;
   late Directory srcDir;
@@ -115,8 +132,41 @@ void main() {
     expectNoBundledName();
   });
 
+  testWidgets('场景 D:历史遗留的内置源(改过名/下线过)—— 同样不显示', (tester) async {
+    // 用户手机上真实存在的遗留文件(升级是覆盖安装,老文件不会消失):
+    // 「网易音乐」是内置 wy.js 的早期平台名,「酷我(独家音源)」是 08e9431 内置、
+    // ed5e51c 下线的源。它们不是用户装的,不该出现在任何列表里。
+    await tester.runAsync(() async {
+      await installBundled();
+      await manager.installFromFile(
+        (File('${srcDir.path}/legacy_wy.js')
+              ..writeAsStringSync(_legacyNeteasePlugin))
+            .path,
+      );
+      await manager.installFromFile(
+        (File('${srcDir.path}/legacy_dujia.js')
+              ..writeAsStringSync(_legacyKuwoDujiaPlugin))
+            .path,
+      );
+    });
+    await pump(tester);
+
+    expect(find.text('网易音乐'), findsNothing, reason: '改名过的老内置源不该冒充用户音源');
+    expect(find.text('酷我(独家音源)'), findsNothing, reason: '下过线的老内置源不该冒充用户音源');
+    expect(find.text('已安装音源'), findsNothing,
+        reason: '用户没装自己的音源时,这一行不显示(遗留内置源不算)');
+
+    await tester.tap(find.text('默认音源'));
+    await tester.pumpAndSettle();
+    expect(find.text('自动'), findsWidgets);
+    expect(find.text('网易音乐'), findsNothing);
+    expect(find.text('酷我(独家音源)'), findsNothing);
+    expectNoBundledName();
+  });
+
   testWidgets('场景 C:什么都没装 —— 显示引导入口,可安装内置音源', (tester) async {
     await pump(tester);
+
 
     expect(find.text('尚未安装插件'), findsOneWidget);
     expect(find.text('下载内置音源'), findsOneWidget);
