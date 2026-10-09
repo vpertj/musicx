@@ -40,6 +40,14 @@ module.exports = { platform: "酷我(独家音源)", version: "1.0.0",
 };
 ''';
 
+/// 1.7.56 收编、1.7.58 按用户要求撤下的音源(设备上仍留着文件)。
+const _retiredQqPlugin = '''
+module.exports = { platform: "QQ音乐", version: "2026.09.21",
+  srcUrl: "https://gitee.com/vper/musicfree/raw/master/qqmusic.js",
+  search: function () { return Promise.resolve({ isEnd: true, data: [] }); }
+};
+''';
+
 void main() {
   late Directory tmp;
   late Directory srcDir;
@@ -132,10 +140,11 @@ void main() {
     expectNoBundledName();
   });
 
-  testWidgets('场景 D:历史遗留的内置源(改过名/下线过)—— 同样不显示', (tester) async {
+  testWidgets('场景 D:历史遗留/已撤下的内置源 —— 同样不显示', (tester) async {
     // 用户手机上真实存在的遗留文件(升级是覆盖安装,老文件不会消失):
     // 「网易音乐」是内置 wy.js 的早期平台名,「酷我(独家音源)」是 08e9431 内置、
-    // ed5e51c 下线的源。它们不是用户装的,不该出现在任何列表里。
+    // ed5e51c 下线的源,「QQ音乐」是 1.7.56 收编、1.7.58 按用户要求撤下的源。
+    // 它们都不是用户装的,不该出现在任何列表里。
     await tester.runAsync(() async {
       await installBundled();
       await manager.installFromFile(
@@ -148,11 +157,17 @@ void main() {
               ..writeAsStringSync(_legacyKuwoDujiaPlugin))
             .path,
       );
+      await manager.installFromFile(
+        (File('${srcDir.path}/retired_qq.js')
+              ..writeAsStringSync(_retiredQqPlugin))
+            .path,
+      );
     });
     await pump(tester);
 
     expect(find.text('网易音乐'), findsNothing, reason: '改名过的老内置源不该冒充用户音源');
     expect(find.text('酷我(独家音源)'), findsNothing, reason: '下过线的老内置源不该冒充用户音源');
+    expect(find.text('QQ音乐'), findsNothing, reason: '撤下的内置源同样不该冒充用户音源');
     expect(find.text('已安装音源'), findsNothing,
         reason: '用户没装自己的音源时,这一行不显示(遗留内置源不算)');
 
@@ -161,6 +176,7 @@ void main() {
     expect(find.text('自动'), findsWidgets);
     expect(find.text('网易音乐'), findsNothing);
     expect(find.text('酷我(独家音源)'), findsNothing);
+    expect(find.text('QQ音乐'), findsNothing);
     expectNoBundledName();
   });
 

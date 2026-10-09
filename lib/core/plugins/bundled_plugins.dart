@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'auto_source_order.dart' show kRetiredBundledPlatforms;
+
 /// 内置(随 App 打包)音源条目。
 ///
 /// 这些插件是第三方作品:清单里保留作者与上游地址,UI 上标注来源,
@@ -82,29 +84,18 @@ BundledInstallState bundledInstallState({
   return BundledInstallState.updatable;
 }
 
-/// 历史上随 App 内置过、后来改名或下线的平台名。
-///
-/// 升级是覆盖安装,老版本的插件文件会留在插件目录里;而内置源被识别靠的是
-/// 平台名,于是这些「历史内置源」会被当成**用户自己装的音源**显示出来
-/// (用户反馈:「默认音源怎么那么多,以前不是只有三个还是四个」)。
-const Set<String> kLegacyBundledPlatforms = {
-  'netease', // a9b70d7 最早内置(平台名就是库名)
-  'kuwo', // 同上
-  '网易音乐', // 早期内置平台名,与随包 wy.js 同源
-  '酷我(独家音源)', // 08e9431 内置;ed5e51c 起下线(官方接口失效)
-};
-
-/// 同上,按上游文件名认(老内置源改名后仍能对上随包的那支)。
+/// 按上游文件名认(老内置源改名后仍能对上随包的那支)。
 const Set<String> kLegacyBundledAssetNames = {
   'kuwo_dujia.js',
   '酷我_竹岑.js',
 };
 
-/// 判断一个已装音源是否属于「随 App 内置」(含历史遗留的改名/下线版本)。
+/// 判断一个已装音源是否属于「随 App 内置」(含撤下/改名的历史版本)。
 ///
-/// 只看当前清单的平台名是不够的:内置源改过名(网易音乐 → 网yi),也下过线
-/// (酷我(独家音源)),老文件仍留在设备上。这里三重识别:平台名命中当前清单、
-/// 上游文件与随包资源同名(改名但同源)、或命中历史内置名单。
+/// 只看当前清单的平台名是不够的:内置源改过名(网易音乐 → 网yi),也下过线、
+/// 撤下过(酷我(独家音源)、1.7.56 收编后又撤下的 8 个),老文件仍留在设备上。
+/// 这里三重识别:平台名命中当前清单、上游文件与随包资源同名(改名但同源)、
+/// 或命中「已撤下的内置源」名单(见 [kRetiredBundledPlatforms])。
 bool isBundledPluginSource({
   required String platform,
   required String srcUrl,
@@ -119,7 +110,7 @@ bool isBundledPluginSource({
       return true;
     }
   }
-  if (kLegacyBundledPlatforms.contains(platform)) return true;
+  if (kRetiredBundledPlatforms.contains(platform)) return true;
   return srcName.isNotEmpty && kLegacyBundledAssetNames.contains(srcName);
 }
 

@@ -23,16 +23,14 @@ void main() {
   });
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  test('内置清单包含 11 个音源(原 3 + 收编 MusicFree 8)', () async {
+  test('内置清单只保留三个源(腾讯音乐 / 网yi / 酷我(念心音源))', () async {
+    // 用户明确要求(2026-10-08):「我就要这个:腾讯音乐、网yi、酷我(念心音源)
+    // 三个源就可以了」—— 1.7.56 收编的 8 个已撤下:不再随包、不再参与自动选源。
     final bundled = await catalog.list();
     expect(
       bundled.map((p) => p.platform).toSet(),
-      {
-        '腾讯音乐', '网yi', '酷我(念心音源)',
-        '网易云音乐', 'QQ音乐', '酷狗音乐', '酷我音乐',
-        '咪咕音乐', '网易云电台', '哔哩哔哩', 'youtube',
-      },
-      reason: '酷我(独家音源) 上游仍为 v4、其 API 已拒绝,不再内置',
+      {'腾讯音乐', '网yi', '酷我(念心音源)'},
+      reason: '酷我(独家音源) 上游 API 已失效,也不在内置清单里',
     );
   });
 
@@ -55,11 +53,7 @@ void main() {
     final installed = await manager.listPlugins();
     expect(
       installed.map((p) => p.platform).toSet(),
-      {
-        '腾讯音乐', '网yi', '酷我(念心音源)',
-        '网易云音乐', 'QQ音乐', '酷狗音乐', '酷我音乐',
-        '咪咕音乐', '网易云电台', '哔哩哔哩', 'youtube',
-      },
+      {'腾讯音乐', '网yi', '酷我(念心音源)'},
     );
   });
 

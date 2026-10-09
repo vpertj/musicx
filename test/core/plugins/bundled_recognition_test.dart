@@ -36,7 +36,7 @@ void main() {
     expect(isBundled('网yi'), isTrue);
   });
 
-  test('历史遗留的内置源(改名/下线)→ 仍认作内置', () {
+  test('历史遗留/已撤下的内置源 → 仍认作内置', () {
     // 平台名改成「网易音乐」但上游还是随包的 wy.js
     expect(
       isBundled(
@@ -48,10 +48,23 @@ void main() {
       reason: '改名后靠上游文件名同名仍应认出来',
     );
     // 平台名就是历史名,上游也已下线
-    expect(isBundled('网易音乐'), isTrue, reason: '命中历史内置名单');
+    expect(isBundled('网易音乐'), isTrue, reason: '命中已撤下名单');
     expect(isBundled('酷我(独家音源)'), isTrue, reason: '08e9431 内置过,后被下线');
     expect(isBundled('netease'), isTrue, reason: 'a9b70d7 最早内置的平台名');
     expect(isBundled('kuwo'), isTrue);
+    // 1.7.56 收编、1.7.58 按用户要求撤下的 8 个
+    for (final name in [
+      '网易云音乐',
+      'QQ音乐',
+      '酷狗音乐',
+      '酷我音乐',
+      '咪咕音乐',
+      '网易云电台',
+      '哔哩哔哩',
+      'youtube',
+    ]) {
+      expect(isBundled(name), isTrue, reason: '$name 是撤下的内置源,不该冒充用户音源');
+    }
   });
 
   test('用户自己装的音源 → 不是内置(要照常显示)', () {

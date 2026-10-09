@@ -54,26 +54,51 @@ void main() {
           reason: '网易改名后仍应被识别为第二顺位(靠 wy.js 归类)');
     });
 
-    test('同档次按固定次序,与插件目录顺序无关(腾讯音乐在 QQ音乐 之前)', () {
-      // 实测事故:1.7.56 收编 QQ音乐 后,它与内置的「腾讯音乐」同属腾讯系、
-      // 同档次,谁先谁后此前取决于插件目录遍历顺序(文件系统决定),于是首页
-      // 热歌榜从「腾讯音乐」变成「QQ音乐」,用户看到「首页推荐怎么变了」。
+    test('同档次按固定次序,与插件目录顺序无关', () {
+      // 同档次可能撞上多个源(用户自装的与随包的同档)。此前先后等于输入顺序,
+      // 而输入顺序来自插件目录遍历顺序(文件系统决定)—— 升级后首页热歌榜会莫名
+      // 换源。这里锁死:同一组源,任何输入顺序都得到同一个结果。
       final a = [
         _id('腾讯音乐', srcUrl: 'https://x/tx.js', fileName: 'plugin_1.js'),
-        _id('QQ音乐', srcUrl: 'https://x/qqmusic.js', fileName: 'plugin_2.js'),
+        _id('我的酷我', srcUrl: 'https://x/mykuwo.js', fileName: 'plugin_2.js'),
+        _id('酷我(念心音源)', srcUrl: 'https://x/kuwo_nianxin.js'),
       ];
       final b = a.reversed.toList();
       final o1 = orderAutoSourceIdentities(a).map((e) => e.platform).toList();
       final o2 = orderAutoSourceIdentities(b).map((e) => e.platform).toList();
-      expect(o1, ['腾讯音乐', 'QQ音乐']);
+      expect(o1.first, '腾讯音乐', reason: '腾讯系整体排第一(实测质量最好)');
+      expect(
+        o1.indexOf('酷我(念心音源)'),
+        lessThan(o1.indexOf('我的酷我')),
+        reason: '同档次内随包源按内置次序排在自装源前面',
+      );
       expect(o2, o1, reason: '同一组源无论目录顺序如何,结果必须一致');
+    });
+
+    test('已撤下的老内置源不参与自动选源(只保留随包的三个)', () {
+      // 用户要求「我就要腾讯音乐、网yi、酷我(念心音源)三个源」:1.7.56 收编的
+      // 8 个 + 更早改名/下线的老内置源,即使还装在设备上,也不许再进自动线路。
+      final ordered = orderAutoSourceIdentities([
+        _id('腾讯音乐', srcUrl: 'https://x/tx.js'),
+        _id('QQ音乐', srcUrl: 'https://x/qqmusic.js'),
+        _id('网易云音乐', srcUrl: 'https://x/netease.js'),
+        _id('酷我音乐', srcUrl: 'https://x/kuwo.js'),
+        _id('哔哩哔哩', srcUrl: 'https://x/bilibili.js'),
+        _id('酷我(独家音源)', srcUrl: 'https://x/kuwo_dujia.js'),
+        _id('网yi', srcUrl: 'https://x/wy.js'),
+        _id('酷我(念心音源)', srcUrl: 'https://x/kuwo_nianxin.js'),
+      ]);
+      expect(
+        ordered.map((e) => e.platform).toList(),
+        ['腾讯音乐', '网yi', '酷我(念心音源)'],
+      );
     });
 
     test('内置源与用户自装源混排时,顺序也只由内容决定', () {
       final set = [
         _id('网yi', srcUrl: 'https://x/wy.js'),
         _id('网易音乐', srcUrl: 'https://x/wy.js', fileName: '网易音乐.js'),
-        _id('QQ音乐', srcUrl: 'https://x/qqmusic.js'),
+        _id('我的自建源', srcUrl: 'https://my.example.com/foo.js'),
         _id('腾讯音乐', srcUrl: 'https://x/tx.js'),
       ];
       final forward = orderAutoSourceIdentities(set).map((e) => e.platform);
