@@ -47,6 +47,7 @@ dependencies:
   window_manager: ^0.5.2
   # 系统托盘(macOS / Windows)
   tray_manager: ^0.5.1
+  flutter_tabler_icons: ^1.43.0
 
 dev_dependencies:
   flutter_test:
