@@ -8,6 +8,8 @@
 // 因此 Riverpod 不会触发重建 —— 图标永远停在初始状态。
 // 正确做法是 watch state,再基于 state 判断。
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/library/library_controller.dart';
@@ -34,7 +36,7 @@ class _FavoriteIcon extends ConsumerWidget {
         .favorites
         .any((f) => f.id == song.id && f.platform == song.platform);
     return IconButton(
-      icon: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+      icon: Icon(isFav ? AppIcons.favoriteActive : AppIcons.favorite),
       onPressed: () =>
           ref.read(libraryControllerProvider.notifier).toggleFavorite(song),
     );
@@ -65,13 +67,13 @@ void main() {
       container.read(libraryControllerProvider.notifier).toggleFavorite(song);
       await tester.pump();
     }
-    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.favorite), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
+    await tester.tap(find.byIcon(AppIcons.favorite));
     await tester.pump();
 
     expect(
-      find.byIcon(Icons.favorite_rounded),
+      find.byIcon(AppIcons.favoriteActive),
       findsOneWidget,
       reason: '点击后必须立即显示实心❤️;若仍渲染空心,说明 watch 用错了对象',
     );
@@ -89,13 +91,13 @@ void main() {
       await tester.pump();
     }
 
-    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
+    await tester.tap(find.byIcon(AppIcons.favorite));
     await tester.pump();
-    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.favoriteActive), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.favorite_rounded));
+    await tester.tap(find.byIcon(AppIcons.favoriteActive));
     await tester.pump();
-    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget,
+    expect(find.byIcon(AppIcons.favorite), findsOneWidget,
         reason: '取消收藏后应回到空心');
 
     // 清理,避免污染其他用例

@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter/services.dart' show SystemMouseCursor;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
@@ -508,12 +510,12 @@ class _Toolbar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _ToolbarButton(
-              icon: Icons.remove_rounded,
+              icon: AppIcons.remove,
               tooltip: '缩小字号',
               onTap: () => onFontSizeDelta(-2),
             ),
             _ToolbarButton(
-              icon: Icons.add_rounded,
+              icon: AppIcons.add,
               tooltip: '放大字号',
               onTap: () => onFontSizeDelta(2),
             ),
@@ -540,23 +542,23 @@ class _Toolbar extends StatelessWidget {
             const SizedBox(width: 4),
             _ToolbarButton(
               icon: settings.showNext
-                  ? Icons.view_agenda_rounded
-                  : Icons.view_day_rounded,
+                  ? AppIcons.viewAgenda
+                  : AppIcons.viewDay,
               tooltip: settings.showNext ? '隐藏下一句' : '显示下一句',
               onTap: onToggleNext,
             ),
             _ToolbarButton(
-              icon: Icons.open_in_new_rounded,
+              icon: AppIcons.openExternal,
               tooltip: '回到主程序',
               onTap: onShowMain,
             ),
             _ToolbarButton(
-              icon: Icons.settings_backup_restore_rounded,
+              icon: AppIcons.settingsBackup,
               tooltip: '重置尺寸与位置',
               onTap: onResetSize,
             ),
             _ToolbarButton(
-              icon: Icons.close_rounded,
+              icon: AppIcons.close,
               tooltip: '关闭桌面歌词',
               onTap: onClose,
             ),

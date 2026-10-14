@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/core/player/player_controller.dart';
@@ -36,14 +38,14 @@ void main() {
 
     expect(find.text('测试曲'), findsOneWidget);
     expect(find.text('测试手'), findsOneWidget);
-    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.shuffle_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.repeat_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.pause), findsOneWidget);
+    expect(find.byIcon(AppIcons.next), findsOneWidget);
+    expect(find.byIcon(AppIcons.prev), findsOneWidget);
+    expect(find.byIcon(AppIcons.shuffle), findsOneWidget);
+    expect(find.byIcon(AppIcons.repeat), findsOneWidget);
     // 底部固定控制台:进度条始终可见;队列入口在顶部右上角
     expect(find.byType(SeekBar), findsOneWidget);
-    expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.queue), findsOneWidget);
     // 回归:CustomPaint 无 child 默认 Size.zero,曾把进度条缩成居中一个
     // 红点(底轨/填充 0 宽)—— SeekBar 必须真实撑满可用宽度。
     final barSize = tester.getSize(find.byType(SeekBar));
@@ -90,10 +92,10 @@ void main() {
     expect(find.text('第一句'), findsOneWidget);
     // 歌词模式下进度条 + 控制台仍然存在
     expect(find.byType(SeekBar), findsOneWidget);
-    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.pause), findsOneWidget);
+    expect(find.byIcon(AppIcons.next), findsOneWidget);
     // 队列入口在顶部右上角(歌词模式下同样可见)
-    expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
+    expect(find.byIcon(AppIcons.queue), findsOneWidget);
   });
 }
 

@@ -4,34 +4,13 @@
 //
 // 背景:71 个语义散落在 15 个文件、159 处直接写 `Icons.*`,换图标集就得全仓改。
 // 收敛到 `lib/ui/icons.dart` 语义层后,以后只改一处。本文件锁住两件事:
-//   1. 页面**不许**直接引用 Material 图标(迁移期间用白名单逐任务收缩);
-//   2. 语义层常量齐备(缺一个就是编译错,这里再兜一层)。
+//   1. 页面**不许**直接引用 Material 图标(Task 5 已完成迁移,现在是严格锁);
+//   2. 语义层常量齐备且选中/未选中成对(缺一个就是编译错,这里再兜一层)。
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:musicx/ui/icons.dart';
-
-/// 迁移白名单:这些文件还写着 `Icons.*`,按计划 Task 3/4/5 逐批替换。
-///
-/// **Task 5 完成后本集合必须为空**(空集合 = 严格锁死),这是本次改动的验收条件之一。
-const Set<String> kMigratingFiles = {
-  'lib/ui/home_shell.dart',
-  'lib/ui/plugins/plugin_page.dart',
-  'lib/ui/plugins/update_row.dart',
-  'lib/ui/widgets/mini_player_bar.dart',
-  'lib/ui/search/search_page.dart',
-  'lib/ui/search/chart_detail_page.dart',
-  'lib/ui/library/library_page.dart',
-  'lib/ui/downloads/download_page.dart',
-  'lib/ui/widgets/song_tile.dart',
-  'lib/ui/widgets/playlist_picker.dart',
-  'lib/ui/widgets/download_picker.dart',
-  'lib/ui/widgets/artwork_view.dart',
-  'lib/ui/player/player_page.dart',
-  'lib/ui/desktop_lyrics/lyrics_window.dart',
-  'lib/ui/desktop_lyrics/lyrics_settings_section.dart',
-};
 
 void main() {
   test('页面不许直接引用 Icons.*:必须走 AppIcons 语义层', () {
@@ -41,7 +20,6 @@ void main() {
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))) {
       if (f.path.endsWith('ui/icons.dart')) continue; // 语义层自己
-      if (kMigratingFiles.contains(f.path)) continue; // 迁移中
       final text = f.readAsStringSync();
       for (final m in RegExp(r'\bIcons\.[a-zA-Z_]+').allMatches(text)) {
         offenders.add('${f.path}: ${m.group(0)}');
