@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/source_selection.dart';
@@ -99,7 +101,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: '/path/to/plugin.js',
-                prefixIcon: Icon(Icons.insert_drive_file_outlined),
+                prefixIcon: Icon(AppIcons.insertFile),
               ),
             ),
           ],
@@ -148,7 +150,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 hintText: 'https://example.com/plugin/index.js',
-                prefixIcon: Icon(Icons.link_rounded),
+                prefixIcon: Icon(AppIcons.link),
               ),
             ),
           ],
@@ -326,7 +328,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 hintText: 'https://example.com/plugins.json',
-                prefixIcon: Icon(Icons.rss_feed_rounded),
+                prefixIcon: Icon(AppIcons.rss),
               ),
             ),
           ],
@@ -481,7 +483,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 ),
                 ListTile(
                   leading: Icon(
-                    Icons.auto_awesome_rounded,
+                    AppIcons.autoAwesome,
                     color: scheme.onSurfaceVariant,
                   ),
                   title: const Text('自动'),
@@ -492,7 +494,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                   ),
                   trailing: current == null
-                      ? Icon(Icons.check_circle_rounded, color: scheme.primary)
+                      ? Icon(AppIcons.checkCircle, color: scheme.primary)
                       : null,
                   onTap: () => Navigator.pop(ctx, autoMark),
                 ),
@@ -511,7 +513,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                               borderRadius: BorderRadius.circular(11),
                             ),
                             child: const Icon(
-                              Icons.extension_rounded,
+                              AppIcons.extension,
                               color: Colors.white,
                               size: 18,
                             ),
@@ -525,7 +527,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                           ),
                           trailing: current == p.platform
                               ? Icon(
-                                  Icons.check_circle_rounded,
+                                  AppIcons.checkCircle,
                                   color: scheme.primary,
                                 )
                               : null,
@@ -561,7 +563,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           content: Row(
             children: [
               Icon(
-                result.ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                result.ok ? AppIcons.checkCircle : AppIcons.cancel,
                 color: result.ok ? const Color(0xFF34D399) : Colors.white,
                 size: 18,
               ),
@@ -655,7 +657,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               if (userPlugins.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 _MenuItemRow(
-                  icon: Icons.library_music_rounded,
+                  icon: AppIcons.library,
                   title: '已安装音源',
                   trailing: '${userPlugins.length}',
                   onTap: () => _openSourceManager(userPlugins),
@@ -673,7 +675,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               _AppearanceSection(),
               if (DesktopLyricsService.supported)
                 _MenuItemRow(
-                  icon: Icons.lyrics_rounded,
+                  icon: AppIcons.lyricsActive,
                   title: '桌面歌词',
                   trailing:
                       '${lyrics.cardStyle == LyricsCardStyle.plain ? '纯文字' : '毛玻璃'}'
@@ -697,7 +699,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               if (Platform.isAndroid) ...[
                 const SizedBox(height: 8),
                 _MenuItemRow(
-                  icon: Icons.restart_alt_rounded,
+                  icon: AppIcons.restart,
                   title: '重启应用',
                   trailing: '安装新版本后点这里',
                   onTap: () => ApkInstaller.restartApp(),
@@ -719,7 +721,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         actions: [
           PopupMenuButton<_InstallAction>(
             tooltip: '安装插件',
-            icon: const Icon(Icons.add_rounded),
+            icon: const Icon(AppIcons.add),
             onSelected: (action) => switch (action) {
               _InstallAction.bundled => _downloadBundledSources(),
               _InstallAction.url => _installFromUrl(),
@@ -730,7 +732,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.bundled,
                 child: ListTile(
-                  leading: Icon(Icons.widgets_rounded),
+                  leading: Icon(AppIcons.widgets),
                   title: Text('下载音源'),
                   subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
@@ -739,7 +741,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(
-                  leading: Icon(Icons.link_rounded),
+                  leading: Icon(AppIcons.link),
                   title: Text('在线安装'),
                   subtitle: Text('输入插件 JS 的 URL'),
                   contentPadding: EdgeInsets.zero,
@@ -748,7 +750,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.source,
                 child: ListTile(
-                  leading: Icon(Icons.rss_feed_rounded),
+                  leading: Icon(AppIcons.rss),
                   title: Text('导入订阅源'),
                   subtitle: Text('浏览 plugins.json 中的插件'),
                   contentPadding: EdgeInsets.zero,
@@ -757,7 +759,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.file,
                 child: ListTile(
-                  leading: Icon(Icons.insert_drive_file_outlined),
+                  leading: Icon(AppIcons.insertFile),
                   title: Text('本地文件'),
                   subtitle: Text('从磁盘路径安装'),
                   contentPadding: EdgeInsets.zero,
@@ -875,12 +877,12 @@ class _AppearanceSection extends ConsumerWidget {
           ButtonSegment(
             value: ThemeMode.light,
             label: Text('浅色'),
-            icon: Icon(Icons.light_mode_outlined),
+            icon: Icon(AppIcons.lightMode),
           ),
           ButtonSegment(
             value: ThemeMode.dark,
             label: Text('深色'),
-            icon: Icon(Icons.dark_mode_outlined),
+            icon: Icon(AppIcons.darkMode),
           ),
         ],
         selected: {mode},
@@ -942,7 +944,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.music_note_rounded,
+                  AppIcons.music,
                   color: scheme.primary,
                   size: 22,
                 ),
@@ -980,7 +982,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                 ),
               ),
               Icon(
-                Icons.chevron_right_rounded,
+                AppIcons.chevronRight,
                 color: scheme.outline,
                 size: 18,
               ),
@@ -1044,7 +1046,7 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 18, color: scheme.primary),
+              Icon(AppIcons.info, size: 18, color: scheme.primary),
               const SizedBox(width: 6),
               Text(
                 '关于 MusicX',
@@ -1097,7 +1099,7 @@ class _DefaultSourceRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(Icons.tune_rounded, size: 20, color: scheme.primary),
+              Icon(AppIcons.tune, size: 20, color: scheme.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1115,7 +1117,7 @@ class _DefaultSourceRow extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Icon(
-                Icons.chevron_right_rounded,
+                AppIcons.chevronRight,
                 size: 18,
                 color: scheme.outline,
               ),
@@ -1169,7 +1171,7 @@ class _EditSourceDialogState extends State<_EditSourceDialog> {
             autofocus: true,
             decoration: const InputDecoration(
               labelText: '音源名称',
-              prefixIcon: Icon(Icons.label_outline_rounded),
+              prefixIcon: Icon(AppIcons.label),
             ),
           ),
           const SizedBox(height: 12),
@@ -1179,7 +1181,7 @@ class _EditSourceDialogState extends State<_EditSourceDialog> {
             decoration: const InputDecoration(
               labelText: '音源地址 (srcUrl)',
               hintText: 'https://example.com/plugin.js',
-              prefixIcon: Icon(Icons.link_rounded),
+              prefixIcon: Icon(AppIcons.link),
             ),
           ),
         ],
@@ -1249,7 +1251,7 @@ class _PluginCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
               ),
               child: const Icon(
-                Icons.extension_rounded,
+                AppIcons.extension,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1329,19 +1331,19 @@ class _PluginCard extends StatelessWidget {
             if (onTest != null)
               IconButton(
                 tooltip: '测试音源',
-                icon: Icon(Icons.radar_rounded, color: scheme.onSurfaceVariant),
+                icon: Icon(AppIcons.radar, color: scheme.onSurfaceVariant),
                 onPressed: onTest,
               ),
             IconButton(
               tooltip: '编辑',
-              icon: Icon(Icons.edit_outlined, color: scheme.onSurfaceVariant),
+              icon: Icon(AppIcons.edit, color: scheme.onSurfaceVariant),
               onPressed: onEdit,
             ),
             const SizedBox(width: 2),
             IconButton(
               tooltip: '卸载',
               icon: Icon(
-                Icons.delete_outline_rounded,
+                AppIcons.delete,
                 color: scheme.onSurfaceVariant,
               ),
               onPressed: onDelete,
@@ -1385,7 +1387,7 @@ class _EmptyPlugins extends StatelessWidget {
                 borderRadius: BorderRadius.circular(28),
               ),
               child: const Icon(
-                Icons.extension_rounded,
+                AppIcons.extension,
                 color: Colors.white,
                 size: 42,
               ),
@@ -1412,13 +1414,13 @@ class _EmptyPlugins extends StatelessWidget {
             // 内置音源等于白做。这里把一键下载放到首屏主按钮位置。
             FilledButton.icon(
               onPressed: onDownloadBundled,
-              icon: const Icon(Icons.download_rounded),
+              icon: const Icon(AppIcons.download),
               label: const Text('下载内置音源'),
             ),
             const SizedBox(height: 10),
             TextButton.icon(
               onPressed: onInstall,
-              icon: const Icon(Icons.link_rounded),
+              icon: const Icon(AppIcons.link),
               label: const Text('在线安装插件'),
             ),
           ],
@@ -1487,7 +1489,7 @@ class _SourceSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
-                      Icons.extension_rounded,
+                      AppIcons.extension,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -1543,7 +1545,7 @@ class _FilterCoversRow extends ConsumerWidget {
     return Row(
       children: [
         Icon(
-          Icons.verified_rounded,
+          AppIcons.verified,
           size: 20,
           color: Theme.of(context).colorScheme.primary,
         ),
@@ -1583,9 +1585,9 @@ class _SettingsSidebar extends StatelessWidget {
   final ValueChanged<_SettingsSection> onSelect;
 
   static const _tabs = [
-    (_SettingsSection.sources, Icons.library_music_rounded, '音乐源'),
-    (_SettingsSection.appearance, Icons.palette_outlined, '外观'),
-    (_SettingsSection.general, Icons.settings_rounded, '通用'),
+    (_SettingsSection.sources, AppIcons.library, '音乐源'),
+    (_SettingsSection.appearance, AppIcons.palette, '外观'),
+    (_SettingsSection.general, AppIcons.settingsActive, '通用'),
   ];
 
   @override
@@ -1780,7 +1782,7 @@ class _MenuItemRow extends StatelessWidget {
                   ),
                 const SizedBox(width: 4),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  AppIcons.chevronRight,
                   size: 18,
                   color: scheme.outline,
                 ),
@@ -1833,7 +1835,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
         actions: [
           PopupMenuButton<_InstallAction>(
             tooltip: '安装插件',
-            icon: const Icon(Icons.add_rounded),
+            icon: const Icon(AppIcons.add),
             onSelected: (action) => switch (action) {
               _InstallAction.bundled => widget.onInstallBundled(),
               _InstallAction.url => widget.onInstallUrl(),
@@ -1844,7 +1846,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.bundled,
                 child: ListTile(
-                  leading: Icon(Icons.widgets_rounded),
+                  leading: Icon(AppIcons.widgets),
                   title: Text('下载音源'),
                   subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
@@ -1853,7 +1855,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(
-                  leading: Icon(Icons.link_rounded),
+                  leading: Icon(AppIcons.link),
                   title: Text('在线安装'),
                   subtitle: Text('输入插件 JS 的 URL'),
                   contentPadding: EdgeInsets.zero,
@@ -1862,7 +1864,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.source,
                 child: ListTile(
-                  leading: Icon(Icons.rss_feed_rounded),
+                  leading: Icon(AppIcons.rss),
                   title: Text('导入订阅源'),
                   subtitle: Text('浏览 plugins.json 中的插件'),
                   contentPadding: EdgeInsets.zero,
@@ -1871,7 +1873,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.file,
                 child: ListTile(
-                  leading: Icon(Icons.insert_drive_file_outlined),
+                  leading: Icon(AppIcons.insertFile),
                   title: Text('本地文件'),
                   subtitle: Text('从磁盘路径安装'),
                   contentPadding: EdgeInsets.zero,
@@ -1912,7 +1914,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
                           ).colorScheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
-                        icon: const Icon(Icons.add_rounded, size: 18),
+                        icon: const Icon(AppIcons.add, size: 18),
                         label: const Text('安装'),
                       ),
                     ],

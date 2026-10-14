@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
@@ -319,18 +321,18 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore_rounded),
+            icon: Icon(AppIcons.explore),
+            selectedIcon: Icon(AppIcons.exploreActive),
             label: '发现',
           ),
           NavigationDestination(
-            icon: Icon(Icons.library_music_outlined),
-            selectedIcon: Icon(Icons.library_music_rounded),
+            icon: Icon(AppIcons.libraryOutlined),
+            selectedIcon: Icon(AppIcons.library),
             label: '我的',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
+            icon: Icon(AppIcons.settings),
+            selectedIcon: Icon(AppIcons.settingsActive),
             label: '设置',
           ),
         ],
@@ -354,9 +356,9 @@ class _Sidebar extends ConsumerWidget {
   final ValueChanged<String> onOpenPlaylist;
 
   static const _items = [
-    (Icons.explore_outlined, Icons.explore_rounded, '发现'),
-    (Icons.library_music_outlined, Icons.library_music_rounded, '我的'),
-    (Icons.settings_outlined, Icons.settings_rounded, '设置'),
+    (AppIcons.explore, AppIcons.exploreActive, '发现'),
+    (AppIcons.libraryOutlined, AppIcons.library, '我的'),
+    (AppIcons.settings, AppIcons.settingsActive, '设置'),
   ];
 
   @override
@@ -410,8 +412,8 @@ class _Sidebar extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
               child: _NavItem(
-                icon: Icons.download_for_offline_outlined,
-                selectedIcon: Icons.download_for_offline_rounded,
+                icon: AppIcons.downloaded,
+                selectedIcon: AppIcons.downloadedActive,
                 label: '下载音乐 (${downloads.length})',
                 selected: false,
                 onTap: () => Navigator.of(context).push(
@@ -437,7 +439,7 @@ class _Sidebar extends ConsumerWidget {
                     iconSize: 18,
                     visualDensity: VisualDensity.compact,
                     icon: Icon(
-                      Icons.add_rounded,
+                      AppIcons.add,
                       color: scheme.onSurfaceVariant,
                     ),
                     onPressed: () => _createPlaylist(context, ref),
@@ -489,7 +491,7 @@ class _Sidebar extends ConsumerWidget {
           autofocus: true,
           decoration: const InputDecoration(
             hintText: '歌单名称',
-            prefixIcon: Icon(Icons.queue_music_rounded),
+            prefixIcon: Icon(AppIcons.queue),
           ),
         ),
         actions: [
@@ -538,7 +540,7 @@ class _PlaylistNavItem extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                Icons.queue_music_rounded,
+                AppIcons.queue,
                 size: 17,
                 color: scheme.onSurfaceVariant,
               ),
