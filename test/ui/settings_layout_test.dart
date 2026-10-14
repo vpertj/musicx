@@ -12,7 +12,9 @@ import 'package:musicx/core/plugins/plugin_manager.dart';
 import 'package:musicx/core/providers.dart';
 import 'package:musicx/ui/desktop_lyrics/lyrics_glass.dart';
 import 'package:musicx/ui/plugins/lyrics_settings_page.dart';
+import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/plugins/plugin_page.dart';
+import 'package:musicx/ui/tokens.dart';
 
 const _plugin = '''
 module.exports = { platform: "我的音源", version: "1.0.0",
@@ -37,7 +39,8 @@ void main() {
           overrides: [
             pluginManagerProvider.overrideWithValue(PluginManager(tmp)),
           ],
-          child: const MaterialApp(home: PluginPage()),
+          // 套用真实主题:设置页的颜色断言只有在 AppTheme 下才有意义
+          child: MaterialApp(theme: AppTheme.light, home: const PluginPage()),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -69,5 +72,37 @@ void main() {
     expect(find.textContaining('个音源'), findsOneWidget);
     expect(find.text('插件化音乐播放器 · 轻量免费'), findsNothing,
         reason: '大卡副标题已移除(瘦身)');
+  });
+
+  testWidgets('视觉契约:灰底 / 白卡圆角 14 / 行内图标统一 20 / 行高 56', (tester) async {
+    await pump(tester);
+
+    // ① 页面灰底:此前 0xFFFAFBFC 与白卡(纯白)几乎同色,卡片没有层次。
+    final ctx = tester.element(find.byType(PluginPage));
+    expect(Theme.of(ctx).scaffoldBackgroundColor, AppPalette.lightBackground);
+
+    // ② 分组是白卡 + 圆角 14(此前用 M3 默认 surfaceContainer,是紫灰色)。
+    final hasWhiteCard = tester
+        .widgetList<Container>(find.byType(Container))
+        .any((c) {
+      final d = c.decoration;
+      return d is BoxDecoration &&
+          d.color == AppPalette.lightCard &&
+          d.borderRadius == BorderRadius.circular(AppRadius.card);
+    });
+    expect(hasWhiteCard, isTrue, reason: '设置分组应是白卡 + 圆角 14');
+
+    // ③ 行内图标统一 20(此前 18/20/22 混用,有的还套粉底方块)。
+    // ④ 行高统一 56(此前各行随内容胖瘦不一,一眼就看得出参差)。
+    for (final title in ['默认音源', '过滤翻唱', '主题', '已安装音源']) {
+      final row = find.byKey(ValueKey('settings-row-$title'));
+      expect(row, findsOneWidget, reason: '「$title」行应存在');
+      expect(tester.getSize(row).height, AppSize.rowHeight,
+          reason: '「$title」行高应为 56');
+      final icon = tester.widget<Icon>(
+        find.descendant(of: row, matching: find.byType(Icon)).first,
+      );
+      expect(icon.size, AppSize.icon, reason: '「$title」行图标应统一 20');
+    }
   });
 }

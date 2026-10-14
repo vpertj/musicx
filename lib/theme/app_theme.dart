@@ -63,6 +63,23 @@ class AppTheme {
       onSecondary: Colors.white,
       surface: _surface(b),
       onSurface: _text(b),
+      // 次要文字/图标:不补的话会落到 M3 默认紫灰(#49454F),与黑白灰+品牌红
+      // 的骨架打架 —— 全仓 78 处在用,是「看着不对」的系统性来源。
+      onSurfaceVariant: _muted(b),
+      // 描边(chevron / 次要图标)与分割线同上。
+      outline: _muted(b),
+      outlineVariant: _divider(b),
+      // 卡片/容器:统一到本 App 的「白卡」,而不是 M3 默认的淡紫 container。
+      surfaceContainerLowest: _surface(b),
+      surfaceContainerLow: _surface(b),
+      surfaceContainer: _surface(b),
+      surfaceContainerHigh: _surfaceHi(b),
+      surfaceContainerHighest: _surfaceHi(b),
+      // 红底容器(芯片/标签)。
+      primaryContainer: _accentSoft(b),
+      onPrimaryContainer: _accent(b),
+      secondaryContainer: _accentSoft(b),
+      onSecondaryContainer: _accent(b),
       error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
       onError: Colors.white,
     );

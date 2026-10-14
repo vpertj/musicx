@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/source_selection.dart';
@@ -605,6 +606,20 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   }
 
   /// 当前选中区块的内容(宽屏右侧)。
+  /// 用户自己装的音源:内置与历史内置都不算。
+  ///
+  /// 顶部计数与「已安装音源」行共用这一处口径,避免一边显示 3、一边一个都看不到。
+  List<PluginInfo> _userVisiblePlugins(List<PluginInfo> plugins) => [
+        for (final p in plugins)
+          if (!_bundledPlatforms.contains(p.platform) &&
+              !isBundledPluginSource(
+                platform: p.platform,
+                srcUrl: p.srcUrl ?? '',
+                catalog: _bundledCatalog,
+              ))
+            p,
+      ];
+
   List<Widget> _sectionContent(
     _SettingsSection section,
     List<PluginInfo> plugins,
@@ -619,16 +634,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         // 识别必须覆盖**历史遗留的内置源**:内置源改过名(网易音乐 → 网yi)、
         // 也下过线(酷我(独家音源)),老文件还留在设备上,只看当前平台名会把
         // 它们当成用户音源列出来(用户反馈:默认音源列表里冒出一堆没见过的源)。
-        final userPlugins = [
-          for (final p in plugins)
-            if (!_bundledPlatforms.contains(p.platform) &&
-                !isBundledPluginSource(
-                  platform: p.platform,
-                  srcUrl: p.srcUrl ?? '',
-                  catalog: _bundledCatalog,
-                ))
-              p,
-        ];
+        final userPlugins = _userVisiblePlugins(plugins);
         return [
           // 没有任何音源(含内置)时,在分组内显示引导卡片而不是整页替换,
           // 否则「通用 → 检查更新 / 关于(版本号)」会一起消失。
@@ -802,7 +808,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                     children: [
                       _ProfileCard(
-                        pluginCount: plugins.length,
+                        pluginCount: _userVisiblePlugins(plugins).length,
                         onInstall: _installFromUrl,
                       ),
                       const SizedBox(height: 22),
@@ -864,35 +870,68 @@ class _AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themePreferenceProvider);
     final notifier = ref.read(themePreferenceProvider.notifier);
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: SegmentedButton<ThemeMode>(
-        emptySelectionAllowed: false,
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(
-            value: ThemeMode.light,
-            label: Text('浅色'),
-            icon: Icon(AppIcons.lightMode),
-          ),
-          ButtonSegment(
-            value: ThemeMode.dark,
-            label: Text('深色'),
-            icon: Icon(AppIcons.darkMode),
-          ),
-        ],
-        selected: {mode},
-        onSelectionChanged: (s) {
-          if (s.contains(ThemeMode.dark)) {
-            notifier.setDark();
-          } else {
-            notifier.setLight();
-          }
-        },
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const ValueKey('settings-row-主题'),
+      height: AppSize.rowHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(AppIcons.palette, size: AppSize.icon, color: scheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                '主题',
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: AppText.rowTitle,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            // 紧凑分段控件:此前高度接近 56、圆角大,是页面里最抢眼的控件。
+            SegmentedButton<ThemeMode>(
+              emptySelectionAllowed: false,
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                ),
+                textStyle: const WidgetStatePropertyAll(
+                  TextStyle(fontSize: AppText.rowSubtitle, fontWeight: FontWeight.w500),
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                  ),
+                ),
+              ),
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('浅色'),
+                  icon: Icon(AppIcons.lightMode),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('深色'),
+                  icon: Icon(AppIcons.darkMode),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) {
+                if (s.contains(ThemeMode.dark)) {
+                  notifier.setDark();
+                } else {
+                  notifier.setLight();
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -927,11 +966,11 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
         onTap: widget.onInstall,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
@@ -973,14 +1012,17 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                   ],
                 ),
               ),
-              Text(
-                '${widget.pluginCount} 个音源',
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              // 只算用户自己装的音源(内置/历史内置不算);一个都没有时不显示数字,
+              // 否则顶部写着「3 个音源」而列表里一个都看不到(口径不一致)。
+              if (widget.pluginCount > 0)
+                Text(
+                  '${widget.pluginCount} 个音源',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: AppText.rowSubtitle,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
               Icon(
                 AppIcons.chevronRight,
                 color: scheme.outline,
@@ -1001,11 +1043,14 @@ class _SectionTitle2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      style: TextStyle(
+        fontSize: AppText.sectionTitle,
+        fontWeight: FontWeight.w600,
+        color: scheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -1036,11 +1081,8 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      // 不再自带背景与圆角:它已经在设置分组的白卡里,卡中卡就是「看着乱」的来源之一。
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1090,38 +1132,38 @@ class _DefaultSourceRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      key: const ValueKey('settings-row-默认音源'),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(AppIcons.tune, size: 20, color: scheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '默认音源',
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+        child: SizedBox(
+          height: AppSize.rowHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Row(
+              children: [
+                Icon(AppIcons.tune, size: AppSize.icon, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    '默认音源',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                current ?? '自动',
-                style: textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                Text(
+                  current ?? '自动',
+                  style: textTheme.bodySmall?.copyWith(
+                    fontSize: AppText.rowSubtitle,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                AppIcons.chevronRight,
-                size: 18,
-                color: scheme.outline,
-              ),
-            ],
+                const SizedBox(width: AppSpacing.xs),
+                Icon(AppIcons.chevronRight, size: AppSize.icon, color: scheme.outline),
+              ],
+            ),
           ),
         ),
       ),
@@ -1542,37 +1584,55 @@ class _FilterCoversRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hide = ref.watch(hideCoversProvider);
-    return Row(
-      children: [
-        Icon(
-          AppIcons.verified,
-          size: 20,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '过滤翻唱',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const ValueKey('settings-row-过滤翻唱'),
+      height: AppSize.rowHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(AppIcons.verified, size: AppSize.icon, color: scheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '过滤翻唱',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontSize: AppText.rowSubtitle,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                '隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
-                style: Theme.of(context).textTheme.bodySmall,
+            ),
+            // 开关收敛:此前是满高的大号红胶囊,抢视线。
+            MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: Switch(
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                value: hide,
+                onChanged: (v) => ref.read(hideCoversProvider.notifier).update(v),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        Switch(
-          value: hide,
-          onChanged: (v) => ref.read(hideCoversProvider.notifier).update(v),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -1692,12 +1752,13 @@ class _SettingsGroup extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
+            // 白卡:此前用 M3 默认的 surfaceContainer(淡紫灰),在灰底上显脏。
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.card),
           ),
-          // 统一布局:组内不再靠零散的 SizedBox 撑间距,而是「行 + 细分隔线」,
-          // 行高由各行自己保证(min 56),视觉更整齐(用户反馈设置页看着乱)。
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          // 统一布局:组内是「行 + 内缩分割线」,行高由各行自己保证(56),
+          // 卡片本身不再加横向内边距 —— 行的 16px 内边距就是卡片内容边距,
+          // 分割线也从同一列起(视觉上与图标列对齐)。
           child: Column(
             children: [
               for (var i = 0; i < children.length; i++) ...[
@@ -1705,10 +1766,8 @@ class _SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     thickness: 1,
-                    indent: 48,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: .4),
+                    indent: AppSize.dividerInset,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 children[i],
               ],
@@ -1739,51 +1798,41 @@ class _MenuItemRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Material(
+      key: ValueKey('settings-row-$title'),
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
+        child: SizedBox(
+          height: AppSize.rowHeight,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Row(
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: .10),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, size: 18, color: scheme.primary),
-                ),
-                const SizedBox(width: 12),
+                // 图标统一 20/次要色:此前是 18px 图标 + 粉底圆角方块,
+                // 与同页别处(纯色图标、红底圆形)三种样式混排。
+                Icon(icon, size: AppSize.icon, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 if (trailing != null)
                   Text(
                     trailing!,
                     style: textTheme.bodySmall?.copyWith(
+                      fontSize: AppText.rowSubtitle,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.xs),
                 Icon(
                   AppIcons.chevronRight,
-                  size: 18,
+                  size: AppSize.icon,
                   color: scheme.outline,
                 ),
               ],
