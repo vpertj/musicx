@@ -1620,10 +1620,10 @@ class _FilterCoversRow extends ConsumerWidget {
                 ],
               ),
             ),
-            // 开关收敛:此前是满高的大号红胶囊,抢视线。
-            MediaQuery.removePadding(
-              context: context,
-              removeTop: true,
+            // 开关收敛:此前是满高的大号红胶囊,抢视线。Flutter 的 Switch 视觉尺寸
+            // 固定(约 52x32),去掉点击热区内边距后仍偏大,故再缩一档贴近 NutUI。
+            Transform.scale(
+              scale: 0.85,
               child: Switch(
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 value: hide,
