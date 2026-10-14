@@ -3,6 +3,8 @@
 // 为什么独立成页:首页只适合放少量预览,而榜单本身有 30 首。用户诉求是
 // 「一个完整的列表,能往上滑、在里面选歌」—— 这正是独立列表页的形态。
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicx/core/player/player_controller.dart';
@@ -99,7 +101,7 @@ class _ChartDetailPageState extends ConsumerState<ChartDetailPage> {
           if (_songs.isNotEmpty)
             TextButton.icon(
               onPressed: () => _play(0),
-              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              icon: const Icon(AppIcons.play, size: 18),
               label: const Text('播放全部'),
             ),
         ],
@@ -119,7 +121,7 @@ class _ChartDetailPageState extends ConsumerState<ChartDetailPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off_rounded, size: 40, color: scheme.outline),
+              Icon(AppIcons.cloudOff, size: 40, color: scheme.outline),
               const SizedBox(height: 12),
               Text('加载失败', style: textTheme.titleMedium),
               const SizedBox(height: 6),
@@ -133,7 +135,7 @@ class _ChartDetailPageState extends ConsumerState<ChartDetailPage> {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _load,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
+                icon: const Icon(AppIcons.refresh, size: 18),
                 label: const Text('重试'),
               ),
             ],

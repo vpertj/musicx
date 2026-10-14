@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:musicx/ui/icons.dart';
+
 /// 歌曲封面:网络图 + 渐变占位兜底,统一圆角。
 class ArtworkView extends StatelessWidget {
   const ArtworkView({
@@ -33,7 +35,7 @@ class ArtworkView extends StatelessWidget {
         ),
       ),
       child: Icon(
-        Icons.music_note_rounded,
+        AppIcons.music,
         size: size * .4,
         color: Colors.white.withValues(alpha: .7),
       ),
