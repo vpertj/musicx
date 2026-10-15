@@ -36,8 +36,8 @@ class DownloadPage extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    AppIcons.downloaded,
-                    size: 56,
+                    AppIcons.download,
+                    size: AppSize.iconEmpty,
                     color: scheme.outline,
                   ),
                   const SizedBox(height: AppSpacing.lg),

@@ -1371,7 +1371,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(AppIcons.cloudOff, size: 56, color: scheme.outline),
+            Icon(AppIcons.cloudOff, size: AppSize.iconEmpty, color: scheme.outline),
             const SizedBox(height: 16),
             Text(
               '搜索失败',
@@ -1415,7 +1415,7 @@ class _EmptyResultView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(AppIcons.searchOff, size: 56, color: scheme.outline),
+          Icon(AppIcons.searchOff, size: AppSize.iconEmpty, color: scheme.outline),
           const SizedBox(height: 16),
           Text(
             '未找到与 “$query” 相关的歌曲',

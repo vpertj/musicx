@@ -5,8 +5,12 @@ import 'package:musicx/ui/tokens.dart';
 /// MusicX 主题:「月光极简」——黑白灰骨架 + 品牌红点缀。
 ///
 /// 浅色为默认,深色可手动切换。所有颜色经语义常量引用,不散落硬编码。
-/// 旧紫粉渐变常量(accentGradient/softGradient/violet/pink/orange)为
-/// 过渡占位,待全项目替换为品牌红后删除(见实现计划 Task 6)。
+///
+/// 配色分两档(视觉第一版统一后定下):
+///   - **行内图标**:中性灰线性图标(见 `lib/ui/icons.dart` 与各列表行);
+///   - **徽标/空态图标**:品牌红渐变方块 + 白色图标(accentGradient/softGradient,
+///     仅用于 `_EmptyPlugins`、插件卡、选择器 leading 这类"徽标位")。
+/// 紫粉遗留常量(violet/pink/orange)已在视觉第一版删除。
 class AppTheme {
   AppTheme._();
 
