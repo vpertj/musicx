@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/chart_selection.dart';
@@ -484,14 +486,14 @@ class _HeaderState extends State<_Header> {
         focusNode: _focus,
         decoration: InputDecoration(
           hintText: '搜索歌曲 / 歌手 / 专辑',
-          prefixIcon: const Icon(Icons.search_rounded),
+          prefixIcon: const Icon(AppIcons.search),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
             valueListenable: widget.controller,
             builder: (context, value, _) {
               if (value.text.isEmpty) return const SizedBox.shrink();
               return IconButton(
                 tooltip: '清空',
-                icon: const Icon(Icons.close_rounded, size: 20),
+                icon: const Icon(AppIcons.close, size: 20),
                 onPressed: widget.onClear,
               );
             },
@@ -530,7 +532,7 @@ class _HistoryDropdown extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
             child: Row(
               children: [
-                Icon(Icons.history_rounded, size: 15, color: scheme.outline),
+                Icon(AppIcons.history, size: 15, color: scheme.outline),
                 const SizedBox(width: 6),
                 Text(
                   '最近搜索',
@@ -576,7 +578,7 @@ class _HistoryDropdown extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.search_rounded,
+                      AppIcons.search,
                       size: 16,
                       color: scheme.onSurfaceVariant,
                     ),
@@ -596,7 +598,7 @@ class _HistoryDropdown extends ConsumerWidget {
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(
-                          Icons.close_rounded,
+                          AppIcons.close,
                           size: 14,
                           color: scheme.outline,
                         ),
@@ -706,7 +708,7 @@ class _IdleView extends StatelessWidget {
       children: [
         // 动态热歌榜(真实音源排行榜);拉不到时退回下面的静态关键词卡
         if (topLists.isNotEmpty) ...[
-          _SectionTitle('排行榜', icon: Icons.local_fire_department_rounded),
+          _SectionTitle('排行榜', icon: AppIcons.fire),
           const SizedBox(height: 10),
           SizedBox(
             height: 36,
@@ -734,7 +736,7 @@ class _IdleView extends StatelessWidget {
           // 右侧「查看全部」进入完整榜单页(30 首,可上下滑动浏览选歌)。
           _SectionTitle(
             _currentChartName,
-            icon: Icons.local_fire_department_rounded,
+            icon: AppIcons.fire,
             onMore: onOpenChart == null
                 ? null
                 : () => onOpenChart!(topListIndex),
@@ -751,7 +753,7 @@ class _IdleView extends StatelessWidget {
           const SizedBox(height: 24),
         ],
         if (guessSongs.isNotEmpty) ...[
-          _SectionTitle('猜你喜欢', icon: Icons.auto_awesome_rounded),
+          _SectionTitle('猜你喜欢', icon: AppIcons.autoAwesome),
           const SizedBox(height: 12),
           // 猜你喜欢同样用列表,保持与上方榜单一致的观感
           _ChartList(
@@ -768,7 +770,7 @@ class _IdleView extends StatelessWidget {
             child: Center(child: CircularProgressIndicator()),
           ),
         if (hotSongs.isEmpty && !recLoading) ...[
-        _SectionTitle('热门推荐', icon: Icons.local_fire_department_rounded),
+        _SectionTitle('热门推荐', icon: AppIcons.fire),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -799,7 +801,7 @@ class _IdleView extends StatelessWidget {
           const SizedBox(height: 24),
           Row(
             children: [
-              _SectionTitle('最近搜索', icon: Icons.history_rounded),
+              _SectionTitle('最近搜索', icon: AppIcons.history),
               const Spacer(),
               InkWell(
                 onTap: onClearHistory,
@@ -831,7 +833,7 @@ class _IdleView extends StatelessWidget {
           const SizedBox(height: 24),
           Row(
             children: [
-              _SectionTitle('最近播放', icon: Icons.history_rounded),
+              _SectionTitle('最近播放', icon: AppIcons.history),
               const Spacer(),
               // 与「最近搜索」保持一致:整个列表可一键清空(用户诉求)。
               InkWell(
@@ -878,7 +880,7 @@ class _IdleView extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
-                          Icons.extension_rounded,
+                          AppIcons.extension,
                           color: Colors.white,
                           size: 20,
                         ),
@@ -904,7 +906,7 @@ class _IdleView extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded, color: scheme.outline),
+                      Icon(AppIcons.chevronRight, color: scheme.outline),
                     ],
                   ),
                 ),
@@ -996,7 +998,7 @@ class _RecentPlayRow extends ConsumerWidget {
                 color: scheme.surfaceContainerHighest,
                 child: song.artwork == null || song.artwork!.isEmpty
                     ? Icon(
-                        Icons.music_note_rounded,
+                        AppIcons.music,
                         size: 18,
                         color: scheme.outline,
                       )
@@ -1004,7 +1006,7 @@ class _RecentPlayRow extends ConsumerWidget {
                         song.artwork!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Icon(
-                          Icons.music_note_rounded,
+                          AppIcons.music,
                           size: 18,
                           color: scheme.outline,
                         ),
@@ -1042,8 +1044,8 @@ class _RecentPlayRow extends ConsumerWidget {
               visualDensity: VisualDensity.compact,
               icon: Icon(
                 downloaded
-                    ? Icons.check_circle_rounded
-                    : Icons.download_rounded,
+                    ? AppIcons.checkCircle
+                    : AppIcons.download,
                 color: scheme.onSurfaceVariant,
               ),
               onPressed: onDownload,
@@ -1055,13 +1057,13 @@ class _RecentPlayRow extends ConsumerWidget {
                 iconSize: 18,
                 visualDensity: VisualDensity.compact,
                 icon: Icon(
-                  Icons.close_rounded,
+                  AppIcons.close,
                   color: scheme.outline,
                 ),
                 onPressed: onRemove,
               ),
             Icon(
-              Icons.play_arrow_rounded,
+              AppIcons.play,
               size: 20,
               color: scheme.onSurfaceVariant,
             ),
@@ -1270,7 +1272,7 @@ class _ResultViewState extends State<_ResultView> {
                   foregroundColor: scheme.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: const Icon(Icons.playlist_play_rounded, size: 18),
+                icon: const Icon(AppIcons.playlistPlay, size: 18),
                 label: const Text('全部播放'),
               ),
             ],
@@ -1399,7 +1401,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_off_rounded, size: 56, color: scheme.outline),
+            Icon(AppIcons.cloudOff, size: 56, color: scheme.outline),
             const SizedBox(height: 16),
             Text(
               '搜索失败',
@@ -1420,7 +1422,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
+              icon: const Icon(AppIcons.refresh),
               label: const Text('重试'),
             ),
           ],
@@ -1443,7 +1445,7 @@ class _EmptyResultView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 56, color: scheme.outline),
+          Icon(AppIcons.searchOff, size: 56, color: scheme.outline),
           const SizedBox(height: 16),
           Text(
             '未找到与 “$query” 相关的歌曲',
@@ -1494,7 +1496,7 @@ class _SuggestionCard extends StatelessWidget {
                 right: -14,
                 bottom: -16,
                 child: Icon(
-                  Icons.music_note_rounded,
+                  AppIcons.music,
                   size: 72,
                   color: Colors.white.withValues(alpha: .16),
                 ),
@@ -1592,7 +1594,7 @@ class _SectionTitle extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  AppIcons.chevronRight,
                   size: 16,
                   color: scheme.onSurfaceVariant,
                 ),

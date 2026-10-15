@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:musicx/core/utils/format.dart';
 import 'package:musicx/models/music_item.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
@@ -112,7 +114,7 @@ class SongTile extends StatelessWidget {
                         tooltip: '下载',
                         iconSize: 20,
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.download_rounded),
+                        icon: const Icon(AppIcons.download),
                         onPressed: onDownload,
                       ),
                     if (onAdd != null)
@@ -120,7 +122,7 @@ class SongTile extends StatelessWidget {
                         tooltip: '加入歌单',
                         iconSize: 20,
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        icon: const Icon(AppIcons.addCircle),
                         onPressed: onAdd,
                       ),
                   ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
@@ -133,8 +135,8 @@ class MiniPlayerBar extends ConsumerWidget {
                       iconSize: 28,
                       icon: Icon(
                         state.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
+                            ? AppIcons.pause
+                            : AppIcons.play,
                       ),
                       onPressed: () => ref
                           .read(playerControllerProvider.notifier)
@@ -150,8 +152,8 @@ class MiniPlayerBar extends ConsumerWidget {
                     iconSize: 22,
                     icon: Icon(
                       state.repeatMode == LoopMode.one
-                          ? Icons.repeat_one_rounded
-                          : Icons.repeat_rounded,
+                          ? AppIcons.repeatOne
+                          : AppIcons.repeat,
                       color: state.repeatMode == LoopMode.off
                           ? scheme.onSurfaceVariant
                           : scheme.primary,

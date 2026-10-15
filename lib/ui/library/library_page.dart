@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
@@ -49,7 +51,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           autofocus: true,
           decoration: const InputDecoration(
             hintText: '歌单名称',
-            prefixIcon: Icon(Icons.queue_music_rounded),
+            prefixIcon: Icon(AppIcons.queue),
           ),
         ),
         actions: [
@@ -132,14 +134,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final categories = <_Category>[
       _Category(
         label: '我喜欢的',
-        icon: Icons.favorite_rounded,
+        icon: AppIcons.favoriteActive,
         selected: _selected == null,
         onTap: () => setState(() => _selected = null),
       ),
       // 下载音乐:固定入口(手机端此前没有下载列表入口)
       _Category(
         label: '下载音乐 ($downloadCount)',
-        icon: Icons.download_for_offline_outlined,
+        icon: AppIcons.downloaded,
         selected: false,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const DownloadPage()),
@@ -148,13 +150,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       for (final p in lib.playlists)
         _Category(
           label: p.name,
-          icon: Icons.queue_music_rounded,
+          icon: AppIcons.queue,
           selected: _selected == p.id,
           onTap: () => setState(() => _selected = p.id),
         ),
       _Category(
         label: '新建歌单',
-        icon: Icons.add_rounded,
+        icon: AppIcons.add,
         selected: false,
         onTap: _createPlaylist,
       ),
@@ -169,12 +171,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           if (selectedPlaylist != null)
             IconButton(
               tooltip: '删除歌单',
-              icon: const Icon(Icons.delete_outline_rounded),
+              icon: const Icon(AppIcons.delete),
               onPressed: () => _deletePlaylist(selectedPlaylist),
             ),
           IconButton(
             tooltip: '设置',
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(AppIcons.settings),
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute<void>(builder: (_) => const PluginPage())),
@@ -337,7 +339,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     iconSize: 20,
                                     visualDensity: VisualDensity.compact,
                                     icon: Icon(
-                                      Icons.download_rounded,
+                                      AppIcons.download,
                                       color: scheme.onSurfaceVariant,
                                     ),
                                     onPressed: () => showDownloadPicker(
@@ -350,7 +352,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                   IconButton(
                                     tooltip: '取消喜欢',
                                     icon: Icon(
-                                      Icons.favorite_rounded,
+                                      AppIcons.favoriteActive,
                                       color: scheme.primary,
                                       size: 20,
                                     ),
@@ -364,7 +366,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                   IconButton(
                                     tooltip: '移出歌单',
                                     icon: Icon(
-                                      Icons.remove_circle_outline_rounded,
+                                      AppIcons.removeCircle,
                                       color: scheme.onSurfaceVariant,
                                       size: 20,
                                     ),
@@ -447,7 +449,7 @@ class _PlaylistCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  Icons.queue_music_rounded,
+                  AppIcons.queue,
                   size: 18,
                   color: selected ? Colors.white : scheme.onSurfaceVariant,
                 ),
@@ -531,7 +533,7 @@ class _CategoryTile extends StatelessWidget {
                 ),
                 if (category.selected)
                   Icon(
-                    Icons.check_rounded,
+                    AppIcons.check,
                     size: 16,
                     color: scheme.onPrimaryContainer,
                   ),
@@ -597,8 +599,8 @@ class _EmptyLibrary extends StatelessWidget {
         children: [
           Icon(
             isFavorite
-                ? Icons.favorite_border_rounded
-                : Icons.queue_music_rounded,
+                ? AppIcons.favorite
+                : AppIcons.queue,
             size: 56,
             color: scheme.outline,
           ),

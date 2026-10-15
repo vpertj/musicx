@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:musicx/core/settings/desktop_lyrics_settings.dart';
@@ -92,7 +94,7 @@ class LyricsSettingsSection extends ConsumerWidget {
           alignment: Alignment.centerRight,
           child: TextButton.icon(
             onPressed: () => change(const DesktopLyricsSettings()),
-            icon: const Icon(Icons.restart_alt_rounded, size: 18),
+            icon: const Icon(AppIcons.restart, size: 18),
             label: const Text('恢复默认'),
           ),
         ),
@@ -184,12 +186,12 @@ class _StyleRow extends StatelessWidget {
                   ButtonSegment(
                     value: LyricsCardStyle.plain,
                     label: Text('纯文字'),
-                    icon: Icon(Icons.text_fields_rounded, size: 16),
+                    icon: Icon(AppIcons.textFields, size: 16),
                   ),
                   ButtonSegment(
                     value: LyricsCardStyle.glass,
                     label: Text('毛玻璃'),
-                    icon: Icon(Icons.blur_on_rounded, size: 16),
+                    icon: Icon(AppIcons.blur, size: 16),
                   ),
                 ],
                 selected: {value},

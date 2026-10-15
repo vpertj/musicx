@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/models/music_item.dart';
@@ -54,8 +56,8 @@ Future<void> showPlaylistPicker(
                 ListTile(
                   leading: Icon(
                     isFav
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
+                        ? AppIcons.favoriteActive
+                        : AppIcons.favorite,
                     color: scheme.primary,
                   ),
                   title: const Text('我喜欢的音乐'),
@@ -77,7 +79,7 @@ Future<void> showPlaylistPicker(
                 ),
                 for (final p in state.playlists)
                   ListTile(
-                    leading: const Icon(Icons.queue_music_rounded),
+                    leading: const Icon(AppIcons.queue),
                     title: Text(
                       p.name,
                       maxLines: 1,
@@ -98,7 +100,7 @@ Future<void> showPlaylistPicker(
                     },
                   ),
                 ListTile(
-                  leading: const Icon(Icons.add_rounded),
+                  leading: const Icon(AppIcons.add),
                   title: const Text('新建歌单并加入'),
                   onTap: () async {
                     Navigator.pop(ctx);

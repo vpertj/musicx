@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:musicx/ui/tokens.dart';
+
 /// MusicX 主题:「月光极简」——黑白灰骨架 + 品牌红点缀。
 ///
 /// 浅色为默认,深色可手动切换。所有颜色经语义常量引用,不散落硬编码。
@@ -28,19 +30,22 @@ class AppTheme {
   );
 
   // ---- 语义色 Token(按亮度取色)----
-  static Color _bg(Brightness b) =>
-      b == Brightness.dark ? const Color(0xFF121212) : const Color(0xFFFAFBFC);
+  static Color _bg(Brightness b) => b == Brightness.dark
+      ? const Color(0xFF121212)
+      // 页面底色比卡片深一档,白卡才有层次(设计 §3.2)
+      : AppPalette.lightBackground;
   static Color _surface(Brightness b) =>
       b == Brightness.dark ? const Color(0xFF1E1E1E) : const Color(0xFFFFFFFF);
   static Color _surfaceHi(Brightness b) =>
       b == Brightness.dark ? const Color(0xFF242629) : const Color(0xFFF2F3F5);
   static Color _text(Brightness b) =>
       b == Brightness.dark ? const Color(0xFFF3F4F6) : const Color(0xFF1A1C1E);
-  static Color _muted(Brightness b) =>
-      b == Brightness.dark ? const Color(0xFF9AA1AB) : const Color(0xFF8A8F98);
+  static Color _muted(Brightness b) => b == Brightness.dark
+      ? const Color(0xFF9AA1AB)
+      : AppPalette.lightTitle;
   static Color _divider(Brightness b) => b == Brightness.dark
       ? const Color(0xFF2C2F33)
-      : const Color(0xFFE7E9EC);
+      : AppPalette.lightDivider;
   static Color _accent(Brightness b) => b == Brightness.dark ? accentDark : accent;
   static Color _accentSoft(Brightness b) =>
       b == Brightness.dark ? accentSoftDark : accentSoft;
@@ -58,6 +63,23 @@ class AppTheme {
       onSecondary: Colors.white,
       surface: _surface(b),
       onSurface: _text(b),
+      // 次要文字/图标:不补的话会落到 M3 默认紫灰(#49454F),与黑白灰+品牌红
+      // 的骨架打架 —— 全仓 78 处在用,是「看着不对」的系统性来源。
+      onSurfaceVariant: _muted(b),
+      // 描边(chevron / 次要图标)与分割线同上。
+      outline: _muted(b),
+      outlineVariant: _divider(b),
+      // 卡片/容器:统一到本 App 的「白卡」,而不是 M3 默认的淡紫 container。
+      surfaceContainerLowest: _surface(b),
+      surfaceContainerLow: _surface(b),
+      surfaceContainer: _surface(b),
+      surfaceContainerHigh: _surfaceHi(b),
+      surfaceContainerHighest: _surfaceHi(b),
+      // 红底容器(芯片/标签)。
+      primaryContainer: _accentSoft(b),
+      onPrimaryContainer: _accent(b),
+      secondaryContainer: _accentSoft(b),
+      onSecondaryContainer: _accent(b),
       error: isDark ? const Color(0xFFFF6B81) : const Color(0xFFD63A5B),
       onError: Colors.white,
     );

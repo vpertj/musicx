@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
@@ -77,14 +79,14 @@ class _PlayerBodyState extends State<_PlayerBody> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _ViewToggle(
-                icon: Icons.album_rounded,
+                icon: AppIcons.album,
                 label: '唱片',
                 selected: !_showLyric,
                 onTap: () => setState(() => _showLyric = false),
               ),
               const SizedBox(width: 8),
               _ViewToggle(
-                icon: Icons.lyrics_rounded,
+                icon: AppIcons.lyricsActive,
                 label: '歌词',
                 selected: _showLyric,
                 onTap: () => setState(() => _showLyric = true),
@@ -459,7 +461,7 @@ class _LyricViewState extends State<_LyricView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.lyrics_outlined, size: 56, color: scheme.outline),
+            Icon(AppIcons.lyrics, size: 56, color: scheme.outline),
             const SizedBox(height: 14),
             Text(
               '暂无歌词',
@@ -529,7 +531,7 @@ class _TopBar extends StatelessWidget {
       icon: Badge(
         isLabelVisible: queueCount > 0,
         label: Text('$queueCount'),
-        child: const Icon(Icons.queue_music_rounded),
+        child: const Icon(AppIcons.queue),
       ),
       onPressed: onShowQueue,
     );
@@ -546,7 +548,7 @@ class _TopBar extends StatelessWidget {
                 child: IconButton(
                   tooltip: '收起',
                   iconSize: 30,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  icon: const Icon(AppIcons.chevronDown),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
               )
@@ -570,7 +572,7 @@ class _TopBar extends StatelessWidget {
                     IconButton(
                       tooltip: '桌面歌词',
                       iconSize: 24,
-                      icon: const Icon(Icons.subtitles_rounded),
+                      icon: const Icon(AppIcons.subtitles),
                       onPressed: onToggleLyrics,
                     ),
                   queueButton,
@@ -839,8 +841,8 @@ class _Controls extends StatelessWidget {
       LoopMode.one => '单曲循环',
     };
     final repeatIcon = switch (state.repeatMode) {
-      LoopMode.one => Icons.repeat_one_rounded,
-      _ => Icons.repeat_rounded,
+      LoopMode.one => AppIcons.repeatOne,
+      _ => AppIcons.repeat,
     };
 
     // 窄屏(<380)使用紧凑间距与按钮,避免溢出
@@ -852,7 +854,7 @@ class _Controls extends StatelessWidget {
         children: [
           _RoundToggle(
             tooltip: '随机播放',
-            icon: Icons.shuffle_rounded,
+            icon: AppIcons.shuffle,
             active: state.shuffle,
             onPressed: ctrl.toggleShuffle,
           ),
@@ -860,7 +862,7 @@ class _Controls extends StatelessWidget {
           IconButton(
             tooltip: '上一首',
             iconSize: compact ? 36 : 42,
-            icon: const Icon(Icons.skip_previous_rounded),
+            icon: const Icon(AppIcons.prev),
             onPressed: canPrev ? ctrl.previous : null,
           ),
           SizedBox(width: compact ? 6 : 12),
@@ -873,7 +875,7 @@ class _Controls extends StatelessWidget {
           IconButton(
             tooltip: '下一首',
             iconSize: compact ? 36 : 42,
-            icon: const Icon(Icons.skip_next_rounded),
+            icon: const Icon(AppIcons.next),
             onPressed: canNext ? ctrl.next : null,
           ),
           SizedBox(width: compact ? 10 : 18),
@@ -959,7 +961,7 @@ class _PlayButton extends StatelessWidget {
             customBorder: const CircleBorder(),
             onTap: onPressed,
             child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              playing ? AppIcons.pause : AppIcons.play,
               size: compact ? 36 : 42,
               color: Colors.white,
             ),
@@ -1022,8 +1024,8 @@ class _NowPlayingActions extends ConsumerWidget {
                 : () => showDownloadPicker(context, ref, s),
             icon: Icon(
               downloaded
-                  ? Icons.check_circle_rounded
-                  : Icons.download_rounded,
+                  ? AppIcons.checkCircle
+                  : AppIcons.download,
               size: 18,
             ),
             label: Text(downloaded ? '已下载' : '下载'),
@@ -1038,7 +1040,7 @@ class _NowPlayingActions extends ConsumerWidget {
             iconSize: 20,
             visualDensity: VisualDensity.compact,
             icon: Icon(
-              isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              isFav ? AppIcons.favoriteActive : AppIcons.favorite,
               color: isFav ? scheme.primary : scheme.onSurfaceVariant,
             ),
             onPressed: () =>
@@ -1049,7 +1051,7 @@ class _NowPlayingActions extends ConsumerWidget {
             iconSize: 20,
             visualDensity: VisualDensity.compact,
             icon: Icon(
-              Icons.playlist_add_rounded,
+              AppIcons.addToPlaylist,
               color: scheme.onSurfaceVariant,
             ),
             onPressed: () => showPlaylistPicker(context, ref, s),
@@ -1131,7 +1133,7 @@ class _QueueSheet extends ConsumerWidget {
                             : () => showDownloadPicker(context, ref, s),
                         trailing: isCurrent
                             ? Icon(
-                                Icons.volume_up_rounded,
+                                AppIcons.volume,
                                 size: 20,
                                 color: scheme.primary,
                               )
@@ -1165,7 +1167,7 @@ class _EmptyPlayer extends StatelessWidget {
             child: IconButton(
               tooltip: '收起',
               iconSize: 30,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              icon: const Icon(AppIcons.chevronDown),
               onPressed: () => Navigator.of(context).maybePop(),
             ),
           ),
@@ -1187,7 +1189,7 @@ class _EmptyPlayer extends StatelessWidget {
                     ),
                   ),
                   child: Icon(
-                    Icons.music_note_rounded,
+                    AppIcons.music,
                     size: 48,
                     color: scheme.onSurfaceVariant,
                   ),

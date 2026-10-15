@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/models/music_item.dart';
@@ -112,7 +114,7 @@ class _QualityTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(11),
         ),
         child: const Icon(
-          Icons.download_rounded,
+          AppIcons.download,
           color: Colors.white,
           size: 18,
         ),

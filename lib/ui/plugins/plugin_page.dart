@@ -3,6 +3,9 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/plugins/plugin_info.dart';
 import 'package:musicx/core/search/source_selection.dart';
@@ -99,7 +102,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: '/path/to/plugin.js',
-                prefixIcon: Icon(Icons.insert_drive_file_outlined),
+                prefixIcon: Icon(AppIcons.insertFile),
               ),
             ),
           ],
@@ -148,7 +151,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 hintText: 'https://example.com/plugin/index.js',
-                prefixIcon: Icon(Icons.link_rounded),
+                prefixIcon: Icon(AppIcons.link),
               ),
             ),
           ],
@@ -326,7 +329,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               keyboardType: TextInputType.url,
               decoration: const InputDecoration(
                 hintText: 'https://example.com/plugins.json',
-                prefixIcon: Icon(Icons.rss_feed_rounded),
+                prefixIcon: Icon(AppIcons.rss),
               ),
             ),
           ],
@@ -481,7 +484,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 ),
                 ListTile(
                   leading: Icon(
-                    Icons.auto_awesome_rounded,
+                    AppIcons.autoAwesome,
                     color: scheme.onSurfaceVariant,
                   ),
                   title: const Text('自动'),
@@ -492,7 +495,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                   ),
                   trailing: current == null
-                      ? Icon(Icons.check_circle_rounded, color: scheme.primary)
+                      ? Icon(AppIcons.checkCircle, color: scheme.primary)
                       : null,
                   onTap: () => Navigator.pop(ctx, autoMark),
                 ),
@@ -511,7 +514,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                               borderRadius: BorderRadius.circular(11),
                             ),
                             child: const Icon(
-                              Icons.extension_rounded,
+                              AppIcons.extension,
                               color: Colors.white,
                               size: 18,
                             ),
@@ -525,7 +528,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                           ),
                           trailing: current == p.platform
                               ? Icon(
-                                  Icons.check_circle_rounded,
+                                  AppIcons.checkCircle,
                                   color: scheme.primary,
                                 )
                               : null,
@@ -561,7 +564,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
           content: Row(
             children: [
               Icon(
-                result.ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                result.ok ? AppIcons.checkCircle : AppIcons.cancel,
                 color: result.ok ? const Color(0xFF34D399) : Colors.white,
                 size: 18,
               ),
@@ -603,6 +606,20 @@ class _PluginPageState extends ConsumerState<PluginPage> {
   }
 
   /// 当前选中区块的内容(宽屏右侧)。
+  /// 用户自己装的音源:内置与历史内置都不算。
+  ///
+  /// 顶部计数与「已安装音源」行共用这一处口径,避免一边显示 3、一边一个都看不到。
+  List<PluginInfo> _userVisiblePlugins(List<PluginInfo> plugins) => [
+        for (final p in plugins)
+          if (!_bundledPlatforms.contains(p.platform) &&
+              !isBundledPluginSource(
+                platform: p.platform,
+                srcUrl: p.srcUrl ?? '',
+                catalog: _bundledCatalog,
+              ))
+            p,
+      ];
+
   List<Widget> _sectionContent(
     _SettingsSection section,
     List<PluginInfo> plugins,
@@ -617,16 +634,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         // 识别必须覆盖**历史遗留的内置源**:内置源改过名(网易音乐 → 网yi)、
         // 也下过线(酷我(独家音源)),老文件还留在设备上,只看当前平台名会把
         // 它们当成用户音源列出来(用户反馈:默认音源列表里冒出一堆没见过的源)。
-        final userPlugins = [
-          for (final p in plugins)
-            if (!_bundledPlatforms.contains(p.platform) &&
-                !isBundledPluginSource(
-                  platform: p.platform,
-                  srcUrl: p.srcUrl ?? '',
-                  catalog: _bundledCatalog,
-                ))
-              p,
-        ];
+        final userPlugins = _userVisiblePlugins(plugins);
         return [
           // 没有任何音源(含内置)时,在分组内显示引导卡片而不是整页替换,
           // 否则「通用 → 检查更新 / 关于(版本号)」会一起消失。
@@ -655,7 +663,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               if (userPlugins.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 _MenuItemRow(
-                  icon: Icons.library_music_rounded,
+                  icon: AppIcons.library,
                   title: '已安装音源',
                   trailing: '${userPlugins.length}',
                   onTap: () => _openSourceManager(userPlugins),
@@ -673,7 +681,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               _AppearanceSection(),
               if (DesktopLyricsService.supported)
                 _MenuItemRow(
-                  icon: Icons.lyrics_rounded,
+                  icon: AppIcons.lyricsActive,
                   title: '桌面歌词',
                   trailing:
                       '${lyrics.cardStyle == LyricsCardStyle.plain ? '纯文字' : '毛玻璃'}'
@@ -697,7 +705,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               if (Platform.isAndroid) ...[
                 const SizedBox(height: 8),
                 _MenuItemRow(
-                  icon: Icons.restart_alt_rounded,
+                  icon: AppIcons.restart,
                   title: '重启应用',
                   trailing: '安装新版本后点这里',
                   onTap: () => ApkInstaller.restartApp(),
@@ -719,7 +727,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         actions: [
           PopupMenuButton<_InstallAction>(
             tooltip: '安装插件',
-            icon: const Icon(Icons.add_rounded),
+            icon: const Icon(AppIcons.add),
             onSelected: (action) => switch (action) {
               _InstallAction.bundled => _downloadBundledSources(),
               _InstallAction.url => _installFromUrl(),
@@ -730,7 +738,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.bundled,
                 child: ListTile(
-                  leading: Icon(Icons.widgets_rounded),
+                  leading: Icon(AppIcons.widgets),
                   title: Text('下载音源'),
                   subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
@@ -739,7 +747,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(
-                  leading: Icon(Icons.link_rounded),
+                  leading: Icon(AppIcons.link),
                   title: Text('在线安装'),
                   subtitle: Text('输入插件 JS 的 URL'),
                   contentPadding: EdgeInsets.zero,
@@ -748,7 +756,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.source,
                 child: ListTile(
-                  leading: Icon(Icons.rss_feed_rounded),
+                  leading: Icon(AppIcons.rss),
                   title: Text('导入订阅源'),
                   subtitle: Text('浏览 plugins.json 中的插件'),
                   contentPadding: EdgeInsets.zero,
@@ -757,7 +765,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
               PopupMenuItem(
                 value: _InstallAction.file,
                 child: ListTile(
-                  leading: Icon(Icons.insert_drive_file_outlined),
+                  leading: Icon(AppIcons.insertFile),
                   title: Text('本地文件'),
                   subtitle: Text('从磁盘路径安装'),
                   contentPadding: EdgeInsets.zero,
@@ -800,7 +808,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                     ),
                     children: [
                       _ProfileCard(
-                        pluginCount: plugins.length,
+                        pluginCount: _userVisiblePlugins(plugins).length,
                         onInstall: _installFromUrl,
                       ),
                       const SizedBox(height: 22),
@@ -862,35 +870,68 @@ class _AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themePreferenceProvider);
     final notifier = ref.read(themePreferenceProvider.notifier);
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: SegmentedButton<ThemeMode>(
-        emptySelectionAllowed: false,
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(
-            value: ThemeMode.light,
-            label: Text('浅色'),
-            icon: Icon(Icons.light_mode_outlined),
-          ),
-          ButtonSegment(
-            value: ThemeMode.dark,
-            label: Text('深色'),
-            icon: Icon(Icons.dark_mode_outlined),
-          ),
-        ],
-        selected: {mode},
-        onSelectionChanged: (s) {
-          if (s.contains(ThemeMode.dark)) {
-            notifier.setDark();
-          } else {
-            notifier.setLight();
-          }
-        },
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const ValueKey('settings-row-主题'),
+      height: AppSize.rowHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(AppIcons.palette, size: AppSize.icon, color: scheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                '主题',
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: AppText.rowTitle,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            // 紧凑分段控件:此前高度接近 56、圆角大,是页面里最抢眼的控件。
+            SegmentedButton<ThemeMode>(
+              emptySelectionAllowed: false,
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                ),
+                textStyle: const WidgetStatePropertyAll(
+                  TextStyle(fontSize: AppText.rowSubtitle, fontWeight: FontWeight.w500),
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                  ),
+                ),
+              ),
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('浅色'),
+                  icon: Icon(AppIcons.lightMode),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('深色'),
+                  icon: Icon(AppIcons.darkMode),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) {
+                if (s.contains(ThemeMode.dark)) {
+                  notifier.setDark();
+                } else {
+                  notifier.setLight();
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -925,11 +966,11 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
         onTap: widget.onInstall,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
@@ -942,7 +983,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.music_note_rounded,
+                  AppIcons.music,
                   color: scheme.primary,
                   size: 22,
                 ),
@@ -971,16 +1012,19 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                   ],
                 ),
               ),
-              Text(
-                '${widget.pluginCount} 个音源',
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              // 只算用户自己装的音源(内置/历史内置不算);一个都没有时不显示数字,
+              // 否则顶部写着「3 个音源」而列表里一个都看不到(口径不一致)。
+              if (widget.pluginCount > 0)
+                Text(
+                  '${widget.pluginCount} 个音源',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: AppText.rowSubtitle,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
               Icon(
-                Icons.chevron_right_rounded,
+                AppIcons.chevronRight,
                 color: scheme.outline,
                 size: 18,
               ),
@@ -999,11 +1043,14 @@ class _SectionTitle2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      style: TextStyle(
+        fontSize: AppText.sectionTitle,
+        fontWeight: FontWeight.w600,
+        color: scheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -1034,17 +1081,14 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      // 不再自带背景与圆角:它已经在设置分组的白卡里,卡中卡就是「看着乱」的来源之一。
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 18, color: scheme.primary),
+              Icon(AppIcons.info, size: 18, color: scheme.primary),
               const SizedBox(width: 6),
               Text(
                 '关于 MusicX',
@@ -1088,38 +1132,38 @@ class _DefaultSourceRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      key: const ValueKey('settings-row-默认音源'),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(Icons.tune_rounded, size: 20, color: scheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '默认音源',
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+        child: SizedBox(
+          height: AppSize.rowHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Row(
+              children: [
+                Icon(AppIcons.tune, size: AppSize.icon, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    '默认音源',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                current ?? '自动',
-                style: textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                Text(
+                  current ?? '自动',
+                  style: textTheme.bodySmall?.copyWith(
+                    fontSize: AppText.rowSubtitle,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: scheme.outline,
-              ),
-            ],
+                const SizedBox(width: AppSpacing.xs),
+                Icon(AppIcons.chevronRight, size: AppSize.icon, color: scheme.outline),
+              ],
+            ),
           ),
         ),
       ),
@@ -1169,7 +1213,7 @@ class _EditSourceDialogState extends State<_EditSourceDialog> {
             autofocus: true,
             decoration: const InputDecoration(
               labelText: '音源名称',
-              prefixIcon: Icon(Icons.label_outline_rounded),
+              prefixIcon: Icon(AppIcons.label),
             ),
           ),
           const SizedBox(height: 12),
@@ -1179,7 +1223,7 @@ class _EditSourceDialogState extends State<_EditSourceDialog> {
             decoration: const InputDecoration(
               labelText: '音源地址 (srcUrl)',
               hintText: 'https://example.com/plugin.js',
-              prefixIcon: Icon(Icons.link_rounded),
+              prefixIcon: Icon(AppIcons.link),
             ),
           ),
         ],
@@ -1249,7 +1293,7 @@ class _PluginCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
               ),
               child: const Icon(
-                Icons.extension_rounded,
+                AppIcons.extension,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1329,19 +1373,19 @@ class _PluginCard extends StatelessWidget {
             if (onTest != null)
               IconButton(
                 tooltip: '测试音源',
-                icon: Icon(Icons.radar_rounded, color: scheme.onSurfaceVariant),
+                icon: Icon(AppIcons.radar, color: scheme.onSurfaceVariant),
                 onPressed: onTest,
               ),
             IconButton(
               tooltip: '编辑',
-              icon: Icon(Icons.edit_outlined, color: scheme.onSurfaceVariant),
+              icon: Icon(AppIcons.edit, color: scheme.onSurfaceVariant),
               onPressed: onEdit,
             ),
             const SizedBox(width: 2),
             IconButton(
               tooltip: '卸载',
               icon: Icon(
-                Icons.delete_outline_rounded,
+                AppIcons.delete,
                 color: scheme.onSurfaceVariant,
               ),
               onPressed: onDelete,
@@ -1385,7 +1429,7 @@ class _EmptyPlugins extends StatelessWidget {
                 borderRadius: BorderRadius.circular(28),
               ),
               child: const Icon(
-                Icons.extension_rounded,
+                AppIcons.extension,
                 color: Colors.white,
                 size: 42,
               ),
@@ -1412,13 +1456,13 @@ class _EmptyPlugins extends StatelessWidget {
             // 内置音源等于白做。这里把一键下载放到首屏主按钮位置。
             FilledButton.icon(
               onPressed: onDownloadBundled,
-              icon: const Icon(Icons.download_rounded),
+              icon: const Icon(AppIcons.download),
               label: const Text('下载内置音源'),
             ),
             const SizedBox(height: 10),
             TextButton.icon(
               onPressed: onInstall,
-              icon: const Icon(Icons.link_rounded),
+              icon: const Icon(AppIcons.link),
               label: const Text('在线安装插件'),
             ),
           ],
@@ -1487,7 +1531,7 @@ class _SourceSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
-                      Icons.extension_rounded,
+                      AppIcons.extension,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -1540,37 +1584,55 @@ class _FilterCoversRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hide = ref.watch(hideCoversProvider);
-    return Row(
-      children: [
-        Icon(
-          Icons.verified_rounded,
-          size: 20,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '过滤翻唱',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      key: const ValueKey('settings-row-过滤翻唱'),
+      height: AppSize.rowHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: Row(
+          children: [
+            Icon(AppIcons.verified, size: AppSize.icon, color: scheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '过滤翻唱',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontSize: AppText.rowSubtitle,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                '隐藏翻唱/伴奏/纯音乐版本,只留正版原唱',
-                style: Theme.of(context).textTheme.bodySmall,
+            ),
+            // 开关收敛:此前是满高的大号红胶囊,抢视线。Flutter 的 Switch 视觉尺寸
+            // 固定(约 52x32),去掉点击热区内边距后仍偏大,故再缩一档贴近 NutUI。
+            Transform.scale(
+              scale: 0.85,
+              child: Switch(
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                value: hide,
+                onChanged: (v) => ref.read(hideCoversProvider.notifier).update(v),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        Switch(
-          value: hide,
-          onChanged: (v) => ref.read(hideCoversProvider.notifier).update(v),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -1583,9 +1645,9 @@ class _SettingsSidebar extends StatelessWidget {
   final ValueChanged<_SettingsSection> onSelect;
 
   static const _tabs = [
-    (_SettingsSection.sources, Icons.library_music_rounded, '音乐源'),
-    (_SettingsSection.appearance, Icons.palette_outlined, '外观'),
-    (_SettingsSection.general, Icons.settings_rounded, '通用'),
+    (_SettingsSection.sources, AppIcons.library, '音乐源'),
+    (_SettingsSection.appearance, AppIcons.palette, '外观'),
+    (_SettingsSection.general, AppIcons.settingsActive, '通用'),
   ];
 
   @override
@@ -1690,12 +1752,13 @@ class _SettingsGroup extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(16),
+            // 白卡:此前用 M3 默认的 surfaceContainer(淡紫灰),在灰底上显脏。
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.card),
           ),
-          // 统一布局:组内不再靠零散的 SizedBox 撑间距,而是「行 + 细分隔线」,
-          // 行高由各行自己保证(min 56),视觉更整齐(用户反馈设置页看着乱)。
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          // 统一布局:组内是「行 + 内缩分割线」,行高由各行自己保证(56),
+          // 卡片本身不再加横向内边距 —— 行的 16px 内边距就是卡片内容边距,
+          // 分割线也从同一列起(视觉上与图标列对齐)。
           child: Column(
             children: [
               for (var i = 0; i < children.length; i++) ...[
@@ -1703,10 +1766,8 @@ class _SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     thickness: 1,
-                    indent: 48,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: .4),
+                    indent: AppSize.dividerInset,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 children[i],
               ],
@@ -1737,51 +1798,41 @@ class _MenuItemRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Material(
+      key: ValueKey('settings-row-$title'),
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
+        child: SizedBox(
+          height: AppSize.rowHeight,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Row(
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: .10),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, size: 18, color: scheme.primary),
-                ),
-                const SizedBox(width: 12),
+                // 图标统一 20/次要色:此前是 18px 图标 + 粉底圆角方块,
+                // 与同页别处(纯色图标、红底圆形)三种样式混排。
+                Icon(icon, size: AppSize.icon, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontSize: AppText.rowTitle,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 if (trailing != null)
                   Text(
                     trailing!,
                     style: textTheme.bodySmall?.copyWith(
+                      fontSize: AppText.rowSubtitle,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.xs),
                 Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
+                  AppIcons.chevronRight,
+                  size: AppSize.icon,
                   color: scheme.outline,
                 ),
               ],
@@ -1833,7 +1884,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
         actions: [
           PopupMenuButton<_InstallAction>(
             tooltip: '安装插件',
-            icon: const Icon(Icons.add_rounded),
+            icon: const Icon(AppIcons.add),
             onSelected: (action) => switch (action) {
               _InstallAction.bundled => widget.onInstallBundled(),
               _InstallAction.url => widget.onInstallUrl(),
@@ -1844,7 +1895,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.bundled,
                 child: ListTile(
-                  leading: Icon(Icons.widgets_rounded),
+                  leading: Icon(AppIcons.widgets),
                   title: Text('下载音源'),
                   subtitle: Text('App 内置,一键安装'),
                   contentPadding: EdgeInsets.zero,
@@ -1853,7 +1904,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.url,
                 child: ListTile(
-                  leading: Icon(Icons.link_rounded),
+                  leading: Icon(AppIcons.link),
                   title: Text('在线安装'),
                   subtitle: Text('输入插件 JS 的 URL'),
                   contentPadding: EdgeInsets.zero,
@@ -1862,7 +1913,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.source,
                 child: ListTile(
-                  leading: Icon(Icons.rss_feed_rounded),
+                  leading: Icon(AppIcons.rss),
                   title: Text('导入订阅源'),
                   subtitle: Text('浏览 plugins.json 中的插件'),
                   contentPadding: EdgeInsets.zero,
@@ -1871,7 +1922,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
               PopupMenuItem(
                 value: _InstallAction.file,
                 child: ListTile(
-                  leading: Icon(Icons.insert_drive_file_outlined),
+                  leading: Icon(AppIcons.insertFile),
                   title: Text('本地文件'),
                   subtitle: Text('从磁盘路径安装'),
                   contentPadding: EdgeInsets.zero,
@@ -1912,7 +1963,7 @@ class _SourceManagerPageState extends ConsumerState<_SourceManagerPage> {
                           ).colorScheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
-                        icon: const Icon(Icons.add_rounded, size: 18),
+                        icon: const Icon(AppIcons.add, size: 18),
                         label: const Text('安装'),
                       ),
                     ],

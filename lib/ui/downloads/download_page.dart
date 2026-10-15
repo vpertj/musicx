@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/core/download/download_controller.dart';
@@ -33,7 +35,7 @@ class DownloadPage extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.download_for_offline_outlined,
+                    AppIcons.downloaded,
                     size: 56,
                     color: scheme.outline,
                   ),
@@ -84,14 +86,14 @@ class DownloadPage extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
                         icon: const Icon(
-                          Icons.playlist_play_rounded,
+                          AppIcons.playlistPlay,
                           size: 18,
                         ),
                         label: const Text('全部播放'),
                       ),
                       IconButton(
                         tooltip: '打开下载文件夹',
-                        icon: const Icon(Icons.folder_open_rounded, size: 20),
+                        icon: const Icon(AppIcons.folder, size: 20),
                         onPressed: () async {
                           final dir = DownloadController.downloadDir();
                           await openPath(dir.path);
@@ -154,7 +156,7 @@ class DownloadPage extends ConsumerWidget {
                               tooltip: '加入歌单',
                               iconSize: 20,
                               visualDensity: VisualDensity.compact,
-                              icon: const Icon(Icons.playlist_add_rounded),
+                              icon: const Icon(AppIcons.addToPlaylist),
                               onPressed: () =>
                                   showPlaylistPicker(context, ref, d.song),
                             ),
@@ -163,7 +165,7 @@ class DownloadPage extends ConsumerWidget {
                               iconSize: 20,
                               visualDensity: VisualDensity.compact,
                               icon: Icon(
-                                Icons.delete_outline_rounded,
+                                AppIcons.delete,
                                 color: scheme.onSurfaceVariant,
                               ),
                               onPressed: () => ref

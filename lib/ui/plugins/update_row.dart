@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'package:musicx/ui/icons.dart';
 import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
@@ -66,8 +68,8 @@ Future<void> showUpdatePrompt(BuildContext context, UpdateInfo info) async {
           },
           icon: Icon(
             UpdateService.canAutoInstall
-                ? Icons.download_rounded
-                : Icons.open_in_new_rounded,
+                ? AppIcons.download
+                : AppIcons.openExternal,
             size: 18,
           ),
           label: Text(UpdateService.canAutoInstall ? '立即更新' : '前往下载'),
@@ -145,8 +147,8 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
             children: [
               Icon(
                 hasUpdate
-                    ? Icons.system_update_alt_rounded
-                    : Icons.update_rounded,
+                    ? AppIcons.updateAlt
+                    : AppIcons.update,
                 size: 20,
                 color: hasUpdate ? scheme.primary : scheme.onSurfaceVariant,
               ),
@@ -181,7 +183,7 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
                 ),
               ),
               Icon(
-                Icons.chevron_right_rounded,
+                AppIcons.chevronRight,
                 size: 18,
                 color: scheme.outline,
               ),
@@ -274,7 +276,7 @@ class _UpdateProgressDialog extends ConsumerWidget {
         children: [
           if (handedOff) ...[
             Icon(
-              Icons.check_circle_outline_rounded,
+              AppIcons.checkCircleOutlined,
               size: 40,
               color: scheme.primary,
             ),
@@ -295,7 +297,7 @@ class _UpdateProgressDialog extends ConsumerWidget {
               ),
             ),
           ] else if (failed) ...[
-            Icon(Icons.error_outline_rounded, size: 40, color: scheme.error),
+            Icon(AppIcons.error, size: 40, color: scheme.error),
             const SizedBox(height: 12),
             // 诊断信息可能较长(含版本号/versionCode/签名指纹),
             // 限高可滚动 + 可选中,方便用户复制数字反馈问题。
