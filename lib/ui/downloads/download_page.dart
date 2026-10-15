@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
 import 'package:musicx/core/download/download_controller.dart';
@@ -39,16 +40,16 @@ class DownloadPage extends ConsumerWidget {
                     size: 56,
                     color: scheme.outline,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.lg),
                   Text(
                     '还没有下载的歌曲',
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.xs + 2),
                   Text(
-                    '在搜索结果点「⬇」选择音质下载',
+                    '在搜索结果点下载图标选择音质',
                     style: textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -60,7 +61,12 @@ class DownloadPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                    ),
                   child: Row(
                     children: [
                       Expanded(
@@ -105,7 +111,12 @@ class DownloadPage extends ConsumerWidget {
                 const Divider(height: 1),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
+                    padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          AppSpacing.xs,
+                          AppSpacing.md,
+                          AppSpacing.lg,
+                        ),
                     itemCount: downloads.length,
                     itemBuilder: (context, i) {
                       final d = downloads[i];
@@ -140,7 +151,7 @@ class DownloadPage extends ConsumerWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: scheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(AppRadius.chip),
                               ),
                               child: Text(
                                 qualityLabel,

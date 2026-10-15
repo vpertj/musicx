@@ -41,7 +41,8 @@ void main() {
       AppIcons.addToPlaylist, AppIcons.library, AppIcons.libraryOutlined,
       AppIcons.album, AppIcons.download, AppIcons.downloaded,
       AppIcons.downloadedActive, AppIcons.delete, AppIcons.insertFile,
-      AppIcons.search, AppIcons.searchOff, AppIcons.fire, AppIcons.radar,
+      AppIcons.search, AppIcons.searchOff, AppIcons.fire, AppIcons.chart,
+      AppIcons.radar,
       AppIcons.history, AppIcons.rss, AppIcons.autoAwesome, AppIcons.favorite,
       AppIcons.favoriteActive, AppIcons.checkCircle, AppIcons.checkCircleOutlined,
       AppIcons.cancel, AppIcons.removeCircle, AppIcons.addCircle,
@@ -55,8 +56,8 @@ void main() {
       AppIcons.lyricsActive, AppIcons.subtitles, AppIcons.textFields,
       AppIcons.viewAgenda, AppIcons.viewDay, AppIcons.blur, AppIcons.music,
     ];
-    // 73 个语义与 lib/ui/icons.dart 一一对应(改了语义层就要同步这份清单)
-    expect(icons, hasLength(73));
+    // 与 lib/ui/icons.dart 一一对应(改了语义层就要同步这份清单)
+    expect(icons, hasLength(74));
     // 选中/未选中必须成对存在(底部导航与收藏用到),且不能是同一个字形。
     expect(AppIcons.explore, isNot(AppIcons.exploreActive));
     expect(AppIcons.favorite, isNot(AppIcons.favoriteActive));

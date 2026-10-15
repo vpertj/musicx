@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
@@ -76,8 +77,8 @@ class MiniPlayerBar extends ConsumerWidget {
           InkWell(
             onTap: onOpen,
             child: Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: AppSize.miniPlayerHeight,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Row(
                 children: [
                   Hero(

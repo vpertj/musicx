@@ -511,7 +511,7 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                             height: 38,
                             decoration: BoxDecoration(
                               gradient: AppTheme.softGradient,
-                              borderRadius: BorderRadius.circular(11),
+                              borderRadius: BorderRadius.circular(AppRadius.chip),
                             ),
                             child: const Icon(
                               AppIcons.extension,
@@ -980,7 +980,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                 height: 38,
                 decoration: BoxDecoration(
                   color: scheme.primary.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
                 child: Icon(
                   AppIcons.music,
@@ -1272,7 +1272,7 @@ class _PluginCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
           color: selected
               ? scheme.primary.withValues(alpha: .6)
@@ -1282,7 +1282,7 @@ class _PluginCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Row(
           children: [
             Container(
@@ -1290,7 +1290,7 @@ class _PluginCard extends StatelessWidget {
               height: 52,
               decoration: BoxDecoration(
                 gradient: AppTheme.softGradient,
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(AppRadius.control),
               ),
               child: const Icon(
                 AppIcons.extension,
@@ -1426,7 +1426,7 @@ class _EmptyPlugins extends StatelessWidget {
               height: 96,
               decoration: BoxDecoration(
                 gradient: AppTheme.softGradient,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(AppRadius.card),
               ),
               child: const Icon(
                 AppIcons.extension,
@@ -1528,7 +1528,7 @@ class _SourceSheet extends StatelessWidget {
                     height: 42,
                     decoration: BoxDecoration(
                       gradient: AppTheme.softGradient,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.control),
                     ),
                     child: const Icon(
                       AppIcons.extension,
@@ -1695,10 +1695,10 @@ class _SidebarItem extends StatelessWidget {
       color: selected
           ? scheme.primary.withValues(alpha: .12)
           : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.control),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.control),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(

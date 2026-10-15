@@ -46,6 +46,7 @@ abstract final class AppIcons {
   static const IconData search = TablerIcons.search;
   static const IconData searchOff = TablerIcons.search_off;
   static const IconData fire = TablerIcons.flame;
+  static const IconData chart = TablerIcons.chart_bar; // 排行榜
   static const IconData radar = TablerIcons.radar_2;
   static const IconData history = TablerIcons.history;
   static const IconData rss = TablerIcons.rss;

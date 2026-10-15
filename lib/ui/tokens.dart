@@ -34,6 +34,19 @@ abstract final class AppSize {
   /// 空态、大按钮、播放页主控。
   static const double iconLarge = 24;
 
+  /// 芯片内的小图标(比行内图标再小一档)。
+  static const double iconSmall = 16;
+
+  /// 空态插画图标(播放页/曲库/下载页共用同一档)。
+  static const double iconEmpty = 56;
+
+  /// 迷你播放条高度:设置/列表页底部留白按它算,避免最后一行被压住。
+  static const double miniPlayerHeight = 60;
+
+  /// 芯片统一高度:此前 5 处芯片各写各的(52 行高 + 圆角 18/20 + emoji 前缀),
+  /// 同屏并列时高低不齐。
+  static const double chipHeight = 36;
+
   /// 分割线左内缩(与图标列对齐)。
   static const double dividerInset = 16;
 }

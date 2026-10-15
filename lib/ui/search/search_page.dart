@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
+import 'package:musicx/ui/widgets/app_chip.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/player/player_controller.dart';
 import 'package:musicx/core/search/chart_selection.dart';
@@ -11,7 +13,6 @@ import 'package:musicx/core/search/search_history.dart';
 import 'package:musicx/core/search/recommend.dart';
 import 'package:musicx/core/search/source_selection.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
-import 'package:musicx/theme/app_theme.dart';
 import 'package:musicx/ui/search/chart_detail_page.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:musicx/ui/widgets/playlist_picker.dart';
@@ -719,7 +720,7 @@ class _IdleView extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 final selected = i == topListIndex;
-                return _TopListChip(
+                return AppChip(
                   label: '${topLists[i]['title'] ?? '榜单'}',
                   selected: selected,
                   onTap: () => onPickTopList?.call(i),
@@ -863,26 +864,32 @@ class _IdleView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 20),
             child: Material(
-              color: scheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(18),
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.card),
               child: InkWell(
                 onTap: onOpenPlugins,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppRadius.card),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        width: 38,
-                        height: 38,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          gradient: AppTheme.softGradient,
-                          borderRadius: BorderRadius.circular(12),
+                          // 遗留的紫粉渐变方块 → 品牌红浅底,与新色板一致。
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.control),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           AppIcons.extension,
-                          color: Colors.white,
-                          size: 20,
+                          color: scheme.primary,
+                          size: AppSize.icon,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -920,43 +927,6 @@ class _IdleView extends StatelessWidget {
     // 没有刷新回调时不套 RefreshIndicator,避免下拉出现"永远转不完"的指示器。
     if (onRefresh == null) return list;
     return RefreshIndicator(onRefresh: onRefresh!, child: list);
-  }
-}
-
-/// 榜单芯片(热歌榜/飙升榜/新歌榜…)。
-class _TopListChip extends StatelessWidget {
-  const _TopListChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Material(
-      color: selected ? scheme.primary : scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          child: Text(
-            label,
-            style: textTheme.labelMedium?.copyWith(
-              color: selected ? Colors.white : scheme.onSurfaceVariant,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -1547,16 +1517,17 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final style = Theme.of(
-      context,
-    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700);
+    final style = Theme.of(context).textTheme.titleSmall?.copyWith(
+      fontSize: AppText.rowTitle,
+      fontWeight: FontWeight.w600,
+    );
 
     final title = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 18, color: scheme.primary),
-          const SizedBox(width: 6),
+          Icon(icon, size: AppSize.iconSmall, color: scheme.primary),
+          const SizedBox(width: AppSpacing.xs + 2),
         ],
         Flexible(
           child: Text(

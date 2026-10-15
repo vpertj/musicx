@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:musicx/core/utils/format.dart';
 import 'package:musicx/models/music_item.dart';
 import 'package:musicx/ui/widgets/artwork_view.dart';
@@ -145,7 +146,7 @@ class PlatformBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.chip),
       ),
       child: Text(
         platform,

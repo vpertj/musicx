@@ -12,6 +12,8 @@ void main() {
     expect(AppSize.icon, 20, reason: '行内图标统一尺寸');
     expect(AppSize.iconLarge, 24);
     expect(AppSize.dividerInset, 16, reason: '分割线与图标列对齐');
+    expect(AppSize.iconSmall, 16);
+    expect(AppSize.chipHeight, 36);
     expect(AppRadius.card, 14);
     expect(AppRadius.control, 10);
   });

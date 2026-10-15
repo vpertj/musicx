@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:musicx/core/updater/apk_installer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/updater/update_controller.dart';
@@ -137,10 +138,10 @@ class _UpdateRowState extends ConsumerState<UpdateRow> {
 
     return Material(
       color: scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
         onTap: () => _openUpdateDialog(context, ref, state),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
@@ -321,7 +322,7 @@ class _UpdateProgressDialog extends ConsumerWidget {
             ),
           ] else if (downloading) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.chip),
               child: LinearProgressIndicator(
                 value: state.progress > 0 ? state.progress : null,
                 minHeight: 6,

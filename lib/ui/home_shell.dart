@@ -453,7 +453,7 @@ class _Sidebar extends ConsumerWidget {
                   ? Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
-                        '还没有歌单\n在歌曲「+」或上方「＋」新建',
+                        '还没有歌单\n在歌曲「+」或上方「新建歌单」新建',
                         style: textTheme.labelSmall?.copyWith(
                           color: scheme.outline.withValues(alpha: .8),
                           height: 1.5,

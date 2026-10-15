@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
+import 'package:musicx/ui/widgets/app_chip.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/download/download_controller.dart';
@@ -219,26 +221,24 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(
-                        height: 52,
+                        // 芯片 36 + 上下各 8:此前写死 52,与别处芯片高度不一致。
+                        height: AppSize.chipHeight + AppSpacing.lg,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.sm,
                           ),
                           itemCount: fixed.length,
                           separatorBuilder: (_, _) =>
-                              const SizedBox(width: 8),
+                              const SizedBox(width: AppSpacing.sm),
                           itemBuilder: (context, i) {
                             final c = fixed[i];
-                            return _CatChip(
-                              label: switch (c.label) {
-                                '我喜欢的' => '♥ ${c.label}',
-                                _ when c.label.startsWith('下载音乐') =>
-                                  '⬇ ${c.label}',
-                                '新建歌单' => '＋ ${c.label}',
-                                _ => c.label,
-                              },
+                            // 图标走 AppIcons:此前把 ♥ / ⬇ / ＋ 拼进文案,
+                            // emoji 度量与正文不同,一排芯片高低不齐。
+                            return AppChip(
+                              label: c.label,
+                              icon: c.icon,
                               selected: c.selected,
                               onTap: c.onTap,
                             );
@@ -286,7 +286,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 },
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -302,7 +307,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              // 分割线内缩,不再通到屏幕两端
+              const Divider(
+                height: 1,
+                indent: AppSize.dividerInset,
+                endIndent: AppSize.dividerInset,
+              ),
               Expanded(
                 child: songs.isEmpty
                     ? _EmptyLibrary(
@@ -310,7 +320,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         onCreate: _createPlaylist,
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 16),
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          AppSpacing.xs,
+                          AppSpacing.md,
+                          AppSpacing.lg,
+                        ),
                         itemCount: songs.length,
                         itemBuilder: (context, i) {
                           final song = songs[i];
@@ -431,10 +446,10 @@ class _PlaylistCard extends StatelessWidget {
       color: selected
           ? scheme.primaryContainer.withValues(alpha: .55)
           : scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
@@ -446,7 +461,7 @@ class _PlaylistCard extends StatelessWidget {
                   color: selected
                       ? scheme.primary
                       : scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
                 child: Icon(
                   AppIcons.queue,
@@ -500,10 +515,10 @@ class _CategoryTile extends StatelessWidget {
         color: category.selected
             ? scheme.primaryContainer
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.control),
         child: InkWell(
           onTap: category.onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.control),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             child: Row(
@@ -546,43 +561,6 @@ class _CategoryTile extends StatelessWidget {
   }
 }
 
-class _CatChip extends StatelessWidget {
-  const _CatChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: selected ? scheme.primary : scheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Center(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? Colors.white : scheme.onSurfaceVariant,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _EmptyLibrary extends StatelessWidget {
   const _EmptyLibrary({required this.isFavorite, required this.onCreate});
 
@@ -601,7 +579,7 @@ class _EmptyLibrary extends StatelessWidget {
             isFavorite
                 ? AppIcons.favorite
                 : AppIcons.queue,
-            size: 56,
+            size: AppSize.iconEmpty,
             color: scheme.outline,
           ),
           const SizedBox(height: 16),
@@ -611,7 +589,7 @@ class _EmptyLibrary extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            isFavorite ? '在搜索结果点「+」把歌曲加入歌单吧' : '点「＋ 新建歌单」创建歌单',
+            isFavorite ? '在搜索结果点「+」把歌曲加入歌单吧' : '点上方「新建歌单」创建歌单',
             style: textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
             ),

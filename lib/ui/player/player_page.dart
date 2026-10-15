@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:musicx/ui/icons.dart';
+import 'package:musicx/ui/tokens.dart';
 import 'package:musicx/core/download/download_controller.dart';
 import 'package:musicx/core/library/library_controller.dart';
 import 'package:musicx/ui/widgets/download_picker.dart';
@@ -219,21 +220,24 @@ class _ViewToggle extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: selected ? scheme.primary : Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.control),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.control),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs + 2,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 16,
+                size: AppSize.iconSmall,
                 color: selected ? Colors.white : scheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: AppSpacing.xs + 1),
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -461,7 +465,7 @@ class _LyricViewState extends State<_LyricView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(AppIcons.lyrics, size: 56, color: scheme.outline),
+            Icon(AppIcons.lyrics, size: AppSize.iconEmpty, color: scheme.outline),
             const SizedBox(height: 14),
             Text(
               '暂无歌词',
@@ -746,6 +750,7 @@ class _Disc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: size,
       height: size,
@@ -803,9 +808,10 @@ class _Disc extends StatelessWidget {
                   child: Container(
                     width: 12,
                     height: 12,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Color(0xFF3E3557),
+                      // 遗留紫灰 #3E3557 → 主题中性色(全 App 黑白灰 + 品牌红)
+                      color: scheme.onSurfaceVariant.withValues(alpha: .55),
                     ),
                   ),
                 ),
@@ -982,7 +988,7 @@ class _TimeText extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 12,
+        fontSize: AppText.rowSubtitle,
         fontWeight: FontWeight.w500,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
