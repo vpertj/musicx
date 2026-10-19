@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:musicx/core/settings/settings_providers.dart';
 import 'package:musicx/core/updater/apk_installer.dart';
@@ -49,7 +51,32 @@ Future<void> main(List<String> args) async {
   await AppPaths.init();
   unawaited(_watchForUpgrade());
 
+  // 后台播放:注册前台媒体服务(通知栏 + 锁屏控制,息屏继续播)。
+  // 这是「息屏就停」的根因修复:此前播放全程跑在普通应用进程里,没有前台服务,
+  // 息屏后系统把进程当缓存进程冻结/回收,播放随即停止。
+  if (Platform.isAndroid || Platform.isIOS) {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.musicx.musicx.channel.audio',
+      androidNotificationChannelName: 'MusicX 播放',
+      androidNotificationOngoing: true,
+    );
+  }
+
   runApp(const ProviderScope(child: MusicxApp()));
+  unawaited(_requestNotificationPermission());
+}
+
+/// Android 13+ 需要通知权限才会显示媒体通知(前台服务与播放不受影响);
+/// 用户在系统弹窗里拒绝也不影响继续播放。
+Future<void> _requestNotificationPermission() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await const MethodChannel(
+      'musicx/installer',
+    ).invokeMethod('requestNotificationPermission');
+  } catch (_) {
+    // 老系统或渠道不可用:忽略
+  }
 }
 
 class MusicxApp extends ConsumerWidget {

@@ -352,6 +352,18 @@ class PlayerController extends Notifier<PlayerState> {
   /// 与队列平行的本地文件路径;非 null 表示当前队列为本地播放模式。
   List<String>? _localPaths;
 
+  /// 通知栏/锁屏元数据:与播放地址一起交给播放服务(just_audio_background)。
+  NowPlaying _nowPlayingOf(MusicItem song) => NowPlaying(
+    id: '${song.platform}|${song.songId}|${song.id}',
+    title: song.title,
+    artist: song.artist,
+    album: song.album,
+    artwork: song.artwork,
+    duration: song.duration == null
+        ? null
+        : Duration(milliseconds: song.duration!),
+  );
+
   Future<_PlayOutcome> _playCurrentLocal() async {
     final current = state.current;
     final paths = _localPaths;
@@ -369,7 +381,7 @@ class PlayerController extends Notifier<PlayerState> {
     final service = ref.read(playerServiceProvider);
     final path = paths[state.currentIndex];
     try {
-      await service.playUrl('file://$path');
+      await service.playUrl('file://$path', nowPlaying: _nowPlayingOf(current));
       if (token != _playToken) return _PlayOutcome.superseded;
       // 本地播放优先用**下载时存的旁挂歌词**(离线也有词)。
       final sidecar = await readLyricSidecar(path);
@@ -431,7 +443,7 @@ class PlayerController extends Notifier<PlayerState> {
       // 先发下一首预取(与播放器初始化并行),再起播 —— 缩短下一首的切换时间
       _prefetchNext();
       final service = ref.read(playerServiceProvider);
-      await service.playUrl(url);
+      await service.playUrl(url, nowPlaying: _nowPlayingOf(current));
       if (token != _playToken) return _PlayOutcome.superseded;
       // 关键:先切到「播放中」并把歌词清空,歌词在后台再取。
       // 此前这里 await 歌词解析后才置为播放中,而歌词解析包含重试与跨源兜底

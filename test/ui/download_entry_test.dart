@@ -19,7 +19,7 @@ import 'package:musicx/ui/widgets/seek_bar.dart';
 
 class _FakeService extends PlayerService {
   @override
-  Future<void> playUrl(String url) async {}
+  Future<void> playUrl(String url, {NowPlaying? nowPlaying}) async {}
   @override
   Future<void> pause() async {}
   @override

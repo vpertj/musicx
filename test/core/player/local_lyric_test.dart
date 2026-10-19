@@ -25,7 +25,7 @@ class _FakeService extends PlayerService {
   final List<String> playedUrls = [];
 
   @override
-  Future<void> playUrl(String url) async => playedUrls.add(url);
+  Future<void> playUrl(String url, {NowPlaying? nowPlaying}) async => playedUrls.add(url);
   @override
   Future<void> pause() async {}
   @override

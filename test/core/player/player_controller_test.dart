@@ -98,7 +98,7 @@ class _FakePluginManager extends PluginManager {
 class _FakePlayerService extends PlayerService {
   String? lastUrl;
   @override
-  Future<void> playUrl(String url) async {
+  Future<void> playUrl(String url, {NowPlaying? nowPlaying}) async {
     lastUrl = url;
   }
 

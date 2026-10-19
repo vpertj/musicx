@@ -39,7 +39,7 @@ class _FakeService extends PlayerService {
   Stream<Duration?> get durationStream => _duration.stream;
 
   @override
-  Future<void> playUrl(String url) async {
+  Future<void> playUrl(String url, {NowPlaying? nowPlaying}) async {
     if (failNextPlay) {
       failNextPlay = false;
       throw Exception('播放失败(模拟:流地址失效)');

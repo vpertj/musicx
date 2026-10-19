@@ -11,7 +11,7 @@ import android.os.Build
 import kotlin.system.exitProcess
 import android.provider.Settings
 import androidx.core.content.FileProvider
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -24,9 +24,30 @@ import java.security.MessageDigest
  *  - installApk:把下载好的 APK 通过 FileProvider 以 content:// 交给系统安装器。
  *    Android 8+ 需要用户在系统提示里授予「安装未知应用」权限。
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
 
     private val channelName = "musicx/installer"
+    private val notificationPermissionRequest = 1001
+
+    /**
+     * Android 13+ 通知权限:没有它媒体通知不显示(前台服务本身照常运行,
+     * 播放不受影响),但用户在通知栏看不到控制项会以为没生效。首次启动申请一次。
+     */
+    private fun requestNotificationPermission() {
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    requestPermissions(
+                        arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                        notificationPermissionRequest,
+                    )
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
 
     /** 版本号变化时由 Flutter 侧调用:重启应用以加载新版本代码。 */
     private fun restartApp() {
@@ -99,6 +120,11 @@ class MainActivity : FlutterActivity() {
                     // 跳到「安装未知应用」授权页
                     "openInstallPermissionSettings" -> {
                         openInstallPermissionSettings()
+                        result.success(true)
+                    }
+                    // Android 13+ 媒体通知权限(后台播放的通知/锁屏控制)
+                    "requestNotificationPermission" -> {
+                        requestNotificationPermission()
                         result.success(true)
                     }
                     // 回到前台:Flutter 侧据此检测「应用是否已被新版本替换」

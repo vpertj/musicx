@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  release 构建默认开启资源压缩(shrinkResources)。audio_service 的通知图标
+  (audio_service_stop / audio_service_play_arrow / …)只在 Java 里通过
+  getIdentifier("audio_service_stop", "drawable", packageName) **按名字**查找,
+  AAPT 静态分析看不到引用 → 整批被裁掉。后果(实测):
+    java.lang.IllegalArgumentException: You must specify an icon resource id
+    to build a CustomAction  (AudioService.setState, Android 13+ 构建 STOP 按钮)
+  → 媒体通知与前台服务起不来 → 息屏后播放照样被系统冻结。
+
+  这里显式保留:换掉资源名就等于把后台播放又改坏。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/audio_service_*" />

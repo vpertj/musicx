@@ -1,16 +1,32 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 音乐播放器核心依赖网络(搜索/播放/歌词/下载),release 构建必须声明 INTERNET。
          注意:flutter 默认只在 debug/profile manifest 声明,release 需在此显式声明。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- 音源接口大量使用明文 http(酷我/QQ/网易等第三方端点),Android 9+ 默认
+    <!-- 媒体接口大量使用明文 http(酷我/QQ/网易等第三方端点),Android 9+ 默认
          禁止明文会导致「搜不到歌」;这里显式放开(应用仅从 GitHub 分发)。 -->
     <!-- 应用内更新:下载 APK 后调起系统安装器(Android 8+ 需用户授权未知来源) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+    <!-- 后台播放(just_audio_background / audio_service):
+         没有前台服务时,息屏后系统会把进程当缓存进程冻结/回收,播放随即停止
+         (用户反馈「手机听歌息屏就停」)。这三条是前台媒体服务的硬要求:
+         WAKE_LOCK 播放期间持锁;FOREGROUND_SERVICE + MEDIA_PLAYBACK 才能在
+         Android 10+ / 14+ 起前台服务。 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <!-- Android 13+ 通知权限:没有它媒体通知不显示(播放本身不受影响),
+         首次启动时向用户申请。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="musicx"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- MainActivity 继承 com.ryanheise.audioservice.AudioServiceActivity
+             (见 MainActivity.kt),因此清单里仍写 .MainActivity。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,6 +49,24 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- 前台媒体服务:息屏/切后台继续播放的核心。 -->
+        <service android:name="com.ryanheise.audioservice.AudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true" tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!-- 耳机/蓝牙的媒体按键(播放/暂停/上一首/下一首)。 -->
+        <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true" tools:ignore="Instantiatable">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <!-- 应用内更新:把 cache 目录里的 APK 以 content:// 交给系统安装器 -->
         <provider
             android:name="androidx.core.content.FileProvider"
